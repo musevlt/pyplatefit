@@ -1,0 +1,118 @@
+# Reference expected output of the pPXF examples.
+# PPXF package file ppxf_python_2017-04-20.zip
+# Python 3.6 using NumPy 1.12, SciPy 0.19, Matplotlib 2.0
+###############################################################################
+
+>>> runfile('ppxf_example_kinematics_sauron.py', wdir=r'public_programs/ppxf')
+
+Best Fit:       Vel     sigma        h3        h4
+ comp. 0:       436       112     0.033     0.068
+chi2/DOF: 1.015
+Function evaluations: 34 Status: 1
+Nonzero Templates:  10  /  144
+Formal errors:
+     dV    dsigma   dh3      dh4
+     2.5     5.4   0.019   0.033
+Elapsed time in PPXF: 2.92 s
+
+###############################################################################
+
+>>> runfile('ppxf_example_kinematics_sdss.py', wdir=r'public_programs/ppxf')
+
+Best Fit:       Vel     sigma        h3        h4
+ comp. 0:       930       227    -0.023     0.083
+chi2/DOF: 1.033
+Function evaluations: 22 Status: 1
+Nonzero Templates:  5  /  144
+Formal errors:
+     dV    dsigma   dh3      dh4
+     2.6     3.5  0.0093   0.011
+Elapsed time in PPXF: 2.56 s
+
+###############################################################################
+
+>>> runfile('ppxf_example_population_gas_sdss.py', wdir=r'public_programs/ppxf')
+
+Emission lines included in gas templates:
+['Hdelta' 'Hgamma' 'Hbeta' 'Halpha' '[SII]6716' '[SII]6731' '[OIII]5007d'
+ '[OI]6300d' '[NII]6583d']
+Best Fit:       Vel     sigma        h3        h4
+ comp. 0:      1212        99    -0.030     0.046
+ comp. 1:      1203        75
+chi2/DOF: 1.026
+Function evaluations: 87 Status: 1
+Nonzero Templates:  42  /  153
+Desired Delta Chi^2: 76.11
+Current Delta Chi^2: 75.39
+Elapsed time in PPXF: 11.97 s
+++++++++++++++++++++++++++++++
+Gas V=1203 and sigma=75 km/s
+Emission lines fluxes:
+      Hdelta: 0.112
+      Hgamma: 0.236
+       Hbeta: 0.426
+      Halpha: 1.11
+   [SII]6716: 0.253
+   [SII]6731: 0.189
+ [OIII]5007d: 1.27
+   [OI]6300d: 0.0638
+  [NII]6583d: 0.42
+------------------------------
+Weighted <logAge> [yr]: 10
+Weighted <[M/H]>: -0.0228
+M/L_r: 4.932
+
+###############################################################################
+
+>>> runfile('ppxf_example_population_sdss.py', wdir=r'public_programs/ppxf')
+
+Best Fit:       Vel     sigma        h3        h4
+ comp. 0:      1296        98    -0.035     0.054
+chi2/DOF: 1.028
+Function evaluations: 77 Status: 1
+Nonzero Templates:  33  /  144
+Desired Delta Chi^2: 73.2
+Current Delta Chi^2: 74.72
+Elapsed time in PPXF: 8.23 s
+Weighted <logAge> [yr]: 10
+Weighted <[M/H]>: -0.0174
+M/L_r: 4.935
+
+###############################################################################
+
+>>> runfile('ppxf_example_sky_and_symmetric_losvd.py', wdir=r'public_programs/ppxf')
+
+The input values are: Vel=200, sigma=300, h3=0.1, h4=0.1
+
+Best Fit:       Vel     sigma        h3        h4
+ comp. 0:       200       300     0.106     0.099
+chi2/DOF: 0.9664
+Function evaluations: 41 Status: 1
+Nonzero Templates:  12  /  153
+Elapsed time in pPXF: 9.92 s
+
+###############################################################################
+
+>>> runfile('ppxf_example_two_components.py', wdir=r'public_programs/ppxf')
+
++++++++++++++++++++++++++++++++++++++++++++++
+Best Fit:       Vel     sigma
+ comp. 0:       251       100
+ comp. 1:         2       201
+chi2/DOF: 1.007
+Function evaluations: 38 Status: 1
+Nonzero Templates:  3  /  4
+Templates weights:
+         0     0.992      1.01   0.00346
+---------------------------------------------
+Best Fit:       Vel     sigma
+ comp. 0:       185       186
+chi2/DOF: 2.904
+Function evaluations: 14 Status: 1
+Nonzero Templates:  2  /  4
+Templates weights:
+         0      1.03      0.96         0
+=============================================
+Total elapsed time 0.92 s
+
+###############################################################################
