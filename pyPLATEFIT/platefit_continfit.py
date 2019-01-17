@@ -9,10 +9,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-import model_fit_nnls
-model_fit_nnls = reload(model_fit_nnls)
-from model_fit_nnls import model_fit_nnls
-
+from .model_fit_nnls import model_fit_nnls
 
 
 def platefit_continfit(logwl, restwl, flux, err, settings, debug=None):

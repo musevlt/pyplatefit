@@ -8,17 +8,9 @@ import numpy as np
 from PyAstronomy import pyasl
 import matplotlib.pyplot as plt
 
-import resample_model
-resample_model = reload(resample_model)
-from resample_model import resample_model
-
-import fit_burst_nnls
-fit_burst_nnls = reload(fit_burst_nnls)
-from fit_burst_nnls import fit_burst_nnls
-
-import model_combine
-model_combine = reload(model_combine)
-from model_combine import model_combine
+from .resample_model import resample_model
+from .fit_burst_nnls import fit_burst_nnls
+from .model_combine import model_combine
 
 
 def model_fit_nnls(logwl, flux, err, redshift, vdisp, modelsz, settings, firstcall=None, debug=False):

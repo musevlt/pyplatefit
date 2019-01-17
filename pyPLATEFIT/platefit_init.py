@@ -56,8 +56,10 @@ def platefit_init():
     n_met_all = 8
     zmod = np.zeros(n_met_all)
 
-    hdulist = fits.open(settings['pipelinedir'] + settings['burst_model_file'],
-                        mode='denywrite', memmap=True, do_not_scale_image_data=True)
+    hdulist = fits.open(os.path.join(settings['pipelinedir'],
+                                     settings['burst_model_file']),
+                        mode='denywrite', memmap=True,
+                        do_not_scale_image_data=True)
 
     # Read metallicities from header fields
     for iz in range(n_met_all):

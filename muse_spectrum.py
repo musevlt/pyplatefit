@@ -14,23 +14,19 @@ from astropy.io import fits
 
 import matplotlib.pyplot as plt
 
-import platefit_init
-platefit_init = reload(platefit_init)
-from platefit_init import platefit_init
-
-import platefit_continfit
-platefit_continfit = reload(platefit_continfit)
-from platefit_continfit import platefit_continfit
+from pyPLATEFIT.platefit_init import platefit_init
+from pyPLATEFIT.platefit_continfit import platefit_continfit
 
 
 cspeed = 2.99792E5
 
 settings = platefit_init()
 
-data_dir = '../PLATEFIT_testdata/'
+data_dir = 'PLATEFIT_testdata/'
 name = 'udf_udf10_00010.fits'  # 'udf_mosaic_01011_newmask.fits'
 
-cat = fits.open(data_dir + name, mode='denywrite', memmap=True, do_not_scale_image_data=True)
+cat = fits.open(data_dir + name, mode='denywrite', memmap=True,
+                do_not_scale_image_data=True)
 flux_orig = cat[7].data[:]
 err_orig  = np.sqrt(cat[8].data[:])
 
@@ -114,4 +110,3 @@ plt.plot(restwl, best_continuum, 'g-')  # best fit
 
 plt.show()
 del restwl, best_continuum
-
