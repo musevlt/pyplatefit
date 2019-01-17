@@ -16,4 +16,3 @@ build/
 dist/
 docs/_build
 htmlcov/
-PLATEFIT_testdata/

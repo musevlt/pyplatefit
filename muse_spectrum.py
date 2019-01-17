@@ -23,7 +23,8 @@ cspeed = 2.99792E5
 settings = platefit_init()
 
 data_dir = 'PLATEFIT_testdata/'
-name = 'udf_udf10_00010.fits'  # 'udf_mosaic_01011_newmask.fits'
+name = 'udf_udf10_00010.fits.gz'
+# name = 'udf_mosaic_01011_newmask.fits.gz'
 
 cat = fits.open(data_dir + name, mode='denywrite', memmap=True,
                 do_not_scale_image_data=True)
