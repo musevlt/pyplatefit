@@ -1,4 +1,11 @@
-from setuptools import setup, find_packages
+import os
+from setuptools import find_packages
+from numpy.distutils.core import setup, Extension
+
+nnls_sources = ['mnbrak.f90', 'nnls_burst.f90', 'dbrent.f90',
+                'fit_cont_nnls.f90']
+ext = Extension('pyPLATEFIT.nnls_burst',
+                [os.path.join('pyNNLS', f) for f in nnls_sources])
 
 setup(
     name='pyPLATEFIT',
@@ -11,4 +18,5 @@ setup(
     zip_safe=False,
     install_requires=['numpy', 'matplotlib', 'astropy', 'scipy',
                       'PyAstronomy'],
+    ext_modules=[ext],
 )

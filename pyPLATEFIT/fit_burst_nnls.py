@@ -4,13 +4,9 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 # __all__ = ["format_output"]
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/pyNNLS")
-
 import numpy as np
 
-from nnls_burst_python0 import fit_continuum1
+from .nnls_burst import fit_continuum1
 
 
 def fit_burst_nnls(flux, wavelength, dflux, ok, settings, settings_nnls):

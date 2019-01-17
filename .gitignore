@@ -1,6 +1,7 @@
 *.py[co]
 *.log
 *.egg-info/
+*.so
 *~
 ._*
 .coverage
