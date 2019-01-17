@@ -4,16 +4,19 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 # __all__ = ["format_output"]
 
+import os
 import sys
 import numpy as np
 from astropy.io import fits
+
+CURDIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def platefit_init():
     # ---------------------------------------------- GENERAL SETTINGS --------------------------------------------------
     settings = {
         # directories
-        'pipelinedir': '/Users/Madusha/Documents/PycharmProjects/PLATEFIT/PLATEFIT2.1/pyPLATEFITv0.1/',
+        'pipelinedir': CURDIR,
         'twoddir': '',
         'oneddir': '',
         'dustdir': '',
