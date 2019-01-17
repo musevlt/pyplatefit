@@ -7,7 +7,6 @@ from __future__ import (division, print_function, absolute_import,
 import sys
 import numpy as np
 from astropy.io import fits
-import pyfits
 
 
 def platefit_init():
@@ -54,7 +53,6 @@ def platefit_init():
     n_met_all = 8
     zmod = np.zeros(n_met_all)
 
-    # print(pyfits.info(settings['pipelinedir'] + settings['burst_model_file']))
     hdulist = fits.open(settings['pipelinedir'] + settings['burst_model_file'],
                         mode='denywrite', memmap=True, do_not_scale_image_data=True)
 

@@ -4,7 +4,6 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 # __all__ = ["format_output"]
 
-import sys
 import numpy as np
 from PyAstronomy import pyasl
 import matplotlib.pyplot as plt

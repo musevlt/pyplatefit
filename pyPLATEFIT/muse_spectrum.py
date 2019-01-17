@@ -7,20 +7,12 @@ from __future__ import (division, print_function, absolute_import,
 import sys
 
 import numpy as np
-import subprocess
-import pkg_resources
-
-from scipy.interpolate import interp1d, interp2d, RegularGridInterpolator
 
 from PyAstronomy import pyasl
 
 from astropy.io import fits
-import pyfits
-import random as rd
 
-import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib import colors as mcolors
 
 import platefit_init
 platefit_init = reload(platefit_init)

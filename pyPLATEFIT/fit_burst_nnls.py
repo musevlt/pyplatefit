@@ -9,8 +9,6 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/pyNNLS")
 
 import numpy as np
-from PyAstronomy import pyasl
-import matplotlib.pyplot as plt
 
 from nnls_burst_python0 import fit_continuum1
 

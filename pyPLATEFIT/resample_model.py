@@ -13,9 +13,7 @@ import numpy as np
 from PyAstronomy import pyasl
 
 # The functions provided in these packages can also be used for convolving Gaussian with templates.
-from astropy.convolution import convolve, Gaussian1DKernel
-import scipy as sp
-import matplotlib.pyplot as plt
+# from astropy.convolution import convolve, Gaussian1DKernel
 
 
 def resample_model(logwl, z, vdisp, modelsz, settings):
@@ -70,7 +68,7 @@ def resample_model(logwl, z, vdisp, modelsz, settings):
     temp_wl = settings['burst_wl']
 
     # Another way of doing the convolution (using scipy.convolve). But I am sticking with the ppxf version.
-    gauss_kernel = Gaussian1DKernel(sigma_pix)
+    # gauss_kernel = Gaussian1DKernel(sigma_pix)
 
     for i in range(nmodels):
         burst = np.interp(logwl, np.log10(obs_burst_wl), burst_lib[:, i, modelsz])

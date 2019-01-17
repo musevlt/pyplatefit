@@ -4,9 +4,8 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 # __all__ = ["format_output"]
 
-import sys
 import numpy as np
-import matplotlib.pyplot as plt
+
 
 def model_combine(x, a, settings, settings_nnls, good_data=None, ssp_ages=None, individual=False, correct=None):
     """
