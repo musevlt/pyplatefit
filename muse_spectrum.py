@@ -54,7 +54,7 @@ settings['vdisp'] = vdisp
 # The wavelength array is in air
 airwl_orig = np.array(l[:])
 vacwl_orig = np.array(airwl_orig[:])
-vacwl_orig = pyasl.airtovac(vacwl_orig)
+vacwl_orig = pyasl.airtovac2(vacwl_orig)
 
 tmp_logwl = np.log10(vacwl_orig)
 
@@ -79,7 +79,7 @@ logwl = xnew
 flux = ynew
 err = errnew
 airwl = 10.0**xnew
-airwl = pyasl.vactoair(airwl)
+airwl = pyasl.vactoair2(airwl)
 
 restwl = airwl/(1.0+settings['z'])
 
