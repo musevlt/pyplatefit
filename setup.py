@@ -16,7 +16,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     zip_safe=False,
-    install_requires=['numpy', 'matplotlib', 'astropy', 'scipy',
+    install_requires=['numpy', 'matplotlib', 'astropy', 'scipy', 'ppxf',
                       'PyAstronomy'],
     ext_modules=[ext],
 )

@@ -6,12 +6,7 @@ from __future__ import (division, print_function, absolute_import,
 
 import numpy as np
 from PyAstronomy import pyasl
-
-try:
-    from ppxf import ppxf_util
-except ImportError:
-    # Use local version
-    from .ppxf import ppxf_util
+from ppxf import ppxf_util
 
 # The functions provided in these packages can also be used for convolving Gaussian with templates.
 # from astropy.convolution import convolve, Gaussian1DKernel
