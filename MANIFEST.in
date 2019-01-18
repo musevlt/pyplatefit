@@ -1,0 +1,7 @@
+include README.md
+include pyproject.toml
+
+graft pyNNLS
+graft pyPLATEFIT
+
+global-exclude *.py[cod] __pycache__ *.so .git

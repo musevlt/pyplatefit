@@ -14,7 +14,9 @@ setup(
     author='Madusha Gunawardhana',
     author_email='gunawardhana@strw.leidenuniv.nl',
     packages=find_packages(),
-    include_package_data=True,
+    package_data={
+        'pyPLATEFIT': ['BC03/bc_models_subset_cb08_miles_v1_bursts.fit']
+    },
     zip_safe=False,
     install_requires=['numpy', 'matplotlib', 'astropy', 'scipy', 'ppxf',
                       'PyAstronomy'],
