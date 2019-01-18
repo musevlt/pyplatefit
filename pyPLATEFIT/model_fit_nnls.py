@@ -27,7 +27,7 @@ def model_fit_nnls(logwl, flux, err, redshift, vdisp, modelsz, settings, firstca
     # de-redshift the data wave array and put in air
     npix = np.size(logwl)
     restwl = 10.0**logwl
-    restwl = pyasl.vactoair(restwl)
+    restwl = pyasl.vactoair2(restwl)
     restwl = restwl / (1.0 + settings['z'])
 
     # Interpolate models to match the data and convolve to velocity dispersion

@@ -23,7 +23,7 @@ def resample_model(logwl, z, vdisp, modelsz, settings):
     # ------------------------ redshift model wave array, and put in vaccum --------------------------------------------
     obs_burst_wl = settings['burst_wl']
     obs_burst_wl = obs_burst_wl * (1.0 + z)
-    obs_burst_wl = pyasl.airtovac(obs_burst_wl)
+    obs_burst_wl = pyasl.airtovac2(obs_burst_wl)
 
     burst_lib = settings['burst_lib']
 
@@ -32,7 +32,7 @@ def resample_model(logwl, z, vdisp, modelsz, settings):
     restwl = 10.0**logwl
 
     # Convert wavelength from vacuum to air
-    restwl = pyasl.vactoair(restwl)  # The wavelengths in the linepar are in air
+    restwl = pyasl.vactoair2(restwl)  # The wavelengths in the linepar are in air
     restwl = restwl / (1.0 + z)
 
     # Convert wavelength in air to wavelength
