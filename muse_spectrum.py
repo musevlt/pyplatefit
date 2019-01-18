@@ -7,6 +7,7 @@ from __future__ import (division, print_function, absolute_import,
 import sys
 
 import numpy as np
+from mpdaf.sdetect import Source
 
 from PyAstronomy import pyasl
 
@@ -23,30 +24,30 @@ cspeed = 2.99792E5
 settings = platefit_init()
 
 data_dir = 'PLATEFIT_testdata/'
-name = 'udf_udf10_00010.fits.gz'
+name = 'udf_udf10_00010.fits'
 # name = 'udf_mosaic_01011_newmask.fits.gz'
+src = Source.from_file(data_dir+name)
 
-cat = fits.open(data_dir + name, mode='denywrite', memmap=True,
-                do_not_scale_image_data=True)
-flux_orig = cat[7].data[:]
-err_orig  = np.sqrt(cat[8].data[:])
+sp = src.spectra[src.REFSPEC]
+flux_orig = sp.data
+err_orig  = np.sqrt(sp.var)
 
 
-n_pixelmodel = cat[7].header['NAXIS1']
-wl0 = cat[7].header['CRVAL1']
-dw = cat[7].header['CDELT1']
+#n_pixelmodel = cat[7].header['NAXIS1']
+#wl0 = cat[7].header['CRVAL1']
+#dw = cat[7].header['CDELT1']
 
-settings['channel_width'] = dw
+settings['channel_width'] = sp.wave.get_step()
 
-l = np.arange(n_pixelmodel) * dw + wl0
+l = sp.wave.coord()
 
 vdisp = 80.0
-z = 0.27494  # 1.03622
+z = src.z[src.z['Z_DESC']=='MUSE']['Z'][0]
 
 
 # read information into the settings...
 settings['z'] = z
-settings['wavelength_range_for_fit'] = [4750./(1.0+z), 9300./(1.0+z)]
+settings['wavelength_range_for_fit'] = [l[0]/(1.0+z), l[-1]/(1.0+z)]
 settings['vdisp'] = vdisp
 
 # Interpolate onto uniform log-lambda scale
