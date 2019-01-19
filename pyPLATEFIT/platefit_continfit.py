@@ -17,6 +17,9 @@ def platefit_continfit(logwl, restwl, flux, err, settings, debug=None):
     Jan 15, 2019, Madusha Gunawardhana (gunawardhana@strw.leidenuniv.nl)
     Translation of "fiber_continfit.pro" (part of the IDL PLATEFIT - contact: jarle@strw.leidenuniv.nl)
 
+    Jan 18, 2019, Madusha:
+    In the case NNLS fitting of the continuum is failed, settings returns best_sz = -99.0
+
     """
 
     nsz = np.size(settings['szval'])
@@ -48,7 +51,11 @@ def platefit_continfit(logwl, restwl, flux, err, settings, debug=None):
         mean_chi2 = np.array(settings_nnls['mean'][:])
 
         if contcoefs[0] < -90:
-            sys.exit('WARNING: the fitting failed')
+            settings['best_sz'] = -99.0
+            settings['best_ebv'] = -99.0
+            settings['best_modelChi'] = 99999.99
+
+            return best_continuum, settings
 
 
         # Store the best-fit model results
