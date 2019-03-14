@@ -11,7 +11,7 @@ ext = Extension('pyPLATEFIT.nnls_burst',
 
 # Dependencies. Limit version of ppxf for Python 2 users
 install_requires = ['numpy', 'matplotlib', 'astropy', 'scipy',
-                    'PyAstronomy']
+                    'PyAstronomy', 'lmfit', 'mpdaf']
 
 PY2 = sys.version_info[0] == 2
 if PY2:
