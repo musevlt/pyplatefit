@@ -6,13 +6,14 @@ from __future__ import (division, print_function, absolute_import,
 
 import sys
 import numpy as np
+import logging
 
 import matplotlib.pyplot as plt
 
 from .model_fit_nnls import model_fit_nnls
 
 
-def platefit_continfit(logwl, restwl, flux, err, settings, debug=None):
+def platefit_continfit(logwl, restwl, flux, err, settings):
     """
     Jan 15, 2019, Madusha Gunawardhana (gunawardhana@strw.leidenuniv.nl)
     Translation of "fiber_continfit.pro" (part of the IDL PLATEFIT - contact: jarle@strw.leidenuniv.nl)
@@ -21,6 +22,7 @@ def platefit_continfit(logwl, restwl, flux, err, settings, debug=None):
     In the case NNLS fitting of the continuum is failed, settings returns best_sz = -99.0
 
     """
+    logger = logging.getLogger('pyplatefit')
 
     nsz = np.size(settings['szval'])
 
@@ -102,14 +104,13 @@ def platefit_continfit(logwl, restwl, flux, err, settings, debug=None):
     
     settings['ok_fit'] = ok_fit
         
-    if debug:
     
-        print('best model chi squared value: ', best_modelChi)
-        print('all model chi squared values = ', model_chi)
-        print('best E(B-V) = ', best_contCoefs[0])
-    
-        print('best model coefs = ', np.stack((best_contCoefs[1:], settings['ssp_ages']/1.0E6), axis=-1))
-        print('best stellar Z:', best_szval)
+    logger.debug('best model chi squared value: %s', best_modelChi)
+    logger.debug('all model chi squared values = %s', model_chi)
+    logger.debug('best E(B-V) = %s', best_contCoefs[0])
+
+    logger.debug('best model coefs = %s', np.stack((best_contCoefs[1:], settings['ssp_ages']/1.0E6), axis=-1))
+    logger.debug('best stellar Z: %s', best_szval)
 
 
 

@@ -14,10 +14,17 @@ from PyAstronomy import pyasl
 from astropy.io import fits
 
 import matplotlib.pyplot as plt
+from pyplatefit import __version__
 
 from pyplatefit.platefit_init import platefit_init
 from pyplatefit.platefit_continfit import platefit_continfit, plot_bestmodel
 
+import logging
+
+logger = logging.getLogger('pyplatefit')
+logger.setLevel(logging.DEBUG)
+
+logger.info('pyplatefit version %s', __version__)
 debug = True
 
 cspeed = 2.99792E5
@@ -102,7 +109,7 @@ err = err * (1.0 + z)
 #                                          Fit continuum using NNLS
 # ----------------------------------------------------------------------------------------------------------------------
 # set 'debug=True' for debug plots
-best_continuum, settings = platefit_continfit(logwl[ok], restwl[ok], flux[ok], err[ok], settings, debug=debug)
+best_continuum, settings = platefit_continfit(logwl[ok], restwl[ok], flux[ok], err[ok], settings)
 if debug:
     plot_bestmodel(logwl[ok], restwl[ok], flux[ok], err[ok], settings)
 
