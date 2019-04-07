@@ -122,7 +122,7 @@ SUBROUTINE fit_continuum1(l, f, mlib, params, mean, sigma, nb_in, m_in, nm, n_in
 
 !    write(*,*) ax, bx,cx,fa,fb,fc   ! MLPG: uncomment for debugging
     if (keep_inside .eqv. .false.) then
-        write(6,*) 'Warning:: Continuum fitting failed'
+!        write(6,*) 'Warning:: Continuum fitting failed'
         do i=1, n
             if (i .eq. 1) then
                params(i) = -99.9
