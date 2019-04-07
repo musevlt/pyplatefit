@@ -18,7 +18,6 @@ setup(
         'pyplatefit': ['BC03/bc_models_subset_cb08_miles_v1_bursts.fit']
     },
     zip_safe=False,
-    install_requires=['numpy', 'matplotlib', 'astropy', 'scipy', 'ppxf',
-                      'PyAstronomy'],
+    install_requires=['numpy', 'matplotlib', 'astropy', 'scipy'],
     ext_modules=[ext],
 )
