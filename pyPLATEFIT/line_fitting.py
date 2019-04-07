@@ -659,7 +659,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     return result_dict, line_table, lmfit_results
 
 
-def fit_mpdaf_spectrum(spectrum, redshift, continuum=None, **kwargs):
+def fit_mpdaf_spectrum(spectrum, redshift,  **kwargs):
     """Function use when calling fit_lines from mpdaf spectrum object.
 
     For now the function need a continuum.
@@ -678,11 +678,9 @@ def fit_mpdaf_spectrum(spectrum, redshift, continuum=None, **kwargs):
     See fit_spectrum_lines.
 
     """
-    if continuum is None:
-        raise NotImplementedError("You need to provide a continuum.")
 
     wave = spectrum.wave.coord(unit=u.angstrom).copy()
-    data = spectrum.data - continuum
+    data = spectrum.data
 
     if spectrum.var is not None:
         std = np.sqrt(spectrum.var)
