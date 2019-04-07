@@ -27,16 +27,18 @@ debug = True
 pl = Platefit()
 
 data_dir = 'PLATEFIT_testdata/'
-name = 'udf_udf10_00010.fits'
-# name = 'udf_mosaic_01011_newmask.fits.gz'
+name = 'udf_udf10_00296.fits'
+
 name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00216.fits'
 sp = Spectrum(name)
-z = 0.76513
-#src = Source.from_file(name)
+z = 0.99738
 
-#sp = src.spectra[src.REFSPEC]
+#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref54891.fits'
+#sp = Spectrum(name)
+#z = 1.51052
+
 vdisp = 80.0
-#z = src.z[src.z['Z_DESC']=='MUSE']['Z'][0]
+
 logger.debug('z = %f',z)
 
 cont = pl.contfit(sp, z, vdisp)
