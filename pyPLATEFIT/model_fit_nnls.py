@@ -12,6 +12,9 @@ from .resample_model import resample_model
 from .fit_burst_nnls import fit_burst_nnls
 from .model_combine import model_combine
 
+import logging
+logger = logging.getLogger('pyplatefit')
+
 
 def model_fit_nnls(logwl, flux, err, redshift, vdisp, modelsz, settings, firstcall=None, debug=False):
     """

@@ -5,6 +5,8 @@ from __future__ import (division, print_function, absolute_import,
 # __all__ = ["format_output"]
 
 import numpy as np
+import logging
+logger = logging.getLogger('pyplatefit')
 
 from .nnls_burst import fit_continuum1
 

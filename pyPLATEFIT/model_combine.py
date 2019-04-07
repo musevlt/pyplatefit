@@ -5,6 +5,8 @@ from __future__ import (division, print_function, absolute_import,
 # __all__ = ["format_output"]
 
 import numpy as np
+import logging
+logger = logging.getLogger('pyplatefit')
 
 
 def model_combine(x, a, settings, settings_nnls, good_data=None, ssp_ages=None, individual=False, correct=None):

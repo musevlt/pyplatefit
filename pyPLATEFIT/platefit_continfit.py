@@ -6,11 +6,13 @@ from __future__ import (division, print_function, absolute_import,
 
 import sys
 import numpy as np
-import logging
 
 import matplotlib.pyplot as plt
 
 from .model_fit_nnls import model_fit_nnls
+
+import logging
+logger = logging.getLogger('pyplatefit')
 
 
 def platefit_continfit(logwl, restwl, flux, err, settings):
@@ -22,7 +24,6 @@ def platefit_continfit(logwl, restwl, flux, err, settings):
     In the case NNLS fitting of the continuum is failed, settings returns best_sz = -99.0
 
     """
-    logger = logging.getLogger('pyplatefit')
 
     nsz = np.size(settings['szval'])
 
