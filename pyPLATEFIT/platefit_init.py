@@ -79,7 +79,7 @@ def platefit_init():
     ssp_norms = np.zeros((n_burst, n_met))
 
     if 'burst' in settings['burst_model_file']:
-     all_norms = hdulist[8].data[:]
+        all_norms = hdulist[8].data[:]
 
     for imod in range(n_met):
         indx = np.array(np.where(zmod == settings['use_z'][imod])).squeeze()

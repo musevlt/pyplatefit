@@ -83,7 +83,8 @@ def platefit_continfit(logwl, restwl, flux, err, settings, debug=None):
     idxbest_sz = np.argmin(np.abs(np.array(settings['szval']) - best_szval))
 
 
-    # Read the stored values into the settings
+    
+    # save the fitted values into the settings
     settings['best_spectrum'] = best_continuum
     settings['best_sz'] = best_szval
     settings['best_ebv'] = best_ebv
@@ -97,40 +98,45 @@ def platefit_continfit(logwl, restwl, flux, err, settings, debug=None):
     settings['model_ebv'] = ebv
     settings['model_weights'] = model_contcoeff
     settings['model_chi'] = model_chi
-
-
-    # --------------------------------------- plot the best model -- debug ---------------------------------------------
-    #
-    if debug is True:
+    settings['model_ebv'] = ebv
+    
+    settings['ok_fit'] = ok_fit
+        
+    if debug:
+    
         print('best model chi squared value: ', best_modelChi)
         print('all model chi squared values = ', model_chi)
         print('best E(B-V) = ', best_contCoefs[0])
-
+    
         print('best model coefs = ', np.stack((best_contCoefs[1:], settings['ssp_ages']/1.0E6), axis=-1))
         print('best stellar Z:', best_szval)
-
-        perr = err
-        pi = np.array(np.where(err == 0)).squeeze()
-
-        if np.size(pi) > 0: perr[pi] = np.NaN
-
-        mask = flux - best_continuum
-        mask[np.array(ok_fit).squeeze()] = np.NaN
-
-        plt.figure()
-        plt.plot(restwl, mask, 'm-', lw=2.0)  # Plot the mask first, so it is underneath the rest
-
-        plt.plot(restwl, flux, 'k-')  #  spectrum
-        plt.plot(restwl, best_continuum, 'g-')  # best fit
-        # plt.plot(restwl, flux - best_continuum, '-', color='y', lw=0.5)  # residuals
-
-        nmodels = np.shape(best_modellib)[1]
-
-
-        # plt.plot(restwl, perr, 'b-', lw=1)
-        # plt.plot(restwl, -perr, 'b-', lw=1)
-        plt.show()
 
 
 
     return best_continuum, settings
+
+
+def plot_bestmodel(logwl, restwl, flux, err, settings):
+    """ plot the best model """
+
+    # --------------------------------------- plot the best model -- debug ---------------------------------------------
+    #
+
+
+    perr = err
+    pi = np.array(np.where(err == 0)).squeeze()
+
+    if np.size(pi) > 0: perr[pi] = np.NaN
+
+    best_continuum = settings['best_spectrum']
+    ok_fit = settings['ok_fit']
+    mask = flux - best_continuum
+    mask[np.array(ok_fit).squeeze()] = np.NaN
+
+    plt.figure()
+    plt.plot(restwl, mask, 'm-', lw=2.0)  # Plot the mask first, so it is underneath the rest
+
+    plt.plot(restwl, flux, 'k-')  #  spectrum
+    plt.plot(restwl, best_continuum, 'g-')  # best fit
+
+    plt.show()
