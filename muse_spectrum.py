@@ -15,8 +15,8 @@ from astropy.io import fits
 
 import matplotlib.pyplot as plt
 
-from pyPLATEFIT.platefit_init import platefit_init
-from pyPLATEFIT.platefit_continfit import platefit_continfit
+from pyplatefit.platefit_init import platefit_init
+from pyplatefit.platefit_continfit import platefit_continfit
 
 
 cspeed = 2.99792E5
