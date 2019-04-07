@@ -30,13 +30,15 @@ data_dir = 'PLATEFIT_testdata/'
 name = 'udf_udf10_00296.fits'
 
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00216.fits'
-#sp = Spectrum(name)
 #z = 0.99738
 
-name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref09667.fits'
-sp = Spectrum(name)
-z = 1.55051
+#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref09667.fits'
+#z = 1.55051
 
+name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
+z= 0.41907
+
+sp = Spectrum(name)
 
 vdisp = 80.0
 
