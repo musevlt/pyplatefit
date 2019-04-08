@@ -1,5 +1,4 @@
 import os
-import sys
 from setuptools import find_packages
 from numpy.distutils.core import setup, Extension
 
@@ -13,24 +12,19 @@ ext = Extension('pyplatefit.nnls_burst',
 install_requires = ['numpy', 'matplotlib', 'astropy', 'scipy',
                     'lmfit', 'mpdaf']
 
-#PY2 = sys.version_info[0] == 2
-#if PY2:
-#    install_requires.append('ppxf<6.7.8')
-#else:
-#    install_requires.append('ppxf')
-
-
 setup(
     name='pyplatefit',
-    version='0.1',
     description='TODO',
     author='Madusha Gunawardhana',
     author_email='gunawardhana@strw.leidenuniv.nl',
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     packages=find_packages(),
     package_data={
         'pyplatefit': ['BC03/bc_models_subset_cb08_miles_v1_bursts.fit']
     },
     zip_safe=False,
+    include_package_data=True,
     install_requires=install_requires,
     ext_modules=[ext],
 )
