@@ -44,11 +44,21 @@ vdisp = 80.0
 
 logger.debug('z = %f',z)
 
-cont = pl.contfit(sp, z, vdisp)
+cont,dz = pl.contfit(sp, z, vdisp)
+logger.info('dz=%f',dz)
+z = z + dz
 
-fig,ax = plt.subplots(1,1)
-sp.plot(ax=ax)
-cont.plot(ax=ax)
+line = sp - cont
+result_dict, line_table, reslmfit = line.fit_lines(z)
+linefit = sp.clone()
+linefit.data = np.interp(sp.wave.coord(), reslmfit.wave, reslmfit.best_fit) 
+
+fig,ax = plt.subplots(1,2)
+sp.plot(ax=ax[0])
+cont.plot(ax=ax[0])
+line.plot(ax=ax[1])
+linefit.plot(ax=ax[1])
+
 plt.show()
 
 print('end')
