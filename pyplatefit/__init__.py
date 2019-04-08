@@ -1,6 +1,7 @@
 from .version import __version__
 
 from .line_fitting import fit_mpdaf_spectrum
+from .platefit import Platefit
 
 def _setup_logging():
     import logging
