@@ -38,7 +38,7 @@ class Platefit:
             'obstags': {},
     
             # burst model files
-            'burst_model_file': 'BC03/bc_models_subset_cb08_miles_v1_bursts.fit',
+            'burst_model_file': 'BC03/bc_models_subset_cb08_milesx__bursts_extlam.fit',
     
             'available_z': [0.0001, 0.0004, 0.001,  0.004,  0.008,  0.017,  0.04,   0.07],
             'use_z': [0.0001, 0.0004, 0.001,  0.004,  0.008,  0.017,  0.04,   0.07 ],
