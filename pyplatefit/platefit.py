@@ -146,9 +146,7 @@ class Platefit:
         l = sp.wave.coord()
 
         # read information into the settings...
-        #self.settings['z'] = z
         self.settings['wavelength_range_for_fit'] = [l[0] / (1.0 + z), l[-1] / (1.0 + z)]
-        #self.settings['vdisp'] = vdisp
 
         # Interpolate onto uniform log-lambda scale
         # The wavelength array is in air
