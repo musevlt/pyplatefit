@@ -179,7 +179,7 @@ def measure_fwhm(wave, data, mode):
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        snr_width=None, force_positive_fluxes=False,
-                       trim_spectrum=True):
+                       trim_spectrum=True, return_lmfit_info=False):
     """Fit lines in a spectrum using lmfit.
 
     This function uses lmfit to perform a simple fit of know lines in
@@ -285,15 +285,13 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     trim_spectrum : boolean, optional
         If true, the fit is done keeping only the parts of the spectrum around
         the expected lines.
+    return_lmfit_info: boolean, optional
+        if true, the lmfit detailed return info is added in the return dictionary
 
     Returns
     -------
     result_dict : OrderedDict
         Dictionary containing several parameters from the fitting.
-    line_table : astropy.table.Table
-        Table containing the information on the lines.
-    lmfit_results : lmfit.model.ModelResult
-        The raw LMFIT model results.
 
     Raises
     ------
@@ -650,16 +648,21 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     line_table["FWHM_err"].unit = u.km / u.s
     line_table["FLUX"].unit = unit_flux
     line_table["FLUX_ERR"].unit = unit_flux
+    
+    result_dict['lines'] = line_table
+    
+    if return_lmfit_info:
+        # Add a wave attribute to lmfit_results for an easy access to the
+        # wavelengths associated to the data in the fitting (useful when trimming
+        # the spectrum).
+        lmfit_results.wave = lmfit_results.userkws['x']
+        result_dict['lmfit'] = lmfit_results
+    
 
-    # Add a wave attribute to lmfit_results for an easy access to the
-    # wavelengths associated to the data in the fitting (useful when trimming
-    # the spectrum).
-    lmfit_results.wave = lmfit_results.userkws['x']
-
-    return result_dict, line_table, lmfit_results
+    return result_dict
 
 
-def fit_mpdaf_spectrum(spectrum, redshift,  **kwargs):
+def fit_mpdaf_spectrum(spectrum, redshift, return_lmfit_info=False, **kwargs):
     """Function use when calling fit_lines from mpdaf spectrum object.
 
 
@@ -667,6 +670,8 @@ def fit_mpdaf_spectrum(spectrum, redshift,  **kwargs):
     ----------
     spectrum : mpdaf.obj.Spectrum
     redshift : float
+    return_lmfit_info : boolean
+       if true, the bestfit spectrum is added in the result dictionary
     **kwargs : various
         Keyword arguments passed to fit_spectrum_lines.
 
@@ -696,6 +701,14 @@ def fit_mpdaf_spectrum(spectrum, redshift,  **kwargs):
     except ValueError:
         unit_data = None
 
-    return fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
+    res = fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
                               unit_wave=u.angstrom, unit_data=unit_data,
+                              return_lmfit_info=return_lmfit_info,
                               **kwargs)
+    
+    if return_lmfit_info:
+        bestfit = spectrum.clone()
+        bestfit.data = np.interp(spectrum.wave.coord(), res['lmfit'].wave, res['lmfit'].best_fit) 
+        res['bestfit'] = bestfit
+        
+    return res

@@ -56,9 +56,8 @@ z = z + dz
 #cont.plot(ax=ax)
 
 line = sp - cont
-res, line_table, reslmfit = line.fit_lines(z)
-linefit = sp.clone()
-linefit.data = np.interp(sp.wave.coord(), reslmfit.wave, reslmfit.best_fit) 
+res = line.fit_lines(z, return_lmfit_info=True)
+
 
 print(f"z: {res['z']:.5f} err: {res['z_err']:.5f} offset: {res['z_off']:.5f}")
 print(f"vdisp: {res['vdisp']:.2f} err: {res['vdisp_err']:.5f}")
@@ -67,7 +66,7 @@ fig,ax = plt.subplots(1,2)
 sp.plot(ax=ax[0])
 cont.plot(ax=ax[0])
 line.plot(ax=ax[1])
-linefit.plot(ax=ax[1])
+res['bestfit'].plot(ax=ax[1])
 
 plt.show()
 
