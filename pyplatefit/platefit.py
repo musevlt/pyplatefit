@@ -118,8 +118,44 @@ class Platefit:
         del hdulist
 
         self.settings = settings
+        
+    def getspec(self, spec, z):
+        """
+        import a spectrum into a platefit object
+        """
+        self.spec = spec
+        self.init_z = z
+        self.z = z
+        
+    def linefit(self, return_lmfit_info=False, **kwargs):
+        """
+        perform line fit on a mpdaf spectrum
+        
+        """     
+        self.res_linefit = fit_mpdaf_spectrum(self.spec, self.z, return_lmfit_info=return_lmfit_info, **kwargs)
+        
+        
+    def info(self):
+        """
+        print some info
+        """
+        
+    def plot(self):
+        """
+        plot resuls
+        """
+        
+    def eqw(self):
+        """
+        compute equivalent widths
+        """
+        
+    def snr(self):
+        """
+        compute  SNR
+        """
 
-    def contfit(self, sp, z, vdisp):
+    def contfit(self, vdisp=80):
         """
         perform continuum fit on a mpdaf spectrum
 
@@ -139,11 +175,11 @@ class Platefit:
         cspeed = 2.99792E5
 
         flux_orig = sp.data
-        err_orig = np.sqrt(sp.var)
+        err_orig = np.sqrt(self.spec.var)
 
-        #self.settings['channel_width'] = sp.wave.get_step()
+        z = self.z
 
-        l = sp.wave.coord()
+        l = self.spec.wave.coord()
 
         # read information into the settings...
         self.settings['wavelength_range_for_fit'] = [l[0] / (1.0 + z), l[-1] / (1.0 + z)]
@@ -290,8 +326,12 @@ class Platefit:
         # rebin continuum in linear
         cont.data = np.interp(sp.wave.coord(), 10**logwl, best_continuum)
         cont.data = cont.data / (1 + z)
+        
+        self.cont_fit = cont
+        self.cont_dz = dz
+        self.cont_z = z + dz
+        self.z = self.cont_z
 
-        return cont, best_szval
 
     def model_fit_nnls(self, logwl, flux, err, z, vdisp, modelsz, firstcall=None, debug=False):
         """
