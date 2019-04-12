@@ -17,48 +17,57 @@ from pyplatefit.platefit import Platefit
 import logging
 
 logger = logging.getLogger('pyplatefit')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 logger.info('pyplatefit version %s', __version__)
 debug = True
 
 
 
-pl = Platefit()
 
-data_dir = 'PLATEFIT_testdata/'
-name = 'udf_udf10_00296.fits'
+
+#data_dir = 'PLATEFIT_testdata/'
+#name = 'udf_udf10_00296.fits'
 
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00216.fits'
 #z = 0.99738
 
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref09667.fits'
 #z = 1.55051
+# emiline fit succeed only (dz=0)
 
 name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
 z= 0.41907
+# emiline fit succeed only if dz is not used
 
 sp = Spectrum(name)
+
+pl = Platefit()
 
 vdisp = 80.0
 
 logger.debug('z = %f',z)
 
-cont,dz = pl.contfit(sp, z, vdisp)
-logger.info('dz=%f',dz)
-z = z + dz
+#fig,ax = plt.subplots(1,2)
 
-line = sp - cont
-result_dict, line_table, reslmfit = line.fit_lines(z)
-linefit = sp.clone()
-linefit.data = np.interp(sp.wave.coord(), reslmfit.wave, reslmfit.best_fit) 
+res_cont = pl.fit_cont(sp, z, vdisp)
+pl.info_cont(res_cont)
+#pl.plot(ax, res_cont)
+
+#plt.show()
+
+res_line = pl.fit_lines(res_cont['line_spec'], res_cont['z']) # do not work
+#res_line = pl.fit_lines(res_cont['line_spec'], z)
+pl.info_lines(res_line)
 
 fig,ax = plt.subplots(1,2)
-sp.plot(ax=ax[0])
-cont.plot(ax=ax[0])
-line.plot(ax=ax[1])
-linefit.plot(ax=ax[1])
-
+pl.plot(ax, {**res_line,**res_cont})
 plt.show()
+
+#pl.plot(ax, res_line)
+#plt.show()
+
+
+
 
 print('end')

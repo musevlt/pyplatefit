@@ -38,6 +38,7 @@ from lmfit.models import GaussianModel, SkewedGaussianModel
 from lmfit.parameter import Parameters
 import numpy as np
 from scipy.signal import argrelmin
+from logging import getLogger
 
 from mpdaf.sdetect.linelist import get_emlines
 from mpdaf.obj.spectrum import vactoair
@@ -66,6 +67,49 @@ class NoLineError(ValueError):
 
     pass
 
+
+class Linefit:
+    """
+    This class implement Emission Line def
+    """
+    def __init__(self):
+        self.logger = getLogger(__name__)
+        return
+    
+
+    def fit(self, line_spec, z, return_lmfit_info=True, **kwargs):
+        """
+        perform line fit on a mpdaf spectrum
+        
+        """     
+        return fit_mpdaf_spectrum(line_spec, z, return_lmfit_info=return_lmfit_info, **kwargs)
+    
+    def info(self, res):
+        if res.get('spec', None) is not None:
+            if hasattr(res['spec'], 'filename'):
+                self.logger.info(f"Spectrum: {res['spec'].filename}")
+            
+        self.logger.info(f"Line Fit Satus: {res['ier']} {res['mesg']} Niter: {res['nfev']}")
+        self.logger.info(f"Line Fit Chi2: {res['redchi']:.2f} Bic: {res['bic']:.2f}")
+        self.logger.info(f"Line Fit Z: {res['z']:.5f} Err: {res['z_err']:.5f} dZ: {res['dz']:.5f}")
+        self.logger.info(f"Line Fit dV: {res['v']:.2f} Err: {res['v_err']:.2f} km/s Bounds [{res['v_min']:.0f} : {res['v_max']:.0f}] Init: {res['v_init']:.0f} km/s")
+        
+
+        
+
+            
+    def eqw(self):
+        """
+        compute equivalent widths
+        """
+        
+    def snr(self):
+        """
+        compute  SNR
+        
+        """
+
+        
 
 def mode_skewedgaussian(location, scale, shape):
     """Compute the mode of a skewed Gaussian.
@@ -179,7 +223,7 @@ def measure_fwhm(wave, data, mode):
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        snr_width=None, force_positive_fluxes=False,
-                       trim_spectrum=True):
+                       trim_spectrum=True, return_lmfit_info=False):
     """Fit lines in a spectrum using lmfit.
 
     This function uses lmfit to perform a simple fit of know lines in
@@ -285,15 +329,13 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     trim_spectrum : boolean, optional
         If true, the fit is done keeping only the parts of the spectrum around
         the expected lines.
+    return_lmfit_info: boolean, optional
+        if true, the lmfit detailed return info is added in the return dictionary
 
     Returns
     -------
     result_dict : OrderedDict
         Dictionary containing several parameters from the fitting.
-    line_table : astropy.table.Table
-        Table containing the information on the lines.
-    lmfit_results : lmfit.model.ModelResult
-        The raw LMFIT model results.
 
     Raises
     ------
@@ -393,24 +435,24 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         logger.debug("Adding velocity to parameters...")
         # Velocity of the galaxy in km/s. Accounts as uncertainty on the
         # redshift.
-        params.add("velocity", VEL_INIT, min=VEL_MIN, max=VEL_MAX)
+        params.add("v", VEL_INIT, min=VEL_MIN, max=VEL_MAX)
         # Velocity dispersion of the galaxy in km/s.
-        params.add("velocity_dispersion", VD_INIT, min=VD_MIN, max=VD_MAX)
+        params.add("vdisp", VD_INIT, min=VD_MIN, max=VD_MAX)
 
     # If there are resonant lines, we add one set of velocity parameters
     # per element (some resonant lines may be doublets).
     for elem in set([RESONANT_LINES[l] for l in lines['LINE'] if l in
                      RESONANT_LINES]):
         logger.debug("Adding velocities for %s...", elem)
-        params.add("velocity_%s" % elem, VEL_INIT, min=VEL_MIN, max=VEL_MAX)
-        params.add("velocity_dispersion_%s" % elem, VD_INIT, min=VD_MIN,
+        params.add("v_%s" % elem, VEL_INIT, min=VEL_MIN, max=VEL_MAX)
+        params.add("vdisp_%s" % elem, VD_INIT, min=VD_MIN,
                    max=VD_MAX)
 
     # For the Lyman α line, we allow of a greater velocity dispersion and
     # compute a Lyman α redshift.
     if "LYALPHA" in lines['LINE']:
         logger.debug("Adding Lyman α velocity dispersion...")
-        params['velocity_dispersion_lyalpha'].max = VD_MAX_LYA
+        params['vdisp_lya'].max = VD_MAX_LYA
 
     # Per line model creation
     for row in lines:
@@ -421,11 +463,11 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         # parameter in the model.
         if line_name in RESONANT_LINES:
             res_prefix = RESONANT_LINES[line_name]
-            velocity_param = "velocity_%s" % res_prefix
-            velocity_disp_param = "velocity_dispersion_%s" % res_prefix
+            velocity_param = "v_%s" % res_prefix
+            velocity_disp_param = "vdisp_%s" % res_prefix
         else:
-            velocity_param = "velocity"
-            velocity_disp_param = "velocity_dispersion"
+            velocity_param = "v"
+            velocity_disp_param = "vdisp"
 
         # We model each line with a Gaussian except for the Lyman α line
         # which is modelled with a skewed Gaussian.
@@ -518,51 +560,65 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
 
     # Result parameters
     result_dict = OrderedDict()
-    result_dict["chi_square"] = lmfit_results.chisqr
-    result_dict["reduced_chi_square"] = lmfit_results.redchi
-    result_dict["akaike_criterion"] = lmfit_results.aic
-    result_dict["bayesian_criterion"] = lmfit_results.bic
+    result_dict["ier"] = lmfit_results.ier
+    result_dict["mesg"] = lmfit_results.message
+    result_dict["nfev"] = lmfit_results.nfev
+    result_dict["chisqr"] = lmfit_results.chisqr
+    result_dict["redchi"] = lmfit_results.redchi
+    result_dict["aic"] = lmfit_results.aic
+    result_dict["bic"] = lmfit_results.bic
     for param in lmfit_results.params:
-        if "velocity" in param or "factor" in param:
+        if "v" in param or "factor" in param:
             result_dict[param] = lmfit_results.params[param].value
             try:
                 result_dict["%s_err" % param] = \
                     float(lmfit_results.params[param].stderr)
             except TypeError:
                 result_dict["%s_err" % param] = np.nan
+            try:
+                result_dict["%s_min" % param] = \
+                    float(lmfit_results.params[param].min)
+            except TypeError:
+                result_dict["%s_min" % param] = -np.nan 
+            try:
+                result_dict["%s_max" % param] = \
+                    float(lmfit_results.params[param].max)
+            except TypeError:
+                result_dict["%s_max" % param] = np.nan 
+            result_dict["%s_init" % param] = lmfit_results.init_params[param].value
     # New redshift taking into account the velocity
     # (1 + z_new) = (1 + z_ini)(1 + v/c)
     # Note: the redshift variable contains the initial redshift
-    if "velocity" in lmfit_results.params:
-        result_dict["redshift"] = (
+    if "v" in lmfit_results.params:
+        result_dict["z"] = (
             (1 + redshift) *
-            (1 + lmfit_results.params['velocity'].value / C) - 1
+            (1 + lmfit_results.params['v'].value / C) - 1
         )
         try:
-            result_dict["redshift_err"] = (
+            result_dict["z_err"] = (
                 (1 + redshift) *
-                lmfit_results.params['velocity'].stderr / C
+                lmfit_results.params['v'].stderr / C
             )
         except TypeError:
-            result_dict["redshift_err"] = np.nan
-        result_dict["redshift_offset"] = result_dict['redshift'] - redshift
-    if "velocity_lyalpha" in lmfit_results.params:
-        result_dict["redshift_lyalpha"] = (
+            result_dict["z_err"] = np.nan
+        result_dict["dz"] = result_dict['z'] - redshift
+    if "vlya" in lmfit_results.params:
+        result_dict["zlya"] = (
             (1 + redshift) *
-            (1 + lmfit_results.params['velocity_lyalpha'].value / C) - 1
+            (1 + lmfit_results.params['vlya'].value / C) - 1
         )
         try:
-            result_dict["redshift_lyalpha_err"] = (
+            result_dict["zlya_err"] = (
                 (1 + redshift) *
-                lmfit_results.params['velocity_lyalpha'].stderr / C
+                lmfit_results.params['vlya'].stderr / C
             )
         except TypeError:
-            result_dict["redshift_lyalpha_err"] = np.nan
+            result_dict["zlya_err"] = np.nan
     if "LYALPHA_gamma" in lmfit_results.params:
-        result_dict["skewness_lyalpha"] = (
+        result_dict["skewlya"] = (
             lmfit_results.params['LYALPHA_gamma'].value
         )
-        result_dict["skewness_lyalpha_err"] = (
+        result_dict["skelya_err"] = (
             lmfit_results.params['LYALPHA_gamma'].stderr
         )
 
@@ -650,26 +706,31 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     line_table["FWHM_err"].unit = u.km / u.s
     line_table["FLUX"].unit = unit_flux
     line_table["FLUX_ERR"].unit = unit_flux
+    
+    result_dict['table'] = line_table
+    
+    
+    if return_lmfit_info:
+        # Add a wave attribute to lmfit_results for an easy access to the
+        # wavelengths associated to the data in the fitting (useful when trimming
+        # the spectrum).
+        lmfit_results.wave = lmfit_results.userkws['x']
+        result_dict['lmfit'] = lmfit_results
+    
 
-    # Add a wave attribute to lmfit_results for an easy access to the
-    # wavelengths associated to the data in the fitting (useful when trimming
-    # the spectrum).
-    lmfit_results.wave = lmfit_results.userkws['x']
-
-    return result_dict, line_table, lmfit_results
+    return result_dict
 
 
-def fit_mpdaf_spectrum(spectrum, redshift,  **kwargs):
+def fit_mpdaf_spectrum(spectrum, redshift, return_lmfit_info=False, **kwargs):
     """Function use when calling fit_lines from mpdaf spectrum object.
 
-    For now the function need a continuum.
 
     Parameters
     ----------
     spectrum : mpdaf.obj.Spectrum
     redshift : float
-    continuum : numpy array of floats
-        Must be in the same unit and have the same length as the spectrum data.
+    return_lmfit_info : boolean
+       if true, the bestfit spectrum is added in the result dictionary
     **kwargs : various
         Keyword arguments passed to fit_spectrum_lines.
 
@@ -699,6 +760,16 @@ def fit_mpdaf_spectrum(spectrum, redshift,  **kwargs):
     except ValueError:
         unit_data = None
 
-    return fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
+    res = fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
                               unit_wave=u.angstrom, unit_data=unit_data,
+                              return_lmfit_info=return_lmfit_info,
                               **kwargs)
+    
+    
+    if return_lmfit_info:
+        bestfit = spectrum.clone()
+        bestfit.data = np.interp(spectrum.wave.coord(), res['lmfit'].wave, res['lmfit'].best_fit) 
+        res['line_fit'] = bestfit
+        res['line_spec'] = spectrum
+        
+    return res
