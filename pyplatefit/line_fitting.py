@@ -38,6 +38,7 @@ from lmfit.models import GaussianModel, SkewedGaussianModel
 from lmfit.parameter import Parameters
 import numpy as np
 from scipy.signal import argrelmin
+from logging import getLogger
 
 from mpdaf.sdetect.linelist import get_emlines
 from mpdaf.obj.spectrum import vactoair
@@ -66,6 +67,49 @@ class NoLineError(ValueError):
 
     pass
 
+
+class Linefit:
+    """
+    This class implement Emission Line def
+    """
+    def __init__(self):
+        self.logger = getLogger(__name__)
+        return
+    
+
+    def fit(self, line_spec, z, return_lmfit_info=True, **kwargs):
+        """
+        perform line fit on a mpdaf spectrum
+        
+        """     
+        return fit_mpdaf_spectrum(line_spec, z, return_lmfit_info=return_lmfit_info, **kwargs)
+    
+    def info(self, res):
+        if res.get('spec', None) is not None:
+            if hasattr(res['spec'], 'filename'):
+                self.logger.info(f"Spectrum: {res['spec'].filename}")
+            
+        self.logger.info(f"Line Fit Satus: {res['ier']} {res['mesg']} Niter: {res['nfev']}")
+        self.logger.info(f"Line Fit Chi2: {res['redchi']:.2f} Bic: {res['bic']:.2f}")
+        self.logger.info(f"Line Fit Z: {res['z']:.5f} Err: {res['z_err']:.5f} dZ: {res['dz']:.5f}")
+        self.logger.info(f"Line Fit dV: {res['v']:.2f} Err: {res['v_err']:.2f} km/s Bounds [{res['v_min']:.0f} : {res['v_max']:.0f}] Init: {res['v_init']:.0f} km/s")
+        
+
+        
+
+            
+    def eqw(self):
+        """
+        compute equivalent widths
+        """
+        
+    def snr(self):
+        """
+        compute  SNR
+        
+        """
+
+        
 
 def mode_skewedgaussian(location, scale, shape):
     """Compute the mode of a skewed Gaussian.
@@ -516,6 +560,9 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
 
     # Result parameters
     result_dict = OrderedDict()
+    result_dict["ier"] = lmfit_results.ier
+    result_dict["mesg"] = lmfit_results.message
+    result_dict["nfev"] = lmfit_results.nfev
     result_dict["chisqr"] = lmfit_results.chisqr
     result_dict["redchi"] = lmfit_results.redchi
     result_dict["aic"] = lmfit_results.aic
@@ -528,6 +575,17 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                     float(lmfit_results.params[param].stderr)
             except TypeError:
                 result_dict["%s_err" % param] = np.nan
+            try:
+                result_dict["%s_min" % param] = \
+                    float(lmfit_results.params[param].min)
+            except TypeError:
+                result_dict["%s_min" % param] = -np.nan 
+            try:
+                result_dict["%s_max" % param] = \
+                    float(lmfit_results.params[param].max)
+            except TypeError:
+                result_dict["%s_max" % param] = np.nan 
+            result_dict["%s_init" % param] = lmfit_results.init_params[param].value
     # New redshift taking into account the velocity
     # (1 + z_new) = (1 + z_ini)(1 + v/c)
     # Note: the redshift variable contains the initial redshift
@@ -543,7 +601,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             )
         except TypeError:
             result_dict["z_err"] = np.nan
-        result_dict["z_off"] = result_dict['z'] - redshift
+        result_dict["dz"] = result_dict['z'] - redshift
     if "vlya" in lmfit_results.params:
         result_dict["zlya"] = (
             (1 + redshift) *
@@ -649,7 +707,8 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     line_table["FLUX"].unit = unit_flux
     line_table["FLUX_ERR"].unit = unit_flux
     
-    result_dict['lines'] = line_table
+    result_dict['table'] = line_table
+    
     
     if return_lmfit_info:
         # Add a wave attribute to lmfit_results for an easy access to the
@@ -706,9 +765,11 @@ def fit_mpdaf_spectrum(spectrum, redshift, return_lmfit_info=False, **kwargs):
                               return_lmfit_info=return_lmfit_info,
                               **kwargs)
     
+    
     if return_lmfit_info:
         bestfit = spectrum.clone()
         bestfit.data = np.interp(spectrum.wave.coord(), res['lmfit'].wave, res['lmfit'].best_fit) 
-        res['bestfit'] = bestfit
+        res['line_fit'] = bestfit
+        res['line_spec'] = spectrum
         
     return res

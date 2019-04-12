@@ -17,21 +17,20 @@ from pyplatefit.platefit import Platefit
 import logging
 
 logger = logging.getLogger('pyplatefit')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 logger.info('pyplatefit version %s', __version__)
 debug = True
 
 
 
-pl = Platefit()
+
 
 #data_dir = 'PLATEFIT_testdata/'
 #name = 'udf_udf10_00296.fits'
 
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00216.fits'
 #z = 0.99738
-# emiline fit failed in all case
 
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref09667.fits'
 #z = 1.55051
@@ -43,47 +42,32 @@ z= 0.41907
 
 sp = Spectrum(name)
 
+pl = Platefit()
+
 vdisp = 80.0
 
 logger.debug('z = %f',z)
 
-cont,dz = pl.contfit(sp, z, vdisp)
-logger.info('dz=%f',dz)
-#z = z + dz
-
-#fig,ax = plt.subplots(1,1)
-#sp.plot(ax=ax)
-#cont.plot(ax=ax)
-
-line = sp - cont
-res = line.fit_lines(z, return_lmfit_info=True)
-
-
-print(f"z: {res['z']:.5f} err: {res['z_err']:.5f} offset: {res['z_off']:.5f}")
-print(f"vdisp: {res['vdisp']:.2f} err: {res['vdisp_err']:.5f}")
-
 #fig,ax = plt.subplots(1,2)
-#sp.plot(ax=ax[0])
-#cont.plot(ax=ax[0])
-#line.plot(ax=ax[1])
-#res['bestfit'].plot(ax=ax[1])
+
+res_cont = pl.fit_cont(sp, z, vdisp)
+pl.info_cont(res_cont)
+#pl.plot(ax, res_cont)
+
+#plt.show()
+
+res_line = pl.fit_lines(res_cont['line_spec'], res_cont['z']) # do not work
+#res_line = pl.fit_lines(res_cont['line_spec'], z)
+pl.info_lines(res_line)
 
 fig,ax = plt.subplots(1,2)
-sp.plot(ax=ax[0])
-cont.plot(ax=ax[0])
-ax[0].set_title('Cont Fit')
-
-line.plot(ax=ax[1], color='k')
-data_kws = dict(markersize=2)
-res['lmfit'].plot_fit(ax=ax[1], data_kws=data_kws, show_init=True)
-for key,param in res['lmfit'].init_params.items():
-    if key.split('_')[-1] == 'center':
-        lbda = param.value
-        name = key.split('_')[0]
-        ax[1].axvline(lbda, color='b', alpha=0.2)
-        
-ax[1].set_title('Line Fit')
-
+pl.plot(ax, {**res_line,**res_cont})
 plt.show()
+
+#pl.plot(ax, res_line)
+#plt.show()
+
+
+
 
 print('end')
