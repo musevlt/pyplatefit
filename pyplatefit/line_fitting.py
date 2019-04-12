@@ -74,6 +74,9 @@ class Linefit:
     """
     def __init__(self):
         self.logger = getLogger(__name__)
+        self.maxfev = 1000 # nb max of iterations (leastsq)
+        self.xtol = 1.e-4 # relative error in the solution (leastq)
+        self.ftol = 1.e-6 # relative error in the sum of square (leastsq)
         return
     
 
@@ -81,15 +84,17 @@ class Linefit:
         """
         perform line fit on a mpdaf spectrum
         
-        """     
-        return fit_mpdaf_spectrum(line_spec, z, return_lmfit_info=return_lmfit_info, **kwargs)
+        """
+        fit_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
+        return fit_mpdaf_spectrum(line_spec, z, return_lmfit_info=return_lmfit_info, 
+                                  fit_kws=fit_kws, **kwargs)
     
     def info(self, res):
         if res.get('spec', None) is not None:
             if hasattr(res['spec'], 'filename'):
                 self.logger.info(f"Spectrum: {res['spec'].filename}")
             
-        self.logger.info(f"Line Fit Satus: {res['ier']} {res['mesg']} Niter: {res['nfev']}")
+        self.logger.info(f"Line Fit Status: {res['ier']} {res['mesg']} Niter: {res['nfev']}")
         self.logger.info(f"Line Fit Chi2: {res['redchi']:.2f} Bic: {res['bic']:.2f}")
         self.logger.info(f"Line Fit Z: {res['z']:.5f} Err: {res['z_err']:.5f} dZ: {res['dz']:.5f}")
         self.logger.info(f"Line Fit dV: {res['v']:.2f} Err: {res['v_err']:.2f} km/s Bounds [{res['v_min']:.0f} : {res['v_max']:.0f}] Init: {res['v_init']:.0f} km/s")
@@ -223,7 +228,8 @@ def measure_fwhm(wave, data, mode):
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        snr_width=None, force_positive_fluxes=False,
-                       trim_spectrum=True, return_lmfit_info=False):
+                       trim_spectrum=True, return_lmfit_info=False,
+                       fit_kws = None):
     """Fit lines in a spectrum using lmfit.
 
     This function uses lmfit to perform a simple fit of know lines in
@@ -331,6 +337,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         the expected lines.
     return_lmfit_info: boolean, optional
         if true, the lmfit detailed return info is added in the return dictionary
+    fit_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
 
     Returns
     -------
@@ -554,9 +561,10 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     model = model_list.pop()
     while model_list:
         model += model_list.pop()
+        
 
     logger.debug("Fitting the lines...")
-    lmfit_results = model.fit(data, params, x=wave, weights=weights)
+    lmfit_results = model.fit(data, params, x=wave, weights=weights, fit_kws=fit_kws)
 
     # Result parameters
     result_dict = OrderedDict()
