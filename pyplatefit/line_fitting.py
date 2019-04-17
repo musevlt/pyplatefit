@@ -105,6 +105,12 @@ class Linefit:
         self.logger.info(f"Line Fit dV: {res['v']:.2f} Err: {res['v_err']:.2f} km/s Bounds [{res['v_min']:.0f} : {res['v_max']:.0f}] Init: {res['v_init']:.0f} km/s")
         self.logger.info(f"Line Fit Vdisp: {res['vdisp']:.2f} Err: {res['vdisp_err']:.2f} km/s Bounds [{res['vdisp_min']:.0f} : {res['vdisp_max']:.0f}] Init: {res['vdisp_init']:.0f} km/s")
         
+        if res.get('v_lyalpha', None) is not None:
+            self.logger.info(f"Line Fit Z Lyalpha: {res['zlya']:.5f} Err: {res['zlya_err']:.5f} dZ: {res['dzlya']:.5f}")
+            self.logger.info(f"Line Fit dV Lyalpha: {res['v_lyalpha']:.2f} Err: {res['v_lyalpha_err']:.2f} km/s Bounds [{res['v_lyalpha_min']:.0f} : {res['v_lyalpha_max']:.0f}] Init: {res['v_lyalpha_init']:.0f} km/s")
+            self.logger.info(f"Line Fit Vdisp Lyalpha: {res['vdisp_lyalpha']:.2f} Err: {res['vdisp_lyalpha_err']:.2f} km/s Bounds [{res['vdisp_lyalpha_min']:.0f} : {res['vdisp_lyalpha_max']:.0f}] Init: {res['vdisp_lyalpha_init']:.0f} km/s")
+            self.logger.info(f"Line Fit Skewness Lyalpha: {res['skewlya']:.2f} Err: {res['skewlya_err']:.2f} Bounds [{res['skewlya_min']:.0f} : {res['skewlya_max']:.0f}] Init: {res['skewlya_init']:.0f}")
+        
 
         
 
@@ -640,25 +646,29 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         except TypeError:
             result_dict["z_err"] = np.nan
         result_dict["dz"] = result_dict['z'] - redshift
-    if "vlya" in lmfit_results.params:
+    if "v_lyalpha" in lmfit_results.params:
         result_dict["zlya"] = (
             (1 + redshift) *
-            (1 + lmfit_results.params['vlya'].value / C) - 1
+            (1 + lmfit_results.params['v_lyalpha'].value / C) - 1
         )
         try:
             result_dict["zlya_err"] = (
                 (1 + redshift) *
-                lmfit_results.params['vlya'].stderr / C
+                lmfit_results.params['v_lyalpha'].stderr / C
             )
         except TypeError:
             result_dict["zlya_err"] = np.nan
+        result_dict["dzlya"] = result_dict['zlya'] - redshift
     if "LYALPHA_gamma" in lmfit_results.params:
         result_dict["skewlya"] = (
             lmfit_results.params['LYALPHA_gamma'].value
         )
-        result_dict["skelya_err"] = (
+        result_dict["skewlya_err"] = (
             lmfit_results.params['LYALPHA_gamma'].stderr
         )
+        result_dict["skewlya_min"] = lmfit_results.params['LYALPHA_gamma'].min
+        result_dict["skewlya_max"] = lmfit_results.params['LYALPHA_gamma'].max
+        result_dict["skewlya_init"] = lmfit_results.init_params['LYALPHA_gamma'].value
     
     # Line table
     l_name, l_lambda_exp, l_lambda, l_lambda_err, l_fwhm, l_fwhm_err, \

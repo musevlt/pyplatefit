@@ -36,8 +36,8 @@ debug = True
 #z = 1.55051
 # emiline fit succeed only (dz=0)
 
-name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
-z= 0.41909
+name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00142.fits'
+z= 3.749
 # emiline fit succeed only if dz is not used
 
 sp = Spectrum(name)

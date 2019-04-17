@@ -62,17 +62,13 @@ class Platefit:
             axc.set_title('Line')
             axc.legend()
         if 'line_fit' in res: 
-            axc.set_title('Line Fit')
             data_kws = dict(markersize=2)
             res['lmfit'].plot_fit(ax=axc, data_kws=data_kws, show_init=True)
-            for key,param in res['lmfit'].init_params.items():
-                if key.split('_')[-1] == 'center':
-                    lbda = param.value
-                    name = key.split('_')[0]
-                    axc.axvline(lbda, color='b', alpha=0.2) 
-            axc.set_title('Line Fit')
-
-            
-            
+            for row in res['table']:
+                axc.axvline(row['LBDA_EXP'], color='r', alpha=0.2) 
+                axc.axvline(row['LBDA'], color='k', alpha=0.2) 
+                #y1,y2 = axc.get_ylim()
+                #axc.text(row['LBDA']+5, y2-0.1*(y2-y1), row['LINE'], color='k', fontsize=8)                   
+            axc.set_title('Line Fit')    
             
         
