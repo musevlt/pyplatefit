@@ -454,6 +454,11 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         wave, data, weights = wave[mask], data[mask], weights[mask]
         logger.debug("%.1f %% of the spectrum is used for fitting.",
                      100 * np.sum(mask) / len(mask))
+    # mask all points that have a weight == 0
+    mask = weights <= 0
+    if np.sum(mask) > 0:
+        logger.debug('Masked %d points with weights <= 0', np.sum(mask))
+        wave, data, weights = wave[~mask], data[~mask], weights[~mask]
 
     # If there are non resonant lines, we add the velocity parameters that
     # will be used in the Gaussian models.
