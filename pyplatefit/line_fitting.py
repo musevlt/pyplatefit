@@ -512,16 +512,16 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         params += line_model.make_params()
 
         # The amplitude of the line is the area of the Gaussian (it
-        # measures the flux). As starting value, we take the maximum of the
+        # measures the flux). As starting value, we take the sum of the
         # spectrum in a window around the expected wavelength; the window is
         # bigger for Lyman α because this line can go quite far from where it
         # is expected.
         radius = 20 if line_name == "LYALPHA" else 5
         mask = (wave > line_wave - radius) & (wave < line_wave + radius)
-        line_start_value = np.max(data[mask])
+        line_start_value = np.sum(data[mask])
         if force_positive_fluxes and line_start_value < 0:
             line_start_value = 0
-        params["%s_amplitude" % line_name].value = line_start_value
+        params["%s_amplitude" % line_name].value = line_start_value 
         if force_positive_fluxes:
             params["%s_amplitude" % line_name].min = 0
 
