@@ -665,7 +665,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             lmfit_results.params['LYALPHA_gamma'].value
         )
         result_dict["skewlya_err"] = (
-            lmfit_results.params['LYALPHA_gamma'].stderr
+            lmfit_results.params['LYALPHA_gamma'].stderr if lmfit_results.params['LYALPHA_gamma'].stderr is not None else np.nan
         )
         result_dict["skewlya_min"] = lmfit_results.params['LYALPHA_gamma'].min
         result_dict["skewlya_max"] = lmfit_results.params['LYALPHA_gamma'].max
