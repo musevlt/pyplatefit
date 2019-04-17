@@ -72,11 +72,15 @@ class Linefit:
     """
     This class implement Emission Line def
     """
-    def __init__(self):
+    def __init__(self, vel=(-500,0,500), vdisp=(50,80,300), vdisp_lya_max=700, gamma_lya=(-5,0,5), xtol=1.e-4, ftol=1.e-6, maxfev=1000):
         self.logger = getLogger(__name__)
-        self.maxfev = 1000 # nb max of iterations (leastsq)
-        self.xtol = 1.e-4 # relative error in the solution (leastq)
-        self.ftol = 1.e-6 # relative error in the sum of square (leastsq)
+        self.maxfev = maxfev # nb max of iterations (leastsq)
+        self.xtol = xtol # relative error in the solution (leastq)
+        self.ftol = ftol # relative error in the sum of square (leastsq)
+        self.vel = vel
+        self.vdisp = vdisp
+        self.vdisp_lya_max = vdisp_lya_max
+        self.gamma = gamma_lya
         return
     
 
@@ -86,8 +90,9 @@ class Linefit:
         
         """
         fit_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
+        fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma)
         return fit_mpdaf_spectrum(line_spec, z, return_lmfit_info=return_lmfit_info, 
-                                  fit_kws=fit_kws, **kwargs)
+                                  fit_kws=fit_kws, fit_lws=fit_lws, **kwargs)
     
     def info(self, res):
         if res.get('spec', None) is not None:
@@ -98,6 +103,7 @@ class Linefit:
         self.logger.info(f"Line Fit Chi2: {res['redchi']:.2f} Bic: {res['bic']:.2f}")
         self.logger.info(f"Line Fit Z: {res['z']:.5f} Err: {res['z_err']:.5f} dZ: {res['dz']:.5f}")
         self.logger.info(f"Line Fit dV: {res['v']:.2f} Err: {res['v_err']:.2f} km/s Bounds [{res['v_min']:.0f} : {res['v_max']:.0f}] Init: {res['v_init']:.0f} km/s")
+        self.logger.info(f"Line Fit Vdisp: {res['vdisp']:.2f} Err: {res['vdisp_err']:.2f} km/s Bounds [{res['vdisp_min']:.0f} : {res['vdisp_max']:.0f}] Init: {res['vdisp_init']:.0f} km/s")
         
 
         
@@ -229,7 +235,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        snr_width=None, force_positive_fluxes=False,
                        trim_spectrum=True, return_lmfit_info=False,
-                       fit_kws = None):
+                       fit_kws=None, fit_lws=None):
     """Fit lines in a spectrum using lmfit.
 
     This function uses lmfit to perform a simple fit of know lines in
@@ -338,6 +344,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     return_lmfit_info: boolean, optional
         if true, the lmfit detailed return info is added in the return dictionary
     fit_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
+    fit_kws : dictionary with some default and bounds parameters 
 
     Returns
     -------
@@ -411,6 +418,18 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     if not lines:
         raise NoLineError("There is no know line on the spectrum "
                           "coverage.")
+    
+    # get defaut parameters from fit_lws or common default values
+    if (fit_lws is None):
+        pvel_min,pvel_init,pvel_max = (VEL_MIN,VEL_INIT,VEL_MAX) 
+        pvd_min,pvd_init,pvd_max = (VD_MIN,VD_INIT,VD_MAX) 
+        pvd_max_lya = VD_MAX_LYA
+        pgamma_min,pgamma_init,pgamma_max = (GAMMA_MIN,GAMMA_INIT,GAMMA_MAX)
+    else:
+        pvel_min,pvel_init,pvel_max = fit_lws['vel']
+        pvd_min,pvd_init,pvd_max = fit_lws['vdisp']
+        pvd_max = fit_lws['vdisp_lya_max'] 
+        pgamma_min,pgamma_init,pgamma_max = fit_lws['gamma'] 
 
     # Spectrum trimming
     # The window we keep around each line depend on the minimal and maximal
@@ -422,12 +441,12 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         for row in lines:
             line_wave = row["LBDA_EXP"]
             if row['LINE'] == "LYALPHA":
-                vd_max = VD_MAX_LYA
+                    vd_max = pvd_max_lya
             else:
-                vd_max = VD_MAX
-            wave_min = line_wave * (1 + VEL_MIN / C)
+                    vd_max = pvd_max
+            wave_min = line_wave * (1 + pvd_min / C)
             wave_min -= 3 * wave_min * vd_max / C
-            wave_max = line_wave * (1 + VEL_MAX / C)
+            wave_max = line_wave * (1 + pvel_max / C)
             wave_max += 3 * wave_max * vd_max / C
             mask[(wave >= wave_min) & (wave <= wave_max)] = True
             logger.debug("Keeping only waves in [%s, %s] for line %s.",
@@ -442,24 +461,23 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         logger.debug("Adding velocity to parameters...")
         # Velocity of the galaxy in km/s. Accounts as uncertainty on the
         # redshift.
-        params.add("v", VEL_INIT, min=VEL_MIN, max=VEL_MAX)
+        params.add("v", pvel_init, min=pvel_min, max=pvel_max)
         # Velocity dispersion of the galaxy in km/s.
-        params.add("vdisp", VD_INIT, min=VD_MIN, max=VD_MAX)
+        params.add("vdisp", pvd_init, min=pvd_min, max=pvd_max)
 
     # If there are resonant lines, we add one set of velocity parameters
     # per element (some resonant lines may be doublets).
     for elem in set([RESONANT_LINES[l] for l in lines['LINE'] if l in
                      RESONANT_LINES]):
         logger.debug("Adding velocities for %s...", elem)
-        params.add("v_%s" % elem, VEL_INIT, min=VEL_MIN, max=VEL_MAX)
-        params.add("vdisp_%s" % elem, VD_INIT, min=VD_MIN,
-                   max=VD_MAX)
+        params.add("v_%s" % elem, pvel_init, min=pvel_min, max=pvel_max)
+        params.add("vdisp_%s" % elem, pvd_init, min=pvd_min, max=pvd_max)
 
     # For the Lyman α line, we allow of a greater velocity dispersion and
     # compute a Lyman α redshift.
     if "LYALPHA" in lines['LINE']:
         logger.debug("Adding Lyman α velocity dispersion...")
-        params['vdisp_lya'].max = VD_MAX_LYA
+        params['vdisp_lya'].max = pvd_max_lya
 
     # Per line model creation
     for row in lines:
@@ -504,9 +522,9 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
 
         # Limit the γ parameter of the Lyman α line
         if line_name == "LYALPHA":
-            params["LYALPHA_gamma"].value = GAMMA_INIT
-            params["LYALPHA_gamma"].min = GAMMA_MIN
-            params["LYALPHA_gamma"].max = GAMMA_MAX
+            params["LYALPHA_gamma"].value = pgamma_init
+            params["LYALPHA_gamma"].min = pgamma_min
+            params["LYALPHA_gamma"].max = pgamma_max
 
         # The center of the Gaussian is parameterized with the initial line
         # wavelength modified by the velocity:
@@ -594,6 +612,13 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             except TypeError:
                 result_dict["%s_max" % param] = np.nan 
             result_dict["%s_init" % param] = lmfit_results.init_params[param].value
+            
+    if 'vdisp' in lmfit_results.params:
+        result_dict['vdisp'] = lmfit_results.params['vdisp'].value
+        result_dict['vdisp_err'] = lmfit_results.params['vdisp'].stderr
+        result_dict['vdisp_min'] = lmfit_results.params['vdisp'].min
+        result_dict['vdisp_max'] = lmfit_results.params['vdisp'].max
+        result_dict['vdisp_init'] = lmfit_results.init_params['vdisp'].value
     # New redshift taking into account the velocity
     # (1 + z_new) = (1 + z_ini)(1 + v/c)
     # Note: the redshift variable contains the initial redshift
@@ -629,7 +654,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         result_dict["skelya_err"] = (
             lmfit_results.params['LYALPHA_gamma'].stderr
         )
-
+    
     # Line table
     l_name, l_lambda_exp, l_lambda, l_lambda_err, l_fwhm, l_fwhm_err, \
         l_value, l_std = [], [], [], [], [], [], [], []

@@ -37,13 +37,12 @@ class Contfit:
     
             'available_z': [0.0001, 0.0004, 0.001,  0.004,  0.008,  0.017,  0.04,   0.07],
             'use_z': [0.0001, 0.0004, 0.001,  0.004,  0.008,  0.017,  0.04,   0.07 ],
-            'linelist': 'etc/muse_antennae_linelist_subset.txt',
 
             # burst models information to be recorded
             'burst_lib': [],
             'burst_wl': [],
-            # 'wavelength_range_for_fit': [2350., 4550.], not used
-            # 'wavelength_range_for_fit': [1620., 4550.], no change
+
+            
             'gzval': [],
             'szval': [],
             'gztags': [],
@@ -183,21 +182,25 @@ class Contfit:
         # Shift wavelengths of the spectrum from air to vacuum. From now on, unless the wavelength is AIRWL,
         # the wavelengths below are in vacuum.
 
-        xnew = np.arange(np.min(tmp_logwl), np.max(tmp_logwl), dw)
+        xnew = np.arange(np.min(tmp_logwl), np.max(tmp_logwl), dw) # rebin in uniform step in log(vac)
 
+        # mask bad or high std dev
         use = np.where((err_orig > 0.0) & (err_orig < 1.0E5))
+        # interpolate over the new wavelengths
         ynew = np.interp(10**xnew, vacwl_orig[use], flux_orig[use])
         errnew = np.interp(10**xnew, vacwl_orig[use], err_orig[use])
 
+        # final coordinates 
         vacwl = 10.0**xnew
         logwl = xnew
         flux = ynew
         err = errnew
-        airwl = 10.0**xnew
-        airwl = vactoair(airwl)
+        airwl = vactoair(vacwl)
 
-        restwl = airwl / (1.0 + z)
+        #restwl = airwl / (1.0 + z) # why in air ????
+        restwl = vacwl / (1.0 + z)
 
+        # ok is the mask
         ok = np.array(
             np.where((err > 0.0) & (np.isfinite(err**2) == True) & (err < 1.0E10) & (np.isfinite(flux) == True))).squeeze()
 
@@ -299,7 +302,7 @@ class Contfit:
 
         cont = spec.clone()
         # rebin continuum in linear
-        cont.data = np.interp(spec.wave.coord(), 10**logwl, best_continuum)
+        cont.data = np.interp(spec.wave.coord(), airwl, best_continuum)
         cont.data = cont.data / (1 + z)
         
         res['cont_spec'] = cont

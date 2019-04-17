@@ -37,7 +37,7 @@ debug = True
 # emiline fit succeed only (dz=0)
 
 name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
-z= 0.41907
+z= 0.41909
 # emiline fit succeed only if dz is not used
 
 sp = Spectrum(name)
@@ -56,8 +56,8 @@ pl.info_cont(res_cont)
 
 #plt.show()
 
-res_line = pl.fit_lines(res_cont['line_spec'], res_cont['z']) # do not work
-#res_line = pl.fit_lines(res_cont['line_spec'], z)
+#res_line = pl.fit_lines(res_cont['line_spec'], res_cont['z']) # do not work
+res_line = pl.fit_lines(res_cont['line_spec'], z)
 pl.info_lines(res_line)
 
 fig,ax = plt.subplots(1,2)
