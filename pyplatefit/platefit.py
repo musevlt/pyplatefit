@@ -16,10 +16,10 @@ class Platefit:
     This class is a poorman version of Platefit
     """
 
-    def __init__(self):
+    def __init__(self, contpars={}, linepars={}):
         self.logger = getLogger(__name__)
-        self.cont = Contfit()
-        self.line = Linefit()
+        self.cont = Contfit(**contpars)
+        self.line = Linefit(**linepars)
 
     def fit(self):
         """"""

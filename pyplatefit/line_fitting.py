@@ -81,6 +81,7 @@ class Linefit:
         self.vdisp = vdisp
         self.vdisp_lya_max = vdisp_lya_max
         self.gamma = gamma_lya
+       
         return
     
 
@@ -626,7 +627,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             
     if 'vdisp' in lmfit_results.params:
         result_dict['vdisp'] = lmfit_results.params['vdisp'].value
-        result_dict['vdisp_err'] = lmfit_results.params['vdisp'].stderr
+        result_dict['vdisp_err'] = lmfit_results.params['vdisp'].stderr if lmfit_results.params['vdisp'].stderr is not None else np.nan
         result_dict['vdisp_min'] = lmfit_results.params['vdisp'].min
         result_dict['vdisp_max'] = lmfit_results.params['vdisp'].max
         result_dict['vdisp_init'] = lmfit_results.init_params['vdisp'].value
@@ -810,7 +811,7 @@ def fit_mpdaf_spectrum(spectrum, redshift, return_lmfit_info=False, **kwargs):
 
     res = fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
                               unit_wave=u.angstrom, unit_data=unit_data,
-                              return_lmfit_info=return_lmfit_info,
+                              return_lmfit_info=return_lmfit_info, 
                               **kwargs)
     
     
