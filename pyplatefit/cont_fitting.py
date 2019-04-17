@@ -259,7 +259,7 @@ class Contfit:
 
                 cont = spec.clone()
                 # cont is just the median over the wavelength range
-                cont.data = np.ones_like(sp.data) * np.ma.median(sp.data)
+                cont.data = np.ones_like(spec.data) * np.ma.median(spec.data)
                 res['cont_spec'] = cont
                 
                 res['line_spec'] = spec - cont

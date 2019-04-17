@@ -428,7 +428,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     else:
         pvel_min,pvel_init,pvel_max = fit_lws['vel']
         pvd_min,pvd_init,pvd_max = fit_lws['vdisp']
-        pvd_max = fit_lws['vdisp_lya_max'] 
+        pvd_max_lya = fit_lws['vdisp_lya_max'] 
         pgamma_min,pgamma_init,pgamma_max = fit_lws['gamma'] 
 
     # Spectrum trimming
@@ -482,7 +482,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     # compute a Lyman α redshift.
     if "LYALPHA" in lines['LINE']:
         logger.debug("Adding Lyman α velocity dispersion...")
-        params['vdisp_lya'].max = pvd_max_lya
+        params['vdisp'].max = pvd_max_lya
 
     # Per line model creation
     for row in lines:
