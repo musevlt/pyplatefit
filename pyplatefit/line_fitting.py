@@ -518,17 +518,17 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     
     # fill the lines table with the fit results
     lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','FAMILY'])
-    for colname in ['VEL','VEL_ERR','Z','Z_ERR','LBDA','LBDA_ERR','FLUX','FLUX_ERR',
-                    'PEAK','PEAK_ERR','FWHM','FWHM_ERR','FWHMOBS','FWHMOBS_ERR','SKEW','SKEW_ERR']:
+    for colname in ['VEL','VEL_ERR','Z','Z_ERR','VDISP','VDISP_ERR','PEAK','PEAK_ERR',
+                    'FLUX','FLUX_ERR','SKEW','SKEW_ERR','LBDA_OBS','FWHM_OBS']:
         lines.add_column(MaskedColumn(name=colname, dtype=np.float, length=len(lines), mask=True))
     
     par = result.params
     zf = 1+redshift
     for fname,fdict in family_lines.items():
-        dv = par[f"dv_{fname}"].value * zf
-        dv_err = par[f"dv_{fname}"].stderr * zf
-        vdisp = par[f"vdisp_{fname}"].value * zf
-        vdisp_err = par[f"vdisp_{fname}"].stderr * zf  
+        dv = par[f"dv_{fname}"].value 
+        dv_err = par[f"dv_{fname}"].stderr 
+        vdisp = par[f"vdisp_{fname}"].value 
+        vdisp_err = par[f"vdisp_{fname}"].stderr  
         fwhm = 2.355*vdisp
         fwhm_err = 2.355*vdisp_err
         fun = fdict['fun']
@@ -540,35 +540,33 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             if par[f"{name}_{fun}_peak"].expr is None:
                 peak_err = par[f"{name}_{fun}_peak"].stderr / zf
             else: #to be compute with factor
-                peak_err = 0
-                
+                peak_err = 0              
             row['VEL'] = dv
             row['VEL_ERR'] = dv_err
             row['Z'] = redshift + dv/C
             row['Z_ERR'] = dv_err/C
-            row['LBDA'] = row['LBDA_REST']*(1+row['Z'])
+            row['LBDA_OBS'] = row['LBDA_REST']*(1+row['Z'])
             if not vac:
-                row['LBDA'] = vactoair(row['LBDA'])
-            row['LBDA_ERR'] = row['LBDA_REST']*row['Z_ERR']
+                row['LBDA_OBS'] = vactoair(row['LBDA_OBS'])
             row['PEAK'] = peak
             row['PEAK_ERR'] = peak_err
-            row['FWHM'] = fwhm
-            row['FWHM_ERR'] = fwhm_err
-            row['FWHMOBS'] = fwhm*row['LBDA']/C
-            row['FWHMOBS_ERR'] = fwhm_err*row['LBDA']/C 
+            row['VDISP'] = vdisp
+            row['VDISP_ERR'] = vdisp_err
             if fun == 'gauss':
-                flux = 2*np.pi*row['FWHMOBS']*peak/2.355
-                flux_err = (2*np.pi/2.355) * (row['FWHMOBS_ERR']*peak + row['FWHMOBS']*peak_err)
+                flux = 2*np.pi*peak*row['VDISP']*row['LBDA_REST']/C
+                flux_err = 2*np.pi*(vdisp_err*peak + vdisp*peak_err)*row['LBDA_REST']/C
                 row['FLUX'] = flux
                 row['FLUX_ERR'] = flux_err
+                row['FWHM_OBS'] = 2.355*vdisp*row['LBDA_OBS']/C
             if fun == 'asymgauss':
                 row['SKEW'] = par[f"{name}_{fun}_asym"].value 
                 row['SKEW_ERR'] = par[f"{name}_{fun}_asym"].stderr
-                flux = peak*get_asym_flux(par[f"{name}_{fun}_asym"], vdisp*row['LBDA']/C)
-                fwhm = get_asym_fwhm(par[f"{name}_{fun}_asym"].value, vdisp*row['LBDA']/C)
+                flux = peak*get_asym_flux(par[f"{name}_{fun}_asym"], vdisp*row['LBDA_REST']/C)
                 row['FLUX'] = flux
-                row['FWHMOBS'] = fwhm*(wave[1]-wave[0])
-                row['FWHM'] = row['FWHMOBS']*C/row['LBDA']
+                fwhm = get_asym_fwhm(par[f"{name}_{fun}_asym"].value, vdisp*row['LBDA_OBS']/C)                
+                row['FWHM_OBS'] = fwhm*(wave[1]-wave[0])
+                # WIP calculer flux_err par bootstrap
+                
         
     
     # save line table
