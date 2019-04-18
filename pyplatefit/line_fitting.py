@@ -34,7 +34,7 @@ from collections import OrderedDict
 from astropy import constants
 from astropy import units as u
 from astropy.table import Table
-from lmfit.models import GaussianModel, SkewedGaussianModel
+from astropy.table import MaskedColumn
 from lmfit.parameter import Parameters
 from lmfit import Minimizer, report_fit
 import numpy as np
@@ -474,8 +474,30 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                     ksel = np.abs(wave_rest-line['LBDA_REST']) < 30
                     vmax = data_rest[ksel].max() 
                     params.add(f"{name}_gauss_peak", value=vmax, min=0)
-        #if len(doublets) > 0:
-            #continue
+        if len(doublets) > 0:
+            ndoublets = np.unique(doublets['DOUBLET'])
+            for dlbda in ndoublets:
+                dlines = doublets[np.abs(doublets['DOUBLET']-dlbda) < 0.01]
+                fname = str(dlines['LINE'][0]).lower()
+                family_lines[fname] = dict(lines=dlines['LINE'], fun='gauss')
+                params.add(f'dv_{fname}', value=0, min=-500, max=500)
+                params.add(f'vdisp_{fname}', value=50, min=30, max=100)                 
+                for line in dlines:
+                    name = line['LINE']
+                    params.add(f"{name}_gauss_l0", value=line['LBDA_REST'], vary=False)  
+                    ksel = np.abs(wave_rest-line['LBDA_REST']) < 30
+                    vmax = data_rest[ksel].max() 
+                    params.add(f"{name}_gauss_peak", value=vmax, min=0)
+                if line_ratios is not None:
+                    # add line ratios bounds
+                    for line1,line2,ratio_min,ratio_max in line_ratios:
+                        if (line1 in dlines['LINE']) and (line2 in dlines['LINE']):
+                            params.add("%s_to_%s_factor" % (line1, line2), min=ratio_min,
+                                       max=ratio_max, value=0.5*(ratio_min+ratio_max))
+                            params['%s_gauss_peak' % line2].expr = (
+                                "%s_gauss_peak * %s_to_%s_factor" % (line1, line1, line2)
+                            ) 
+                            logger.debug('Add doublet constrain for %s %s min %.2f max %.2f',line1,line2,ratio_min,ratio_max)                
                     
         
     minner = Minimizer(residuals, params, fcn_args=(wave_rest, data_rest, std_rest, family_lines))
@@ -495,12 +517,76 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     result.fit = model(result.params, wave_rest, family_lines)
     
     # fill the lines table with the fit results
+    lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','FAMILY'])
+    for colname in ['VEL','VEL_ERR','Z','Z_ERR','LBDA','LBDA_ERR','FLUX','FLUX_ERR',
+                    'PEAK','PEAK_ERR','FWHM','FWHM_ERR','FWHMOBS','FWHMOBS_ERR','SKEW','SKEW_ERR']:
+        lines.add_column(MaskedColumn(name=colname, dtype=np.float, length=len(lines), mask=True))
     
+    par = result.params
+    zf = 1+redshift
+    for fname,fdict in family_lines.items():
+        dv = par[f"dv_{fname}"].value * zf
+        dv_err = par[f"dv_{fname}"].stderr * zf
+        vdisp = par[f"vdisp_{fname}"].value * zf
+        vdisp_err = par[f"vdisp_{fname}"].stderr * zf  
+        fwhm = 2.355*vdisp
+        fwhm_err = 2.355*vdisp_err
+        fun = fdict['fun']
+        for row in lines:
+            name = row['LINE']
+            if name not in fdict['lines']:
+                continue
+            peak = par[f"{name}_{fun}_peak"].value / zf
+            if par[f"{name}_{fun}_peak"].expr is None:
+                peak_err = par[f"{name}_{fun}_peak"].stderr / zf
+            else: #to be compute with factor
+                peak_err = 0
+                
+            row['VEL'] = dv
+            row['VEL_ERR'] = dv_err
+            row['Z'] = redshift + dv/C
+            row['Z_ERR'] = dv_err/C
+            row['LBDA'] = row['LBDA_REST']*(1+row['Z'])
+            if not vac:
+                row['LBDA'] = vactoair(row['LBDA'])
+            row['LBDA_ERR'] = row['LBDA_REST']*row['Z_ERR']
+            row['PEAK'] = peak
+            row['PEAK_ERR'] = peak_err
+            row['FWHM'] = fwhm
+            row['FWHM_ERR'] = fwhm_err
+            row['FWHMOBS'] = fwhm*row['LBDA']/C
+            row['FWHMOBS_ERR'] = fwhm_err*row['LBDA']/C 
+            if fun == 'gauss':
+                flux = 2*np.pi*row['FWHMOBS']*peak/2.355
+                flux_err = (2*np.pi/2.355) * (row['FWHMOBS_ERR']*peak + row['FWHMOBS']*peak_err)
+                row['FLUX'] = flux
+                row['FLUX_ERR'] = flux_err
+            if fun == 'asymgauss':
+                row['SKEW'] = par[f"{name}_{fun}_asym"].value 
+                row['SKEW_ERR'] = par[f"{name}_{fun}_asym"].stderr
+                flux = peak*get_asym_flux(par[f"{name}_{fun}_asym"], vdisp*row['LBDA']/C)
+                fwhm = get_asym_fwhm(par[f"{name}_{fun}_asym"].value, vdisp*row['LBDA']/C)
+                row['FLUX'] = flux
+                row['FWHMOBS'] = fwhm*(wave[1]-wave[0])
+                row['FWHM'] = row['FWHMOBS']*C/row['LBDA']
+        
     
     # save line table
     result.linetable = lines
     
     return result
+
+def get_asym_flux(a,d):
+    from scipy.integrate import quad
+    f = lambda x: np.exp(-x**2/(2*(a*x+d)**2))
+    flux = quad(f, -np.inf, np.inf)
+    return flux[0]
+
+def get_asym_fwhm(a,d):
+    from scipy.optimize import brentq
+    f = lambda x: np.exp(-x**2/(2*(a*x+d)**2))-0.5
+    x = brentq(f, 0, 5*d)
+    return 2*x
 
 def model(params, wave, lines):
     model = 0
