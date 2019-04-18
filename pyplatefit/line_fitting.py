@@ -36,12 +36,13 @@ from astropy import units as u
 from astropy.table import Table
 from lmfit.models import GaussianModel, SkewedGaussianModel
 from lmfit.parameter import Parameters
+from lmfit import Minimizer, report_fit
 import numpy as np
 from scipy.signal import argrelmin
 from logging import getLogger
 
 from mpdaf.sdetect.linelist import get_emlines
-from mpdaf.obj.spectrum import vactoair
+from mpdaf.obj.spectrum import vactoair, airtovac
 
 C = constants.c.to(u.km / u.s).value
 
@@ -51,15 +52,11 @@ VD_MIN, VD_INIT, VD_MAX = 50, 80, 300  # Velocity dispersion
 VD_MAX_LYA = 700  # Maximum velocity dispersion for Lyman α
 GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -5, 0, 5  # γ parameter for Lyman α
 
-# When fitting the lines, it is assumed that the resonant ones have the own
-# velocity and velocity dispersion, but shared in the case of doublets. This
-# dictionary associate the name of the line to the suffixed used in the
-# parameters.
-RESONANT_LINES = {
-    "LYALPHA": "lyalpha",
-    "MGII2796": "mgii",
-    "MGII2803": "mgii",
-}
+
+DOUBLET_RATIOS = [
+    ("CIII1907", "CIII1909", 0.6, 1.2),
+    ("OII3727", "OII3729", 1.0, 2.0),
+]
 
 
 class NoLineError(ValueError):
@@ -85,15 +82,15 @@ class Linefit:
         return
     
 
-    def fit(self, line_spec, z, return_lmfit_info=True, **kwargs):
+    def fit(self, line_spec, z, major_lines=False, lines=None, emcee=False):
         """
         perform line fit on a mpdaf spectrum
         
         """
         fit_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma)
-        return fit_mpdaf_spectrum(line_spec, z, return_lmfit_info=return_lmfit_info, 
-                                  fit_kws=fit_kws, fit_lws=fit_lws, **kwargs)
+        return fit_mpdaf_spectrum(line_spec, z, major_lines=major_lines, lines=lines, emcee=emcee, 
+                                  fit_kws=fit_kws, fit_lws=fit_lws)
     
     def info(self, res):
         if res.get('spec', None) is not None:
@@ -237,12 +234,9 @@ def measure_fwhm(wave, data, mode):
 
     return wave[hm2_idx] - wave[hm1_idx]
 
-
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
-                       snr_width=None, force_positive_fluxes=False,
-                       trim_spectrum=True, return_lmfit_info=False,
-                       fit_kws=None, fit_lws=None):
+                       major_lines=False, fit_kws=None, fit_lws=None, emcee=False):
     """Fit lines in a spectrum using lmfit.
 
     This function uses lmfit to perform a simple fit of know lines in
@@ -273,37 +267,30 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         0.6 <= OII3729 / OII3726 <= 1.2
         1.0 <= CIII1909 / CIII1907 <= 2.0
 
-    These values were computed on the DR1 catalog from MUSE-UDF ans are
-    consistent with Pradhan et al. (2006) and Stark et al. (2015) given the
-    kind of galaxies observed in MUSE-UDF.
 
     If the units of the wavelength and data axis are provided, the function
     will try to determine the unit of the computed fluxes.
 
-    The second output of the function is a table of the lines found in the
-    spectrum. The columns are:
+    The table of the lines found in the spectrum are given as result.linetable. 
+    The columns are:
     - LINE: the name of the line
-    - LBDA_EXP: The expected position of the line, i.e. the rest-frame position
-      redshifted and if needed converted to air.
-    - LBDA: The position the line is fitted at.
-    - LBDA_ERR: The uncertainty on the position of the LINE. Note that for
-      Lyman α we don't provide this information.
-    - FWHM: The full width at half maximum of the line converted to km/s.
+    - LBDA_REST: The the rest-frame position of the line in vacuum
+    - VEL: The velocity offset in km/s with respect to the initial redshift
+    - VEL_ERR: The error in velocity offset in km/s 
+    - Z: The fitted redshift in vacuum of the line (note for lyman-alpha the line peak is used)
+    - Z_ERR: The error in fitted redshift of the line.
+    - LBDA_EXP: The input position of the line, i.e. the rest-frame position
+      redshifted using the input redshift and if needed converted to air.
+    - LBDA: The fitted position the line in the observed frame
+    - LBDA_ERR: The uncertainty on the position of the LINE. 
+    - FWHM: The full width at half maximum of the line in the observed frame and converted to km/s.
+    - FWHM_ERR: The uncertainty on the FWHM in the observed frame in km/s. 
+    - SKEW: The skewness of the asymetric line (for Lyman-alpha line only).
+    - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
     - FLUX: Flux in the line. The unit depends on the units of the spectrum.
       The function try to find the corresponding unit.
     - FLUX_ERR: The fitting uncertainty on the flux value.
-    - SNR: The signal to noise ratio computed by measuring the flux uncertainty
-      on the spectrum in a snr_width wide window.
 
-    Note on errors: The FLUX_ERR column contains the error from the fitting
-    procedure, which is different from the noise in the spectrum. It's
-    nevertheless possible to ask for the computation of a signal to noise ratio
-    (SNR) which is computed from the standard deviation associated to the
-    spectrum.
-
-    FIXME: The result dictionary `velocity_lyalpha` and
-    `velocity_dispersion_lyalpha` parameters are the wrong one because they are
-    based in the non-skewed Gaussian.
 
     Parameters
     ----------
@@ -329,29 +316,21 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         - a list of line names as in MPDAF line list;
         - or an astropy table with the information on the lines to fit. The
           table must contain a LINE column with the name of the line and a LBDA
-          column with the rest-frame, vaccuum wavelength of the lines. This
-          line
-          table will be redshifted and converted to air wavelengths. Only the
+          column with the rest-frame, vaccuum wavelength of the lines.  Only the
           lines that are expected in the spectrum will be fitted. Note that the
           names of the resonant lines in the LINE column is important an must
           match the names in RESONANT_LINES.
     line_ratios: list of (str, str, float, float) tuples or string
         List on line ratio constraints (line1 name, line2 name, line2/line1
         minimum, line2/line1 maximum.
-    snr_width: float, optional
-        Width, in FWHM factor, around the line position in which the noise is
-        measured to compute the SNR of the line. If not provided, the SNR is
-        not added to the line table.
-    force_positive_fluxes : boolean, optional
-        If true, the flux in the lines will be forced to be positive. Use
-        carefully as this may lead to the impossibility to compute errors.
-    trim_spectrum : boolean, optional
-        If true, the fit is done keeping only the parts of the spectrum around
-        the expected lines.
-    return_lmfit_info: boolean, optional
-        if true, the lmfit detailed return info is added in the return dictionary
+    major_lines : boolean, optional
+        If true, the fit is restricted to the major lines as defined in mpdaf line table (used only when lines is None, )
+        default: False
+    emcee : boolean, optional
+        if true, errors and best fit is estimated with EMCEE starting from the leastsq solution
+        default: False
     fit_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
-    fit_kws : dictionary with some default and bounds parameters 
+    fit_kws : dictionary with some default and bounds parameters
 
     Returns
     -------
@@ -362,10 +341,210 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     ------
     NoLineError: when none of the fitted line can be on the spectrum at the
         given redshift.
-    ValueError: if the computation of the FWHM is asked with the `snr_width`
-        parameter but the spectrum has no variance.
-
     """
+    logger = logging.getLogger(__name__)
+
+    wave = np.array(wave)
+    data = np.array(data)
+    std = np.array(std) if std is not None else np.ones_like(data)
+    
+    # convert wavelength in restframe and vacuum, scale flux and std
+    wave_rest = airtovac(wave)/(1+redshift)
+    data_rest = data*(1+redshift)
+    std_rest = std*(1+redshift)
+    
+    # mask all points that have a std == 0
+    mask = std <= 0
+    if np.sum(mask) > 0:
+        logger.debug('Masked %d points with std <= 0', np.sum(mask))
+        wave_rest, data_rest, std_rest = wave_rest[~mask], data_rest[~mask], std_rest[~mask]    
+
+    # Unit of the computed flux.
+    if unit_wave is not None and unit_data is not None:
+        # The flux is the integral of the data in the line profile.
+        unit_flux = unit_data * unit_wave
+    else:
+        unit_flux = None
+
+
+    # Fitting only some lines from mpdaf library.
+    if type(lines) is list:
+        lines_to_fit = lines
+        lines = None
+    else:
+        lines_to_fit = None
+
+    if lines is None:
+        logger.debug("Getting lines from get_emlines...") 
+        sel = 1 if major_lines else None
+        lines = get_emlines(z=redshift, vac=True, sel=sel, margin=5,
+                            lbrange=[wave.min(), wave.max()],
+                            ltype="em", table=True, restframe=True)
+        lines.rename_column("LBDA_OBS", "LBDA_REST")
+        if lines_to_fit is not None:
+            lines = lines[np.in1d(lines['LINE'], lines_to_fit)]
+            if len(lines) < len(lines_to_fit):
+                logger.debug(
+                    "Some lines are not on the spectrum coverage: %s.",
+                    ", ".join(set(lines_to_fit) - set(lines['LINE'])))
+        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
+        if not vac:
+            lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])        
+    else:
+        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA']
+        if not vac:
+            lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])
+        lines = lines[
+            (lines['LBDA_EXP'] >= wave.min()) &
+            (lines['LBDA_EXP'] <= wave.max())
+        ]
+
+    # When there is no known line on the spectrum area.
+    if not lines:
+        raise NoLineError("There is no known line on the spectrum "
+                          "coverage.")
+
+    # The fitting is done with lmfit. The model is a sum of Gaussian (or
+    # skewed Gaussian), one per line.
+    params = Parameters()  # All the parameters of the fit
+    family_lines = {} # dictionary of family lines
+    
+    # fit one unique velocity and velocity dispersion for balmer and forbidden family
+    for family_id,family_name in [[1,'balmer'],[2,'forbidden']]:
+        sel_lines = lines[lines['FAMILY']==family_id]
+        if len(sel_lines) == 0:
+            logger.debug('No %s lines to fit', family_name)
+            continue
+        else:
+            logger.debug('%d %s lines to fit', len(sel_lines), family_name)
+        family_lines[family_name] = dict(lines=sel_lines['LINE'].tolist(), fun='gauss')
+        params.add(f'dv_{family_name}', value=0, min=-500, max=500)
+        params.add(f'vdisp_{family_name}', value=50, min=30, max=100)
+        for line in sel_lines:
+            name = line['LINE']
+            params.add(f"{name}_gauss_l0", value=line['LBDA_REST'], vary=False)  
+            ksel = np.abs(wave_rest-line['LBDA_REST']) < 30
+            vmax = data_rest[ksel].max() 
+            params.add(f"{name}_gauss_peak", value=vmax, min=0)
+        if line_ratios is not None:
+            # add line ratios bounds
+            dlines = sel_lines[sel_lines['DOUBLET']>0]
+            if len(dlines) == 0:
+                continue
+            for line1,line2,ratio_min,ratio_max in line_ratios:
+                if (line1 in dlines['LINE']) and (line2 in dlines['LINE']):
+                    params.add("%s_to_%s_factor" % (line1, line2), min=ratio_min,
+                               max=ratio_max, value=0.5*(ratio_min+ratio_max))
+                    params['%s_gauss_peak' % line2].expr = (
+                        "%s_gauss_peak * %s_to_%s_factor" % (line1, line1, line2)
+                    ) 
+                    logger.debug('Add doublet constrain for %s %s min %.2f max %.2f',line1,line2,ratio_min,ratio_max)
+        
+    # fit a different velocity and velocity dispersion for each resonnant lines(or doublet)
+    family_id = 3
+    sel_lines = lines[lines['FAMILY']==family_id]
+    if len(sel_lines) == 0:
+        logger.debug('No %s lines to fit', family_name)
+    else:   
+        logger.debug('%d %s lines to fit', len(sel_lines), family_name)
+        doublets = sel_lines[sel_lines['DOUBLET']>0]
+        singlets = sel_lines[sel_lines['DOUBLET']==0]
+        if len(singlets) > 0:
+            for line in singlets:
+                if line['LINE'] == 'LYALPHA':
+                    # we fit an asymmetric line
+                    fname = line['LINE'].lower()
+                    family_lines[fname] = dict(lines=[line['LINE']], fun='asymgauss')
+                    params.add(f'dv_{fname}', value=0, min=-500, max=500)
+                    params.add(f'vdisp_{fname}', value=100, min=30, max=300) 
+                    name = line['LINE']
+                    params.add(f"{name}_asymgauss_l0", value=line['LBDA_REST'], vary=False)  
+                    ksel = np.abs(wave_rest-line['LBDA_REST']) < 30
+                    vmax = data_rest[ksel].max() 
+                    params.add(f"{name}_asymgauss_peak", value=vmax, min=0)
+                    params.add(f"{name}_asymgauss_asym", value=0) 
+                else:
+                    # we fit a gaussian
+                    fname = line['LINE'].lower()
+                    family_lines[fname] = dict(lines=[line['LINE']], fun='gauss')
+                    params.add(f'dv_{fname}', value=0, min=-500, max=500)
+                    params.add(f'vdisp_{fname}', value=50, min=30, max=100) 
+                    name = line['LINE']
+                    params.add(f"{name}_gauss_l0", value=line['LBDA_REST'], vary=False)  
+                    ksel = np.abs(wave_rest-line['LBDA_REST']) < 30
+                    vmax = data_rest[ksel].max() 
+                    params.add(f"{name}_gauss_peak", value=vmax, min=0)
+        #if len(doublets) > 0:
+            #continue
+                    
+        
+    minner = Minimizer(residuals, params, fcn_args=(wave_rest, data_rest, std_rest, family_lines))
+    
+    logger.debug('Leastsq fitting')
+    result = minner.minimize()
+    
+    if emcee:
+        logger.debug('Error estimation using EMCEE')
+        result = minner.emcee(params=result.params)
+    
+    # save input data, initial and best fit (in rest frame)
+    result.wave = wave_rest
+    result.data = data_rest
+    result.std = std_rest
+    result.init = model(params, wave_rest, family_lines)
+    result.fit = model(result.params, wave_rest, family_lines)
+    
+    # fill the lines table with the fit results
+    
+    
+    # save line table
+    result.linetable = lines
+    
+    return result
+
+def model(params, wave, lines):
+    model = 0
+    for name,ldict in lines.items():
+        vdisp = params[f"vdisp_{name}"]
+        dv = params[f"dv_{name}"]
+        for line in ldict['lines']:
+            if ldict['fun']=='gauss':
+                peak = params[f"{line}_gauss_peak"]
+                l0 = params[f"{line}_gauss_l0"]*(1+dv/C)
+                sigma = vdisp*l0/C
+                model += gauss(peak.value, l0, sigma, wave)
+            elif ldict['fun']=='asymgauss':
+                peak = params[f"{line}_asymgauss_peak"]
+                l0 = params[f"{line}_asymgauss_l0"]*(1+dv/C)
+                asym = params[f"{line}_asymgauss_asym"].value
+                sigma = vdisp*l0/C
+                model += asymgauss(peak.value, l0, asym, sigma, wave)            
+            else:
+                logger.error('Unknown function %s', fun)
+                raise ValueError
+    return model
+    
+def residuals(params, wave, data, std, lines):
+    vmodel = model(params, wave, lines)
+    res = (vmodel - data)/std 
+    return res
+    
+def gauss(peak, l0, sigma, wave):
+    g = peak*np.exp(-(wave-l0)**2/(2*sigma**2))
+    return g
+
+def asymgauss(peak, l0, a, d, wave):
+    sigma = a*(wave-l0) + d
+    g = peak*np.exp(-(wave-l0)**2/(2*sigma**2))
+    return g
+
+
+def fit_spectrum_lines_old(wave, data, std, redshift, *, unit_wave=None,
+                       unit_data=None, vac=False, lines=None, line_ratios=None,
+                       snr_width=None, force_positive_fluxes=False,
+                       trim_spectrum=True, return_lmfit_info=False,
+                       fit_kws=None, fit_lws=None):
+ 
     logger = logging.getLogger(__name__)
 
     wave = np.array(wave)
@@ -770,7 +949,8 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     return result_dict
 
 
-def fit_mpdaf_spectrum(spectrum, redshift, return_lmfit_info=False, **kwargs):
+def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=False, line_ratios=None,
+                       fit_kws={}, fit_lws={}):
     """Function use when calling fit_lines from mpdaf spectrum object.
 
 
@@ -808,17 +988,18 @@ def fit_mpdaf_spectrum(spectrum, redshift, return_lmfit_info=False, **kwargs):
         unit_data = u.Unit(spectrum.data_header.get("BUNIT", None))
     except ValueError:
         unit_data = None
+    
+    if line_ratios is None:
+        # we use a default for OII and CIII
+        line_ratios = DOUBLET_RATIOS
+        
 
     res = fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
-                              unit_wave=u.angstrom, unit_data=unit_data,
-                              return_lmfit_info=return_lmfit_info, 
-                              **kwargs)
+                             unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
+                             lines=lines, major_lines=major_lines, emcee=emcee,
+                             fit_kws=fit_kws, fit_lws=fit_lws)
     
     
-    if return_lmfit_info:
-        bestfit = spectrum.clone()
-        bestfit.data = np.interp(spectrum.wave.coord(), res['lmfit'].wave, res['lmfit'].best_fit) 
-        res['line_fit'] = bestfit
-        res['line_spec'] = spectrum
+
         
     return res

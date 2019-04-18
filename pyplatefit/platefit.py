@@ -28,9 +28,9 @@ class Platefit:
         """"""
         return self.cont.fit(spec, z, vdisp)
     
-    def fit_lines(self, line, z, return_lmfit_info=True):
+    def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False):
         """"""
-        return self.line.fit(line, z, return_lmfit_info=return_lmfit_info)        
+        return self.line.fit(line, z, major_lines=major_lines, lines=lines, emcee=emcee)        
         
     def info_cont(self, res):
         """
