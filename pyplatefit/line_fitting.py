@@ -434,7 +434,8 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                 expr = par[f"{name}_{fun}_flux"].expr
                 fact = par[expr.split(' ')[-1]]
                 flux2 = par[expr.split(' ')[0]]
-                flux_err = fact.value*flux2.stderr # + fact.stderr*flux2.value  [empirically seems more correct]           
+                flux_err = fact.value*flux2.stderr if flux2.stderr is not None else np.nan
+                # fact.value*flux2.stderr + fact.stderr*flux2.value            
             row['VEL'] = dv
             row['VEL_ERR'] = dv_err
             row['Z'] = redshift + dv/C
@@ -452,8 +453,25 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             row['PEAK_OBS'] = peak
             row['FWHM_OBS'] = 2.355*sigma # in case of asymgauss this is an approximation
             if fun == 'asymgauss':
-                row['SKEW'] = par[f"{name}_{fun}_asym"].value 
+                skew = par[f"{name}_{fun}_asym"].value 
+                row['SKEW'] = skew 
                 row['SKEW_ERR'] = par[f"{name}_{fun}_asym"].stderr if par[f"{name}_{fun}_asym"].stderr is not None else np.nan
+                # compute peak location and peak value in rest frame  
+                l0 = row['LBDA_REST']    
+                sigma = vdisp*l0/C
+                l1 = mode_skewedgaussian(l0, sigma, skew)
+                # these position is used for redshift and dv
+                dv = C*(l1-l0)/l0
+                row['VEL'] = dv
+                row['Z'] = redshift + dv/C
+                # compute the peak value and convert it to observed frame
+                peak = flux/(SQRT2PI*sigma)
+                ksel = np.abs(wave_rest-l0)<20
+                vmodel = asymgauss(peak, l0, sigma, skew, wave_rest[ksel])
+                row['PEAK_OBS'] = np.max(vmodel)/(1+row['Z'])
+                # save peak position in observed frame
+                row['LBDA_OBS'] = vactoair(l1*(1+row['Z']))
+                
   
     # save line table
     result.linetable = lines
@@ -592,3 +610,111 @@ def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=
     res.spec_fit = spfit
             
     return res
+
+def mode_skewedgaussian(location, scale, shape):
+    """Compute the mode of a skewed Gaussian.
+
+    The centre parameter of the SkewedGaussianModel from lmfit-py is not the
+    position of the peak, it's the location of the probability distribution
+    function (PDF): i.e. the mean of the underlying Gaussian.
+
+    There is no analytic expression for the mode (position of the maximum) but
+    the Wikipedia page (https://en.wikipedia.org/wiki/Skew_normal_distribution)
+    gives a "quite accurate" approximation.
+
+    Parameters
+    ----------
+    location : float
+        Location of the PDF. This is the`center` parameter from lmfit.
+    scale : float
+        Scale of the PDF. This is the `sigma` parameter from lmfit.
+    shape : float
+        Shape of the PDF. This is the `gamma` parameter from lmfit.
+
+    Returns
+    -------
+    float: The mode of the PDF.
+
+    """
+    # If the shape is 0, this is a Gaussian and the mode is the location.
+    if shape == 0:
+        return location
+
+    delta = scale / np.sqrt(1 + scale ** 2)
+    gamma_1 = ((4 - np.pi) / 2) * (
+        (delta * np.sqrt(2 / np.pi) ** 3) /
+        (1 - 2 * delta ** 2 / np.pi) ** 1.5
+    )
+
+    mu_z = delta * np.sqrt(2 / np.pi)
+    sigma_z = np.sqrt(1 - mu_z ** 2)
+    m_0 = (mu_z - gamma_1 * sigma_z / 2 - np.sign(shape) / 2 *
+           np.exp(-2 * np.pi / np.abs(shape)))
+
+    return location + scale * m_0
+
+
+def measure_fwhm(wave, data, mode):
+    """Measure the FWHM on the curve.
+
+    This function is used to measure the full width at half maximum (FWHM) of
+    a line identified by its mode (wavelength of its peak) on the best fitting
+    model. It is used for the Lyman α line for which we don't have a formula to
+    compute it.
+
+    Note: the data must be continuum subtracted.
+
+    Parameters
+    ----------
+    wave : array of floats
+        The wavelength axis of the spectrum.
+    data : array of floats
+        The data from lmfit best fit.
+    mode : float
+        The value of the mode, in the same unit as the wavelength.
+
+    Returns
+    -------
+    float
+        Full width at half maximum in the same value as the wavelength.
+
+    """
+    # In the case of lines with a strong asymmetry, it may be difficult to
+    # measure the FWHM at the resolution of the spectrum. We multiply its
+    # resolution by 10 to be able to measure the FWHM at sub-pixel level.
+    wave2 = np.linspace(np.min(wave), np.max(wave), 10 * len(wave))
+    data = np.interp(wave2, wave, data)
+    wave = wave2
+
+    mode_idx = np.argmin(np.abs(wave - mode))
+    half_maximum = data[mode_idx] / 2
+
+    # If the half maximum in 0, there is no line.
+    if half_maximum == 0:
+        return np.nan
+
+    # If the half_maximum is negative, that means that the line is identified
+    # in absorption. We can nevertheless try to measure a FWHM but on the
+    # opposite of the data because of the way we measure it.
+    if half_maximum < 0:
+        half_maximum = -half_maximum
+        data = -data
+
+    # There may be several lines in the spectrum, so it may cross several times
+    # the half maximum line and we can't use argmin on the absolute value of
+    # the difference to the half maximum because it may be lower - but still
+    # near zero - for another line. Instead, we are looking for the local
+    # minimums and take the nearest to the mode position.
+    # In case of really strong asymmetry, we may need to take the mode
+    # position.
+    try:
+        hm1_idx = argrelmin(np.abs(data[:mode_idx + 1] - half_maximum))[0][-1]
+    except IndexError:
+        hm1_idx = mode_idx
+    try:
+        hm2_idx = (argrelmin(np.abs(data[mode_idx:] - half_maximum))[0][0] +
+                   mode_idx)
+    except IndexError:
+        hm2_idx = mode_idx
+
+    return wave[hm2_idx] - wave[hm1_idx]
