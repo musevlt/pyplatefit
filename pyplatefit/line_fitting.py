@@ -451,7 +451,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             sigma = vdisp*row['LBDA_OBS']/C
             peak = flux/(SQRT2PI*sigma)
             row['PEAK_OBS'] = peak
-            row['FWHM_OBS'] = 2.355*sigma # in case of asymgauss this is an approximation
+            row['FWHM_OBS'] = 2.355*sigma 
             if fun == 'asymgauss':
                 skew = par[f"{name}_{fun}_asym"].value 
                 row['SKEW'] = skew 
@@ -466,9 +466,12 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                 row['Z'] = redshift + dv/C
                 # compute the peak value and convert it to observed frame
                 peak = flux/(SQRT2PI*sigma)
-                ksel = np.abs(wave_rest-l0)<20
+                ksel = np.abs(wave_rest-l0)<50
                 vmodel = asymgauss(peak, l0, sigma, skew, wave_rest[ksel])
                 row['PEAK_OBS'] = np.max(vmodel)/(1+row['Z'])
+                # compute FWHM
+                fwhm = measure_fwhm(wave_rest[ksel], vmodel, l1)   
+                row['FWHM_OBS'] = fwhm*(1+row['Z'])
                 # save peak position in observed frame
                 row['LBDA_OBS'] = vactoair(l1*(1+row['Z']))
                 
