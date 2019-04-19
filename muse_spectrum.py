@@ -52,10 +52,10 @@ vdisp = 80.0
 sp = Spectrum(name)
 
 pl = Platefit()
-res = pl.fit(sp, z)
+res = pl.fit(sp, z, emcee=True)
 
 
-res_cont = pl.fit_cont(sp, z, vdisp)
+res_cont = pl.fit_cont(sp, z, vdisp,)
 #pl.info_cont(res_cont)
 #res_line = pl.fit_lines(res_cont['line_spec'], z, lines=['OII3727','OII3729'])
 res_line = pl.fit_lines(res_cont['line_spec'], z, emcee=False, major_lines=True, use_line_ratios=True)

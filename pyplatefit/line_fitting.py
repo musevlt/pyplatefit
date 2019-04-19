@@ -336,7 +336,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
 
         
     # fit a different velocity and velocity dispersion for each resonnant lines(or doublet)
-    family_id = 3
+    family_id = 3; family_name = 'resonnant'
     sel_lines = lines[lines['FAMILY']==family_id]
     if len(sel_lines) == 0:
         logger.debug('No %s lines to fit', family_name)
@@ -386,10 +386,12 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     
     logger.debug('Leastsq fitting')
     result = minner.minimize()
+    logger.debug('%s after %d iterations, redChi2 = %.3f',result.message,result.nfev,result.redchi)
     
     if emcee:
         logger.debug('Error estimation using EMCEE')
         result = minner.emcee(params=result.params, is_weighted=True)
+        logger.debug('End EMCEE after %d iterations, redChi2 = %.3f',result.nfev,result.redchi)
     
     # save input data, initial and best fit (in rest frame)
     result.wave = wave_rest
@@ -403,6 +405,12 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     for colname in ['VEL','VEL_ERR','Z','Z_ERR','VDISP','VDISP_ERR',
                     'FLUX','FLUX_ERR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']:
         lines.add_column(MaskedColumn(name=colname, dtype=np.float, length=len(lines), mask=True))
+    for colname in ['VEL','VEL_ERR','VDISP','VDISP_ERR',
+                    'FLUX','FLUX_ERR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']:
+        lines[colname].format = '.2f'
+    lines['Z'].format = '.5f'
+    lines['Z_ERR'].format = '.2e'
+   
     
     par = result.params
     zf = 1+redshift
