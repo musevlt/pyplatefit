@@ -23,8 +23,8 @@ logger.info('pyplatefit version %s', __version__)
 debug = True
 
 
-#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
-#z= 0.41909
+name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
+z= 0.41909
 
 
 #data_dir = 'PLATEFIT_testdata/'
@@ -37,8 +37,8 @@ debug = True
 #z = 1.55051
 # emiline fit succeed only (dz=0)
 
-name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00142.fits'
-z = 3.749
+#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00142.fits'
+#z = 3.749
 
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref07407.fits'
 #z = 0.844
@@ -52,11 +52,15 @@ vdisp = 80.0
 sp = Spectrum(name)
 
 pl = Platefit()
+res = pl.fit(sp, z)
+
+
 res_cont = pl.fit_cont(sp, z, vdisp)
 #pl.info_cont(res_cont)
 #res_line = pl.fit_lines(res_cont['line_spec'], z, lines=['OII3727','OII3729'])
-res_line = pl.fit_lines(res_cont['line_spec'], z, emcee=True)
+res_line = pl.fit_lines(res_cont['line_spec'], z, emcee=False, major_lines=True, use_line_ratios=True)
 pl.info_lines(res_line)
+print(res_line.linetable)
 
 
 fig,ax = plt.subplots(1,2)

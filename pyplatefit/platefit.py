@@ -21,16 +21,85 @@ class Platefit:
         self.cont = Contfit(**contpars)
         self.line = Linefit(**linepars)
 
-    def fit(self):
-        """"""
+    def fit(self, spec, z, vdisp=80, major_lines=False, lines=None, emcee=False, use_line_ratios=True, full_output=False):
+        """
+    Perform continuum and emission lines fit on a spectrum
+    
+    Parameters
+    ----------
+    line : mpdaf.obj.Spectrum
+       continuum subtracted spectrum
+    z : float
+       reshift 
+    vdisp : float
+       velocity dispersion in km/s [default 80 km/s]
+    major_lines : boolean
+       if true, use only major lines as defined in MPDAF line list
+       default False
+    lines: list
+       list of MPDAF lines to use in the fit
+       default None
+    emcee: boolean
+       if True perform a second fit using EMCEE to derive improved errors (note cpu intensive)
+       default False
+    use_line_ratios: boolean
+       if True, use constrain line ratios in fit
+       default True 
+    full_output: boolean
+       if True, return two objects, res_cont and res_line with the full info
+       if False, return only a dictionary  with the line table ['table'], the fitted continuum spectrum ['cont'], 
+       the continuum subtracted spectrum ['line'], emission lines fit ['linefit'] and complete fit ['fit']
+        """
+        res_cont = self.fit_cont(spec, z, vdisp)
+        res_line = self.fit_lines(res_cont['line_spec'], z, major_lines=major_lines, lines=lines, 
+                                  emcee=emcee, use_line_ratios=use_line_ratios)
+        
+        if full_output:
+            return res_cont,res_line
+        else:
+            return dict(table=res_line.linetable, cont=res_cont['cont_spec'], line=res_cont['line_spec'], 
+                        linefit=res_line.spec_fit, fit=res_line.spec_fit+res_cont['cont_spec'])
                       
     def fit_cont(self, spec, z, vdisp):
-        """"""
+        """
+    Perform continuum lines fit on a spectrum 
+    
+    Parameters
+    ----------
+    line : mpdaf.obj.Spectrum
+       continuum subtracted spectrum
+    z : float
+       reshift 
+    vdisp : float
+       velocity dispersion in km/s 
+        """
         return self.cont.fit(spec, z, vdisp)
     
-    def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False):
-        """"""
-        return self.line.fit(line, z, major_lines=major_lines, lines=lines, emcee=emcee)        
+    def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False, use_line_ratios=True):
+        """  
+    Perform emission lines fit on a continuum subtracted spectrum 
+    
+    Parameters
+    ----------
+    line : mpdaf.obj.Spectrum
+       continuum subtracted spectrum
+    z : float
+       reshift 
+    major_lines : boolean
+       if true, use only major lines as defined in MPDAF line list
+       default False
+    lines: list
+       list of MPDAF lines to use in the fit
+       default None
+    emcee: boolean
+       if True perform a second fit using EMCEE to derive improved errors (note cpu intensive)
+       default False
+    use_line_ratios: boolean
+       if True, use constrain line ratios in fit
+       default True
+
+        """
+        return self.line.fit(line, z, major_lines=major_lines, lines=lines, emcee=emcee, use_line_ratios=use_line_ratios)        
         
     def info_cont(self, res):
         """
