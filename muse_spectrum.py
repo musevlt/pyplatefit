@@ -52,7 +52,7 @@ vdisp = 80.0
 sp = Spectrum(name)
 
 pl = Platefit()
-res = pl.fit(sp, z, emcee=False)
+res = pl.fit(sp, z, emcee=True)
 
 
 res_cont = pl.fit_cont(sp, z, vdisp,)

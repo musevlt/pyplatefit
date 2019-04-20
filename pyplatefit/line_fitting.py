@@ -403,9 +403,9 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     # fill the lines table with the fit results
     lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','FAMILY','LBDA_EXP'])
     for colname in ['VEL','VEL_ERR','Z','Z_ERR','VDISP','VDISP_ERR',
-                    'FLUX','FLUX_ERR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']:
+                    'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']:
         lines.add_column(MaskedColumn(name=colname, dtype=np.float, length=len(lines), mask=True))
-    for colname in ['VEL','VEL_ERR','VDISP','VDISP_ERR',
+    for colname in ['VEL','VEL_ERR','VDISP','VDISP_ERR','SNR',
                     'FLUX','FLUX_ERR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']:
         lines[colname].format = '.2f'
     lines['Z'].format = '.5f'
@@ -442,6 +442,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             row['Z_ERR'] = dv_err/C
             row['FLUX'] = flux
             row['FLUX_ERR'] = flux_err
+            row['SNR'] = row['FLUX']/row['FLUX_ERR']
             row['VDISP'] = vdisp
             row['VDISP_ERR'] = vdisp_err
             # in observed frame
