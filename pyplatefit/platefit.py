@@ -2,10 +2,11 @@ import numpy as np
 import os
 import sys
 
-from astropy.convolution import Gaussian1DKernel, convolve
-from astropy.io import fits
+#from astropy.convolution import Gaussian1DKernel, convolve
+#from astropy.io import fits
 from logging import getLogger
-from mpdaf.obj import airtovac, vactoair
+#from mpdaf.obj import airtovac, vactoair
+from astropy.table import MaskedColumn
 
 from .cont_fitting import Contfit
 from .line_fitting import Linefit
@@ -21,7 +22,7 @@ class Platefit:
         self.cont = Contfit(**contpars)
         self.line = Linefit(**linepars)
 
-    def fit(self, spec, z, vdisp=80, major_lines=False, lines=None, emcee=False, use_line_ratios=True, full_output=False):
+    def fit(self, spec, z, vdisp=80, major_lines=False, lines=None, emcee=False, use_line_ratios=True, eqw=True, full_output=False):
         """
     Perform continuum and emission lines fit on a spectrum
     
@@ -45,6 +46,8 @@ class Platefit:
     use_line_ratios: boolean
        if True, use constrain line ratios in fit
        default True 
+    eqw: boolean
+       if True compute equivalent widths
     full_output: boolean
        if True, return two objects, res_cont and res_line with the full info
        if False, return only a dictionary  with the line table ['table'], the fitted continuum spectrum ['cont'], 
@@ -53,6 +56,9 @@ class Platefit:
         res_cont = self.fit_cont(spec, z, vdisp)
         res_line = self.fit_lines(res_cont['line_spec'], z, major_lines=major_lines, lines=lines, 
                                   emcee=emcee, use_line_ratios=use_line_ratios)
+        
+        if eqw:
+            self.eqw(res_line.linetable, res_cont['cont_spec'])
         
         if full_output:
             return res_cont,res_line
@@ -139,5 +145,49 @@ class Platefit:
                 #y1,y2 = axc.get_ylim()
                 #axc.text(row['LBDA']+5, y2-0.1*(y2-y1), row['LINE'], color='k', fontsize=8)                   
             axc.set_title('Line Fit')    
+            
+        
+    def eqw(self, lines_table, cont_spec):
+        """
+        compute equivalent widths, add computed values in lines table
+        
+        Parameters
+        ----------
+        lines_table: astropy.table.Table
+        
+        cont_spec : mpdaf.obj.Spectrum
+           continuum spectrum
+           
+        """
+        for name in ['EQW', 'EQW_ERR', 'CONT_OBS', 'CONT', 'CONT_ERR']:
+            if name not in lines_table.colnames:
+                lines_table.add_column(MaskedColumn(name=name, dtype=np.float, length=len(lines_table), mask=True))
+                lines_table[name].format = '.2f'
+        
+        for line in lines_table:
+            name = line['LINE']
+            lbda = line['LBDA_OBS']
+            fwhm = line['FWHM_OBS']
+            z = line['Z']
+            # compute continuum flux average over line +/- fwhm 
+            sp = cont_spec.subspec(lmin=lbda-fwhm,lmax=lbda+fwhm)
+            spmean = sp.mean()[0]
+            line['CONT_OBS'] = spmean
+            # convert to restframe
+            spmean = spmean*(1+z)
+            line['CONT'] = spmean
+            # compute continuum error
+            spmean_err = np.std(sp.data)
+            line['CONT_ERR'] = spmean_err
+            # compute EQW in rest frame
+            eqw = line['FLUX']/spmean
+            eqw_err = line['FLUX_ERR']/spmean + line['FLUX']*spmean_err/spmean**2
+            if line['FLUX'] > 0:
+                line['EQW'] = -eqw
+            else:
+                line['EQW'] = eqw
+            line['EQW_ERR'] = eqw_err
+            
+        
             
         

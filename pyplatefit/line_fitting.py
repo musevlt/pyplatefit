@@ -123,16 +123,9 @@ class Linefit:
         
 
             
-    def eqw(self):
-        """
-        compute equivalent widths
-        """
+
         
-    def snr(self):
-        """
-        compute  SNR
-        
-        """
+
 
     
 
