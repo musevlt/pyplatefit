@@ -22,7 +22,9 @@ class Platefit:
         self.cont = Contfit(**contpars)
         self.line = Linefit(**linepars)
 
-    def fit(self, spec, z, vdisp=80, major_lines=False, lines=None, emcee=False, use_line_ratios=True, eqw=True, full_output=False):
+    def fit(self, spec, z, vdisp=80, major_lines=False, lines=None, emcee=False, 
+            use_line_ratios=True, vel_uniq_offset=False,
+            eqw=True, full_output=False):
         """
     Perform continuum and emission lines fit on a spectrum
     
@@ -55,7 +57,8 @@ class Platefit:
         """
         res_cont = self.fit_cont(spec, z, vdisp)
         res_line = self.fit_lines(res_cont['line_spec'], z, major_lines=major_lines, lines=lines, 
-                                  emcee=emcee, use_line_ratios=use_line_ratios)
+                                  emcee=emcee, use_line_ratios=use_line_ratios,
+                                  vel_uniq_offset=vel_uniq_offset)
         
         if eqw:
             self.eqw(res_line.linetable, res_cont['cont_spec'])
@@ -81,7 +84,8 @@ class Platefit:
         """
         return self.cont.fit(spec, z, vdisp)
     
-    def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False, use_line_ratios=True):
+    def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False, 
+                  use_line_ratios=True, vel_uniq_offset=False):
         """  
     Perform emission lines fit on a continuum subtracted spectrum 
     
@@ -105,7 +109,8 @@ class Platefit:
        default True
 
         """
-        return self.line.fit(line, z, major_lines=major_lines, lines=lines, emcee=emcee, use_line_ratios=use_line_ratios)        
+        return self.line.fit(line, z, major_lines=major_lines, lines=lines, emcee=emcee, 
+                             use_line_ratios=use_line_ratios, vel_uniq_offset=vel_uniq_offset)        
         
     def info_cont(self, res):
         """

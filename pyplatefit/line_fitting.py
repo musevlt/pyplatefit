@@ -85,7 +85,8 @@ class Linefit:
         return
     
 
-    def fit(self, line_spec, z, major_lines=False, lines=None, emcee=False, use_line_ratios=True):
+    def fit(self, line_spec, z, major_lines=False, lines=None, emcee=False, use_line_ratios=True,
+            vel_uniq_offset=False):
         """
         perform line fit on a mpdaf spectrum
         
@@ -98,7 +99,7 @@ class Linefit:
         fit_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma)
         return fit_mpdaf_spectrum(line_spec, z, major_lines=major_lines, lines=lines, emcee=emcee, line_ratios=line_ratios,
-                                  fit_kws=fit_kws, fit_lws=fit_lws)
+                                  vel_uniq_offset=vel_uniq_offset, fit_kws=fit_kws, fit_lws=fit_lws)
     
     def info(self, res):
         #if res.get('spec', None) is not None:
@@ -132,7 +133,9 @@ class Linefit:
 
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
-                       major_lines=False, fit_kws=None, fit_lws=None, emcee=False):
+                       major_lines=False, emcee=False,
+                       vel_uniq_offset=False, 
+                       fit_kws=None, fit_lws=None):
     """Fit lines in a spectrum using lmfit.
 
     This function uses lmfit to perform a simple fit of know lines in
@@ -224,6 +227,10 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     emcee : boolean, optional
         if true, errors and best fit is estimated with EMCEE starting from the leastsq solution
         default: False
+    vel_uniq_offset: boolean, optional
+        if True, use same velocity offset for all lines (not recommended)
+        if False, allow different velocity offsets between balmer, forbidden and resonnant lines
+        default: false 
     fit_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
     fit_kws : dictionary with some default and bounds parameters
 
@@ -304,9 +311,20 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     params = Parameters()  # All the parameters of the fit
     family_lines = {} # dictionary of family lines
     
-    # fit one unique velocity and velocity dispersion for balmer and forbidden family
-    for family_id,family_name in [[1,'balmer'],[2,'forbidden']]:
-        sel_lines = lines[lines['FAMILY']==family_id]
+    
+    if vel_uniq_offset:
+        families = [[[1,2,3],'all']]
+    else:
+        # fit different velocity and velocity dispersion for balmer and forbidden family 
+        families = [[[1],'balmer'],[[2],'forbidden']]
+
+        
+    for family_ids,family_name in families:
+        ksel = lines['FAMILY']==family_ids[0]
+        if len(family_ids)>1:
+            for family_id in family_ids[1:]:
+                ksel = ksel | (lines['FAMILY']==family_id)
+        sel_lines = lines[ksel]
         if len(sel_lines) == 0:
             logger.debug('No %s lines to fit', family_name)
             continue
@@ -327,51 +345,51 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             add_line_ratio(params, line_ratios, dlines)
             
 
-        
-    # fit a different velocity and velocity dispersion for each resonnant lines(or doublet)
-    family_id = 3; family_name = 'resonnant'
-    sel_lines = lines[lines['FAMILY']==family_id]
-    if len(sel_lines) == 0:
-        logger.debug('No %s lines to fit', family_name)
-    else:   
-        logger.debug('%d %s lines to fit', len(sel_lines), family_name)
-        doublets = sel_lines[sel_lines['DOUBLET']>0]
-        singlets = sel_lines[sel_lines['DOUBLET']==0]
-        if len(singlets) > 0:
-            for line in singlets:
-                if line['LINE'] == 'LYALPHA':
-                    # we fit an asymmetric line
-                    fname = line['LINE'].lower()
-                    family_lines[fname] = dict(lines=[line['LINE']], fun='asymgauss')
+    if not vel_uniq_offset:   
+        # fit a different velocity and velocity dispersion for each resonnant lines(or doublet)
+        family_id = 3; family_name = 'resonnant'
+        sel_lines = lines[lines['FAMILY']==family_id]
+        if len(sel_lines) == 0:
+            logger.debug('No %s lines to fit', family_name)
+        else:   
+            logger.debug('%d %s lines to fit', len(sel_lines), family_name)
+            doublets = sel_lines[sel_lines['DOUBLET']>0]
+            singlets = sel_lines[sel_lines['DOUBLET']==0]
+            if len(singlets) > 0:
+                for line in singlets:
+                    if line['LINE'] == 'LYALPHA':
+                        # we fit an asymmetric line
+                        fname = line['LINE'].lower()
+                        family_lines[fname] = dict(lines=[line['LINE']], fun='asymgauss')
+                        params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
+                        params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX_LYA) 
+                        name = line['LINE']
+                        l0 = line['LBDA_REST']
+                        add_asymgauss_par(params, fname, name, l0, wave_rest, data_rest)
+                    else:
+                        # we fit a gaussian
+                        fname = line['LINE'].lower()
+                        family_lines[fname] = dict(lines=[line['LINE']], fun='gauss')
+                        params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
+                        params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX)
+                        name = line['LINE']
+                        l0 = line['LBDA_REST']
+                        add_gaussian_par(params, fname, name, l0, wave_rest, data_rest)
+            if len(doublets) > 0:
+                ndoublets = np.unique(doublets['DOUBLET'])
+                for dlbda in ndoublets:
+                    dlines = doublets[np.abs(doublets['DOUBLET']-dlbda) < 0.01]
+                    fname = str(dlines['LINE'][0]).lower()
+                    family_lines[fname] = dict(lines=dlines['LINE'], fun='gauss')
                     params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
-                    params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX_LYA) 
-                    name = line['LINE']
-                    l0 = line['LBDA_REST']
-                    add_asymgauss_par(params, fname, name, l0, wave_rest, data_rest)
-                else:
-                    # we fit a gaussian
-                    fname = line['LINE'].lower()
-                    family_lines[fname] = dict(lines=[line['LINE']], fun='gauss')
-                    params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
-                    params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX)
-                    name = line['LINE']
-                    l0 = line['LBDA_REST']
-                    add_gaussian_par(params, fname, name, l0, wave_rest, data_rest)
-        if len(doublets) > 0:
-            ndoublets = np.unique(doublets['DOUBLET'])
-            for dlbda in ndoublets:
-                dlines = doublets[np.abs(doublets['DOUBLET']-dlbda) < 0.01]
-                fname = str(dlines['LINE'][0]).lower()
-                family_lines[fname] = dict(lines=dlines['LINE'], fun='gauss')
-                params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
-                params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX)              
-                for line in dlines:
-                    name = line['LINE']
-                    l0 = line['LBDA_REST']
-                    add_gaussian_par(params, fname, name, l0, wave_rest, data_rest)
-                if line_ratios is not None:
-                    # add line ratios bounds
-                    add_line_ratio(params, line_ratios, dlines)
+                    params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX)              
+                    for line in dlines:
+                        name = line['LINE']
+                        l0 = line['LBDA_REST']
+                        add_gaussian_par(params, fname, name, l0, wave_rest, data_rest)
+                    if line_ratios is not None:
+                        # add line ratios bounds
+                        add_line_ratio(params, line_ratios, dlines)
  
                     
         
@@ -543,7 +561,7 @@ def asymgauss(peak, l0, sigma, gamma, wave):
 
 
 def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=False, line_ratios=None,
-                       fit_kws={}, fit_lws={}):
+                       vel_uniq_offset=False, fit_kws={}, fit_lws={}):
     """Function use when calling fit_lines from mpdaf spectrum object.
 
 
@@ -594,6 +612,7 @@ def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=
     res = fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
                              unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
                              lines=lines, major_lines=major_lines, emcee=emcee,
+                             vel_uniq_offset=vel_uniq_offset,
                              fit_kws=fit_kws, fit_lws=fit_lws)
     
     # add fitted spectra on the observed plane
