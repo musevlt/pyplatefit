@@ -50,7 +50,7 @@ SQRT2PI = np.sqrt(2*np.pi)
 
 # Parameters used in the fitting
 VEL_MIN, VEL_INIT, VEL_MAX = -500, 0, 500  # Velocity
-VD_MIN, VD_INIT, VD_MAX = 50, 80, 300  # Velocity dispersion
+VD_MIN, VD_INIT, VD_MAX = 10, 50, 300  # Velocity dispersion
 VD_MAX_LYA = 700  # Maximum velocity dispersion for Lyman α
 GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -5, 0, 5  # γ parameter for Lyman α
 WINDOW_MAX = 30 # search radius in A for peak around starting wavelength
@@ -72,7 +72,8 @@ class Linefit:
     """
     This class implement Emission Line def
     """
-    def __init__(self, vel=(-500,0,500), vdisp=(50,80,300), vdisp_lya_max=700, gamma_lya=(-5,0,5), xtol=1.e-4, ftol=1.e-6, maxfev=1000):
+    def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-5,0,5), 
+                 windmax=30, xtol=1.e-4, ftol=1.e-6, maxfev=1000):
         self.logger = getLogger(__name__)
         self.maxfev = maxfev # nb max of iterations (leastsq)
         self.xtol = xtol # relative error in the solution (leastq)
@@ -81,12 +82,13 @@ class Linefit:
         self.vdisp = vdisp
         self.vdisp_lya_max = vdisp_lya_max
         self.gamma = gamma_lya
+        self.windmax = windmax
        
         return
     
 
     def fit(self, line_spec, z, major_lines=False, lines=None, emcee=False, use_line_ratios=True,
-            vel_uniq_offset=False):
+            vel_uniq_offset=False, lsf=True):
         """
         perform line fit on a mpdaf spectrum
         
@@ -99,7 +101,7 @@ class Linefit:
         fit_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma)
         return fit_mpdaf_spectrum(line_spec, z, major_lines=major_lines, lines=lines, emcee=emcee, line_ratios=line_ratios,
-                                  vel_uniq_offset=vel_uniq_offset, fit_kws=fit_kws, fit_lws=fit_lws)
+                                  vel_uniq_offset=vel_uniq_offset, lsf=lsf, fit_kws=fit_kws, fit_lws=fit_lws)
     
     def info(self, res):
         #if res.get('spec', None) is not None:
@@ -134,7 +136,7 @@ class Linefit:
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        major_lines=False, emcee=False,
-                       vel_uniq_offset=False, 
+                       vel_uniq_offset=False, lsf=True,
                        fit_kws=None, fit_lws=None):
     """Fit lines in a spectrum using lmfit.
 
@@ -231,8 +233,11 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         if True, use same velocity offset for all lines (not recommended)
         if False, allow different velocity offsets between balmer, forbidden and resonnant lines
         default: false 
+    lsf: boolean, optional
+        if True, use LSF estimate to derive instrumental PSF, otherwise assume no LSF
+        default: True
     fit_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
-    fit_kws : dictionary with some default and bounds parameters
+    fit_lws : dictionary with some default and bounds parameters
 
     Returns
     -------
@@ -249,6 +254,18 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     wave = np.array(wave)
     data = np.array(data)
     std = np.array(std) if std is not None else np.ones_like(data)
+    
+    # get defaut parameters
+    if 'vel' in fit_lws.keys():
+        VEL_MIN,VEL_INIT,VEL_MAX = fit_lws['vel']
+    if 'vel' in fit_lws.keys():
+        VD_MIN, VD_INIT, VD_MAX = fit_lws['vdisp']
+    if 'vdisp_lya' in fit_lws.keys():
+        VD_MAX_LYA = fit_lws['vdisp_lya']
+    if 'gamma_lya' in fit_lws.keys():
+        GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = fit_lws['gamma_lya']
+    if 'windmax' in fit_lws.keys():
+        WINDOW_MAX = fit_lws['windmax']
     
     # convert wavelength in restframe and vacuum, scale flux and std
     wave_rest = airtovac(wave)/(1+redshift)
@@ -393,7 +410,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
  
                     
         
-    minner = Minimizer(residuals, params, fcn_args=(wave_rest, data_rest, std_rest, family_lines))
+    minner = Minimizer(residuals, params, fcn_args=(wave_rest, data_rest, std_rest, family_lines, redshift, lsf))
     
     logger.debug('Leastsq fitting')
     result = minner.minimize()
@@ -408,16 +425,18 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     result.wave = wave_rest
     result.data = data_rest
     result.std = std_rest
-    result.init = model(params, wave_rest, family_lines)
-    result.fit = model(result.params, wave_rest, family_lines)
+    result.init = model(params, wave_rest, family_lines, redshift, lsf)
+    result.fit = model(result.params, wave_rest, family_lines, redshift, lsf)
     
     # fill the lines table with the fit results
     lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','FAMILY','LBDA_EXP'])
-    for colname in ['VEL','VEL_ERR','Z','Z_ERR','VDISP','VDISP_ERR',
-                    'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']:
+    colnames = ['VEL','VEL_ERR','Z','Z_ERR','VDISP','VDISP_ERR',
+                    'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']
+    if lsf:
+        colnames.append('VDINST')
+    for colname in colnames:
         lines.add_column(MaskedColumn(name=colname, dtype=np.float, length=len(lines), mask=True))
-    for colname in ['VEL','VEL_ERR','VDISP','VDISP_ERR','SNR',
-                    'FLUX','FLUX_ERR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']:
+    for colname in colnames:
         lines[colname].format = '.2f'
     lines['Z'].format = '.5f'
     lines['Z_ERR'].format = '.2e'
@@ -459,7 +478,9 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             # in observed frame
             row['LBDA_OBS'] = row['LBDA_REST']*(1+row['Z'])
             if not vac:
-                row['LBDA_OBS'] = vactoair(row['LBDA_OBS'])            
+                row['LBDA_OBS'] = vactoair(row['LBDA_OBS']) 
+            if lsf:
+                row['VDINST'] = complsf(row['LBDA_OBS'], kms=True)        
             sigma = vdisp*row['LBDA_OBS']/C
             peak = flux/(SQRT2PI*sigma)
             row['PEAK_OBS'] = peak
@@ -519,7 +540,8 @@ def add_line_ratio(params, line_ratios, dlines):
                 "%s_gauss_flux * %s_to_%s_factor" % (line1, line1, line2)
             )    
 
-def model(params, wave, lines):
+def model(params, wave, lines, z, lsf=True):
+    """ wave is rest frame wavelengths """
     model = 0
     for name,ldict in lines.items():
         vdisp = params[f"vdisp_{name}"]
@@ -529,22 +551,41 @@ def model(params, wave, lines):
                 flux = params[f"{line}_gauss_flux"]
                 l0 = params[f"{line}_gauss_l0"]*(1+dv/C)
                 sigma = vdisp*l0/C
+                if lsf:
+                    siginst = complsf(l0*(1+z))
+                    sigma = np.sqrt(sigma**2+siginst**2)                
                 peak = flux/(SQRT2PI*sigma)
                 model += gauss(peak, l0, sigma, wave)
             elif ldict['fun']=='asymgauss':
                 flux = params[f"{line}_asymgauss_flux"]
                 l0 = params[f"{line}_asymgauss_l0"]*(1+dv/C)
                 beta = params[f"{line}_asymgauss_asym"].value
-                sigma = vdisp*l0/C
+                sigma = vdisp*l0/C 
+                if lsf:
+                    siginst = complsf(l0)
+                    # FIXME not sure this is correct for LAE, given it is an asymetric function
+                    sigma = np.sqrt(sigma**2+siginst**2)
                 peak = flux/(SQRT2PI*sigma)
                 model += asymgauss(peak, l0, sigma, beta, wave)            
             else:
                 logger.error('Unknown function %s', fun)
                 raise ValueError
     return model
+
+def complsf(wave, kms=False):
+    # compute estimation of LSF in A
+    # from UDF paper
+    #fwhm = 5.835e-8 * wave**2 - 9.080e-4 * wave + 5.983
+    # from DRS
+    fwhm = 5.19939 - 0.000756746*wave + 4.93397e-08*wave**2
+    sigma = fwhm/2.355
+    if kms:
+        sigma = sigma*C/wave
+    return sigma
     
-def residuals(params, wave, data, std, lines):
-    vmodel = model(params, wave, lines)
+    
+def residuals(params, wave, data, std, lines, z, lsf=True):
+    vmodel = model(params, wave, lines, z, lsf)
     res = (vmodel - data)/std 
     return res
     
@@ -561,7 +602,7 @@ def asymgauss(peak, l0, sigma, gamma, wave):
 
 
 def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=False, line_ratios=None,
-                       vel_uniq_offset=False, fit_kws={}, fit_lws={}):
+                       vel_uniq_offset=False, lsf=True, fit_kws={}, fit_lws={}):
     """Function use when calling fit_lines from mpdaf spectrum object.
 
 
@@ -612,7 +653,7 @@ def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=
     res = fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
                              unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
                              lines=lines, major_lines=major_lines, emcee=emcee,
-                             vel_uniq_offset=vel_uniq_offset,
+                             vel_uniq_offset=vel_uniq_offset, lsf=lsf,
                              fit_kws=fit_kws, fit_lws=fit_lws)
     
     # add fitted spectra on the observed plane
