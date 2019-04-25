@@ -2,7 +2,7 @@ import numpy as np
 import os
 import sys
 
-#from astropy.convolution import Gaussian1DKernel, convolve
+from astropy.convolution import Box1DKernel, convolve
 #from astropy.io import fits
 from logging import getLogger
 #from mpdaf.obj import airtovac, vactoair
@@ -61,13 +61,15 @@ class Platefit:
                                   vel_uniq_offset=vel_uniq_offset)
         
         if eqw:
-            self.eqw(res_line.linetable, res_cont['cont_spec'])
+            cont = self.smooth_cont(spec, res_line.spec_fit)
+            self.eqw(res_line.linetable, cont)
         
         if full_output:
             return res_cont,res_line
         else:
             return dict(table=res_line.linetable, cont=res_cont['cont_spec'], line=res_cont['line_spec'], 
-                        linefit=res_line.spec_fit, fit=res_line.spec_fit+res_cont['cont_spec'])
+                        linefit=res_line.spec_fit, fit=res_line.spec_fit+res_cont['cont_spec'],
+                        smoothcont=cont)
                       
     def fit_cont(self, spec, z, vdisp):
         """
@@ -153,6 +155,32 @@ class Platefit:
             axc.set_title('Line Fit')    
             
         
+    
+    def smooth_cont(self, spec, linefit, kernels=(100,30)):
+        """ perform continuum estimation 
+        
+        Parameters
+        ----------
+        spec : mpdaf.obj.Spectrum
+           raw spectrum
+        linefit: mpdaf.obj.Spectrum
+           fitted emission lines
+        kernels: tuple
+           (k1,k2), k1 is the kernel size of the median filter, k2 of the box filter
+           default: (100,30)
+           
+        Return:
+        cont : mpdaf.obj.Spectrum
+           continuum spectrum
+        """
+        
+        spcont = spec - linefit 
+        sm_cont = spcont.median_filter(kernel_size=kernels[0])
+        kernel = Box1DKernel(kernels[1])
+        sm_cont.data = convolve(sm_cont.data, kernel)
+        
+        return sm_cont
+        
     def eqw(self, lines_table, cont_spec):
         """
         compute equivalent widths, add computed values in lines table
@@ -177,7 +205,7 @@ class Platefit:
             z = line['Z']
             # compute continuum flux average over line +/- fwhm 
             sp = cont_spec.subspec(lmin=lbda-fwhm,lmax=lbda+fwhm)
-            spmean = sp.mean()[0]
+            spmean = np.median(sp.data)
             line['CONT_OBS'] = spmean
             # convert to restframe
             spmean = spmean*(1+z)

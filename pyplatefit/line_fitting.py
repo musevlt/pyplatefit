@@ -54,6 +54,7 @@ VD_MIN, VD_INIT, VD_MAX = 10, 50, 300  # Velocity dispersion
 VD_MAX_LYA = 700  # Maximum velocity dispersion for Lyman α
 GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -5, 0, 5  # γ parameter for Lyman α
 WINDOW_MAX = 30 # search radius in A for peak around starting wavelength
+MARGIN_EMLINES = 0 # margin in pixel for emission line selection wrt to the spectrum edge
 
 
 DOUBLET_RATIOS = [
@@ -73,7 +74,7 @@ class Linefit:
     This class implement Emission Line def
     """
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-5,0,5), 
-                 windmax=30, xtol=1.e-4, ftol=1.e-6, maxfev=1000):
+                 windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000):
         self.logger = getLogger(__name__)
         # FIXME parameters not passed to leastsq
         self.maxfev = maxfev # nb max of iterations (leastsq)
@@ -298,7 +299,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     if lines is None:
         logger.debug("Getting lines from get_emlines...") 
         sel = 1 if major_lines else None
-        lines = get_emlines(z=redshift, vac=True, sel=sel, margin=5,
+        lines = get_emlines(z=redshift, vac=True, sel=sel, margin=MARGIN_EMLINES,
                             lbrange=[wave.min(), wave.max()],
                             ltype="em", table=True, restframe=True)
         lines.rename_column("LBDA_OBS", "LBDA_REST")
@@ -442,8 +443,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         lines[colname].format = '.2f'
     lines['Z'].format = '.5f'
     lines['Z_ERR'].format = '.2e'
-   
-    
+       
     par = result.params
     zf = 1+redshift
     for fname,fdict in family_lines.items():
