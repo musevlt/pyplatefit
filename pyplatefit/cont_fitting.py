@@ -2,7 +2,7 @@ import numpy as np
 import os
 import sys
 
-from astropy.convolution import Gaussian1DKernel, convolve
+from astropy.convolution import Gaussian1DKernel, convolve, Box1DKernel
 from astropy.io import fits
 from mpdaf.obj import airtovac, vactoair
 from logging import getLogger
@@ -293,16 +293,24 @@ class Contfit:
         res['ages'] = self.settings['ssp_ages'][np.array(np.where(best_contCoefs[1:] > 0)).squeeze()]
         res['weights'] = best_contCoefs[1:][np.array(np.where(best_contCoefs[1:] > 0)).squeeze()]
 
-        cont = spec.clone()
+        cont_fit = spec.clone()
         # rebin continuum in linear
-        cont.data = np.interp(spec.wave.coord(), airwl, best_continuum)
-        cont.data = cont.data / (1 + z)
+        cont_fit.data = np.interp(spec.wave.coord(), airwl, best_continuum)
+        cont_fit.data = cont_fit.data / (1 + z)
         
+        # compute residual correction
+        resid_cont = spec - cont_fit 
+        sm_resid_cont = resid_cont.median_filter(kernel_size=151)
+        kernel = Box1DKernel(51)
+        sm_resid_cont.data = convolve(sm_resid_cont.data, kernel)  
+        
+        cont = cont_fit + sm_resid_cont
+        
+        res['cont_spec_resid'] = sm_resid_cont  
         res['cont_spec'] = cont
-        
+        res['cont_fit'] = cont_fit   
         res['line_spec'] = spec - cont 
-        
- 
+               
         return res
 
 
