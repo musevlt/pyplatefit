@@ -300,7 +300,8 @@ class Contfit:
         
         res['cont_spec'] = cont
         
-        res['line_spec'] = spec - cont        
+        res['line_spec'] = spec - cont 
+        
  
         return res
 

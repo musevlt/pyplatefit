@@ -75,9 +75,11 @@ class Linefit:
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-5,0,5), 
                  windmax=30, xtol=1.e-4, ftol=1.e-6, maxfev=1000):
         self.logger = getLogger(__name__)
+        # FIXME parameters not passed to leastsq
         self.maxfev = maxfev # nb max of iterations (leastsq)
         self.xtol = xtol # relative error in the solution (leastq)
         self.ftol = ftol # relative error in the sum of square (leastsq)
+        
         self.vel = vel
         self.vdisp = vdisp
         self.vdisp_lya_max = vdisp_lya_max
@@ -255,7 +257,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     data = np.array(data)
     std = np.array(std) if std is not None else np.ones_like(data)
     
-    # get defaut parameters
+    # get defaut parameters for lines bounds
     if 'vel' in fit_lws.keys():
         VEL_MIN,VEL_INIT,VEL_MAX = fit_lws['vel']
     if 'vel' in fit_lws.keys():
@@ -552,7 +554,8 @@ def model(params, wave, lines, z, lsf=True):
                 l0 = params[f"{line}_gauss_l0"]*(1+dv/C)
                 sigma = vdisp*l0/C
                 if lsf:
-                    siginst = complsf(l0*(1+z))
+                    l0obs = l0*(1+z)
+                    siginst = complsf(l0obs)
                     sigma = np.sqrt(sigma**2+siginst**2)                
                 peak = flux/(SQRT2PI*sigma)
                 model += gauss(peak, l0, sigma, wave)
