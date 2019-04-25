@@ -355,7 +355,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         for line in sel_lines:         
             name = line['LINE']
             l0 = line['LBDA_REST']
-            add_gaussian_par(params, family_name, name, l0, wave_rest, data_rest)
+            add_gaussian_par(params, family_name, name, l0, wave_rest, data_rest, redshift, lsf)
         if line_ratios is not None:
             # add line ratios bounds
             dlines = sel_lines[sel_lines['DOUBLET']>0]
@@ -384,7 +384,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                         params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX_LYA) 
                         name = line['LINE']
                         l0 = line['LBDA_REST']
-                        add_asymgauss_par(params, fname, name, l0, wave_rest, data_rest)
+                        add_asymgauss_par(params, fname, name, l0, wave_rest, data_rest, redshift, lsf)
                     else:
                         # we fit a gaussian
                         fname = line['LINE'].lower()
@@ -393,7 +393,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                         params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX)
                         name = line['LINE']
                         l0 = line['LBDA_REST']
-                        add_gaussian_par(params, fname, name, l0, wave_rest, data_rest)
+                        add_gaussian_par(params, fname, name, l0, wave_rest, data_rest, redshift, lsf)
             if len(doublets) > 0:
                 ndoublets = np.unique(doublets['DOUBLET'])
                 for dlbda in ndoublets:
@@ -480,10 +480,10 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             # in observed frame
             row['LBDA_OBS'] = row['LBDA_REST']*(1+row['Z'])
             if not vac:
-                row['LBDA_OBS'] = vactoair(row['LBDA_OBS']) 
+                row['LBDA_OBS'] = vactoair(row['LBDA_OBS'])
+            sigma = get_sigma(vdisp, row['LBDA_OBS'], row['Z'], lsf, restframe=False) 
             if lsf:
-                row['VDINST'] = complsf(row['LBDA_OBS'], kms=True)        
-            sigma = vdisp*row['LBDA_OBS']/C
+                row['VDINST'] = complsf(row['LBDA_OBS'], kms=True)
             peak = flux/(SQRT2PI*sigma)
             row['PEAK_OBS'] = peak
             row['FWHM_OBS'] = 2.355*sigma 
@@ -516,11 +516,11 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     
     return result
 
-def add_gaussian_par(params, family_name, name, l0, wave, data):
+def add_gaussian_par(params, family_name, name, l0, wave, data, z, lsf):
     params.add(f"{name}_gauss_l0", value=l0, vary=False)  
     ksel = np.abs(wave-l0) < WINDOW_MAX
     vmax = data[ksel].max()
-    sigma = VD_INIT*l0/C
+    sigma = get_sigma(VD_INIT, l0, z, lsf, restframe=True)                  
     flux = SQRT2PI*sigma*vmax
     params.add(f"{name}_gauss_flux", value=flux, min=0)
     
@@ -528,7 +528,7 @@ def add_asymgauss_par(params, family_name, name, l0, wave, data):
     params.add(f"{name}_asymgauss_l0", value=l0, vary=False)  
     ksel = np.abs(wave-l0) < WINDOW_MAX
     vmax = data[ksel].max()
-    sigma = VD_INIT*l0/C
+    sigma = get_sigma(VD_INIT, l0, z, lsf, restframe=True)  
     flux = SQRT2PI*sigma*vmax
     params.add(f"{name}_asymgauss_flux", value=flux, min=0)
     params.add(f"{name}_asymgauss_asym", value=GAMMA_INIT, min=GAMMA_MIN, max=GAMMA_MAX)
@@ -540,7 +540,18 @@ def add_line_ratio(params, line_ratios, dlines):
                        max=ratio_max, value=0.5*(ratio_min+ratio_max))
             params['%s_gauss_flux' % line2].expr = (
                 "%s_gauss_flux * %s_to_%s_factor" % (line1, line1, line2)
-            )    
+            ) 
+            
+def get_sigma(vdisp, l0, z, lsf=True, restframe=True):
+    sigma = vdisp*l0/C
+    if lsf:
+        if restframe:
+            l0obs = l0*(1+z)
+            siginst = complsf(l0obs)/(1+z)
+        else:
+            siginst = complsf(l0)
+        sigma = np.sqrt(sigma**2+siginst**2) 
+    return sigma
 
 def model(params, wave, lines, z, lsf=True):
     """ wave is rest frame wavelengths """
@@ -552,22 +563,15 @@ def model(params, wave, lines, z, lsf=True):
             if ldict['fun']=='gauss':
                 flux = params[f"{line}_gauss_flux"]
                 l0 = params[f"{line}_gauss_l0"]*(1+dv/C)
-                sigma = vdisp*l0/C
-                if lsf:
-                    l0obs = l0*(1+z)
-                    siginst = complsf(l0obs)
-                    sigma = np.sqrt(sigma**2+siginst**2)                
+                sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)      
                 peak = flux/(SQRT2PI*sigma)
                 model += gauss(peak, l0, sigma, wave)
             elif ldict['fun']=='asymgauss':
                 flux = params[f"{line}_asymgauss_flux"]
                 l0 = params[f"{line}_asymgauss_l0"]*(1+dv/C)
-                beta = params[f"{line}_asymgauss_asym"].value
-                sigma = vdisp*l0/C 
-                if lsf:
-                    siginst = complsf(l0)
-                    # FIXME not sure this is correct for LAE, given it is an asymetric function
-                    sigma = np.sqrt(sigma**2+siginst**2)
+                beta = params[f"{line}_asymgauss_asym"].value     
+                # FIXME not sure this is correct for LAE, given it is an asymetric function
+                sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)               
                 peak = flux/(SQRT2PI*sigma)
                 model += asymgauss(peak, l0, sigma, beta, wave)            
             else:
