@@ -122,16 +122,13 @@ class Contfit:
             if res['success']:
                 self.logger.info(f"Cont fit status: {res['status']}")
                 self.logger.info(f"Cont Init Z: {res['init_z']:.5f}")
-                self.logger.info(f"Cont Fit dV (km/s): {res['dv']:.2f}")
-                self.logger.info(f"Cont Fit dZ: {res['dz']:.5f}")
-                self.logger.info(f"Cont Fit Z: {res['z']:.5f}")
+                self.logger.info(f"Cont Fit Metallicity: {res['z']:.5f}")
                 self.logger.info(f"Cont Fit E(B-V): {res['ebv']:.2f}")
                 self.logger.info(f"Cont Chi2: {res['chi2']:.2f}")
             else:
                 self.logger.info(f"Cont fit status: {res['status']}")
                 self.logger.info(f"Cont Init Z: {res['init_z']:.5f}")
-                self.logger.info(f"Cont Fit dV (km/s): {res['dv']:.2f}")
-                self.logger.info(f"Cont Fit dZ: {res['dz']:.5f}")
+                self.logger.info(f"Cont Fit Metallicity: {res['z']:.5f}")
                 self.logger.info(f"Cont Fit Z: {res['z']:.5f}")             
 
             
@@ -250,10 +247,8 @@ class Contfit:
                 self.logger.warning('Continnum fit failed, use constant')
                 res['success'] = False
                 res['status'] = 'Continnum fit failed, cste median used'
-                res['dz'] = 0
-                res['dv'] = 0
+                res['z'] = 0
                 res['ebv'] = 0
-                res['z'] = z
                 res['init_z'] = z
                 res['chi2'] = 0
 
@@ -291,10 +286,8 @@ class Contfit:
         # fill result dict
         res['success'] = True
         res['status'] = 'Continuum fit successful'
-        res['dz'] = best_szval
-        res['dv'] = best_szval * cspeed
+        res['z'] = best_szval # metallicity
         res['ebv'] = best_ebv
-        res['z'] = z + best_szval
         res['init_z'] = z
         res['chi2'] = best_modelChi[0]        
         res['ages'] = self.settings['ssp_ages'][np.array(np.where(best_contCoefs[1:] > 0)).squeeze()]
