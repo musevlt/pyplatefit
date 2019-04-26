@@ -3,9 +3,8 @@ import os
 import sys
 
 from astropy.convolution import Box1DKernel, convolve
-#from astropy.io import fits
+from astropy.stats import sigma_clipped_stats
 from logging import getLogger
-#from mpdaf.obj import airtovac, vactoair
 from astropy.table import MaskedColumn
 
 from .cont_fitting import Contfit
@@ -61,15 +60,15 @@ class Platefit:
                                   vel_uniq_offset=vel_uniq_offset)
         
         if eqw:
-            cont = self.smooth_cont(spec, res_line.spec_fit)
-            self.eqw(res_line.linetable, cont)
+            smcont = self.smooth_cont(spec, res_line.spec_fit)
+            self.eqw(res_line.linetable, spec, smcont)
         
         if full_output:
             return res_cont,res_line
         else:
             return dict(table=res_line.linetable, cont=res_cont['cont_spec'], line=res_cont['line_spec'], 
                         linefit=res_line.spec_fit, fit=res_line.spec_fit+res_cont['cont_spec'],
-                        smoothcont=cont)
+                        smoothcont=smcont)
                       
     def fit_cont(self, spec, z, vdisp):
         """
@@ -170,8 +169,8 @@ class Platefit:
            default: (100,30)
            
         Return:
-        cont : mpdaf.obj.Spectrum
-           continuum spectrum
+        sm_cont : mpdaf.obj.Spectrum
+           smooth continuum spectrum
         """
         
         spcont = spec - linefit 
@@ -181,7 +180,7 @@ class Platefit:
         
         return sm_cont
         
-    def eqw(self, lines_table, cont_spec):
+    def eqw(self, lines_table, spec, smooth_cont, window=50):
         """
         compute equivalent widths, add computed values in lines table
         
@@ -189,33 +188,47 @@ class Platefit:
         ----------
         lines_table: astropy.table.Table
         
-        cont_spec : mpdaf.obj.Spectrum
-           continuum spectrum
+        spec : mpdaf.obj.Spectrum
+           raw spectrum (use to derive stddev)
+        smooth_cont : mpdaf.obj.Spectrum
+           smooth continuum spectrum (use to derive mean)
+           
+        window: float
+           window half size to compute continuum in A (rest frame)
            
         """
         for name in ['EQW', 'EQW_ERR', 'CONT_OBS', 'CONT', 'CONT_ERR']:
             if name not in lines_table.colnames:
                 lines_table.add_column(MaskedColumn(name=name, dtype=np.float, length=len(lines_table), mask=True))
                 lines_table[name].format = '.2f'
+                
+        # remove smooth continuum to spectrum
+        spline = spec - smooth_cont 
         
         for line in lines_table:
             name = line['LINE']
-            lbda = line['LBDA_OBS']
-            fwhm = line['FWHM_OBS']
+            l0 = line['LBDA_REST']
             z = line['Z']
+            l1,l2 = np.array([l0-window,l0+window])*(1+z)
+            # FIXME
+            # iterative sigclip on flux-sm_cont, window of +/- 50A in restframe
+            # mask the emission line
+            # from this get, mean continuum and std            
             # compute continuum flux average over line +/- fwhm 
-            sp = cont_spec.subspec(lmin=lbda-fwhm,lmax=lbda+fwhm)
-            spmean = np.median(sp.data)
+            sp = smooth_cont.subspec(lmin=l1,lmax=l2)
+            spmean = sp.mean()[0]
+            # mask lines TOBEDONE 
+            spl = spline.subspec(lmin=l1,lmax=l2)
+            spm,spmed,stddev = sigma_clipped_stats(spl.data)
             line['CONT_OBS'] = spmean
             # convert to restframe
             spmean = spmean*(1+z)
             line['CONT'] = spmean
-            # compute continuum error
-            spmean_err = np.std(sp.data)
-            line['CONT_ERR'] = spmean_err
+            # compute continuum error       
+            line['CONT_ERR'] = stddev*np.sqrt(1+z) # SHOULD WE MULTIPLY ?
             # compute EQW in rest frame
             eqw = line['FLUX']/spmean
-            eqw_err = line['FLUX_ERR']/spmean + line['FLUX']*spmean_err/spmean**2
+            eqw_err = line['FLUX_ERR']/spmean + line['FLUX']*stddev/spmean**2
             if line['FLUX'] > 0:
                 line['EQW'] = -eqw
             else:

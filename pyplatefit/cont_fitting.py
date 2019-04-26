@@ -310,6 +310,12 @@ class Contfit:
         res['cont_spec'] = cont
         res['cont_fit'] = cont_fit   
         res['line_spec'] = spec - cont 
+        
+        res['wave'] = restwl 
+        res['data'] = flux
+        res['std'] = err 
+
+        vacwl_orig = spec.wave.coord(medium='vacuum')
                
         return res
 
