@@ -24,7 +24,7 @@ class Platefit:
 
     def fit(self, spec, z, vdisp=80, major_lines=False, lines=None, emcee=False, 
             use_line_ratios=True, vel_uniq_offset=False, lsf=True,
-            eqw=True, full_output=False):
+            eqw=True):
         """
     Perform continuum and emission lines fit on a spectrum
     
@@ -50,10 +50,10 @@ class Platefit:
        default True 
     eqw: boolean
        if True compute equivalent widths
-    full_output: boolean
-       if True, return two objects, res_cont and res_line with the full info
-       if False, return only a dictionary  with the line table ['table'], the fitted continuum spectrum ['cont'], 
-       the continuum subtracted spectrum ['line'], emission lines fit ['linefit'] and complete fit ['fit']
+       
+    Return
+    ------
+    result dict
         """
         res_cont = self.fit_cont(spec, z, vdisp)
         res_line = self.fit_lines(res_cont['line_spec'], z, major_lines=major_lines, lines=lines, 
@@ -61,15 +61,12 @@ class Platefit:
                                   vel_uniq_offset=vel_uniq_offset)
         
         if eqw:
-            smcont = self.eqw.smooth_cont(spec, res_line.spec_fit)
-            self.eqw.compute_eqw(res_line.linetable, spec, smcont)
+            self.eqw.comp_eqw(spec, res_cont['line_spec'], z, res_line.linetable)
         
-        if full_output:
-            return res_cont,res_line
-        else:
-            return dict(table=res_line.linetable, cont=res_cont['cont_spec'], line=res_cont['line_spec'], 
+
+        return dict(table=res_line.linetable, cont=res_cont['cont_spec'], line=res_cont['line_spec'], 
                         linefit=res_line.spec_fit, fit=res_line.spec_fit+res_cont['cont_spec'],
-                        smoothcont=smcont)
+                        res_cont=res_cont, res_line=res_line)
                       
     def fit_cont(self, spec, z, vdisp):
         """
