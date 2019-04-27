@@ -263,8 +263,8 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         VEL_MIN,VEL_INIT,VEL_MAX = fit_lws['vel']
     if 'vel' in fit_lws.keys():
         VD_MIN, VD_INIT, VD_MAX = fit_lws['vdisp']
-    if 'vdisp_lya' in fit_lws.keys():
-        VD_MAX_LYA = fit_lws['vdisp_lya']
+    if 'vdisp_lya_max' in fit_lws.keys():
+        VD_MAX_LYA = fit_lws['vdisp_lya_max']
     if 'gamma_lya' in fit_lws.keys():
         GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = fit_lws['gamma_lya']
     if 'windmax' in fit_lws.keys():
@@ -338,13 +338,21 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         # fit different velocity and velocity dispersion for balmer and forbidden family 
         families = [[[1],'balmer'],[[2],'forbidden']]
 
-        
+    
+    has_lya = False    
     for family_ids,family_name in families:
         ksel = lines['FAMILY']==family_ids[0]
         if len(family_ids)>1:
             for family_id in family_ids[1:]:
                 ksel = ksel | (lines['FAMILY']==family_id)
         sel_lines = lines[ksel]
+        if len(sel_lines) == 0:
+            logger.debug('No %s lines to fit', family_name)
+            continue        
+        # remove LYALPHA if present
+        if 'LYALPHA' in sel_lines['LINE']:
+            has_lya = True
+            sel_lines = sel_lines[sel_lines['LINE'] != 'LYALPHA']
         if len(sel_lines) == 0:
             logger.debug('No %s lines to fit', family_name)
             continue
@@ -371,22 +379,21 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         sel_lines = lines[lines['FAMILY']==family_id]
         if len(sel_lines) == 0:
             logger.debug('No %s lines to fit', family_name)
-        else:   
-            logger.debug('%d %s lines to fit', len(sel_lines), family_name)
-            doublets = sel_lines[sel_lines['DOUBLET']>0]
-            singlets = sel_lines[sel_lines['DOUBLET']==0]
-            if len(singlets) > 0:
-                for line in singlets:
-                    if line['LINE'] == 'LYALPHA':
-                        # we fit an asymmetric line
-                        fname = line['LINE'].lower()
-                        family_lines[fname] = dict(lines=[line['LINE']], fun='asymgauss')
-                        params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
-                        params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX_LYA) 
-                        name = line['LINE']
-                        l0 = line['LBDA_REST']
-                        add_asymgauss_par(params, fname, name, l0, wave_rest, data_rest, redshift, lsf)
-                    else:
+        else:
+            if 'LYALPHA' in sel_lines['LINE']:
+                has_lya = True
+                sel_lines = sel_lines[sel_lines['LINE'] != 'LYALPHA']     
+            if len(sel_lines) == 0:
+                logger.debug('No %s lines to fit', family_name)
+            else:   
+                logger.debug('%d %s lines to fit', len(sel_lines), family_name)
+                doublets = sel_lines[sel_lines['DOUBLET']>0]
+                singlets = sel_lines[sel_lines['DOUBLET']==0]
+                if len(singlets) > 0:
+                    for line in singlets:
+                        if line['LINE'] == 'LYALPHA':
+                            has_lya = True
+                            continue
                         # we fit a gaussian
                         fname = line['LINE'].lower()
                         family_lines[fname] = dict(lines=[line['LINE']], fun='gauss')
@@ -395,23 +402,33 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                         name = line['LINE']
                         l0 = line['LBDA_REST']
                         add_gaussian_par(params, fname, name, l0, wave_rest, data_rest, redshift, lsf)
-            if len(doublets) > 0:
-                ndoublets = np.unique(doublets['DOUBLET'])
-                for dlbda in ndoublets:
-                    dlines = doublets[np.abs(doublets['DOUBLET']-dlbda) < 0.01]
-                    fname = str(dlines['LINE'][0]).lower()
-                    family_lines[fname] = dict(lines=dlines['LINE'], fun='gauss')
-                    params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
-                    params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX)              
-                    for line in dlines:
-                        name = line['LINE']
-                        l0 = line['LBDA_REST']
-                        add_gaussian_par(params, fname, name, l0, wave_rest, data_rest)
-                    if line_ratios is not None:
-                        # add line ratios bounds
-                        add_line_ratio(params, line_ratios, dlines)
- 
-                    
+                if len(doublets) > 0:
+                    ndoublets = np.unique(doublets['DOUBLET'])
+                    for dlbda in ndoublets:
+                        dlines = doublets[np.abs(doublets['DOUBLET']-dlbda) < 0.01]
+                        fname = str(dlines['LINE'][0]).lower()
+                        family_lines[fname] = dict(lines=dlines['LINE'], fun='gauss')
+                        params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
+                        params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX)              
+                        for line in dlines:
+                            name = line['LINE']
+                            l0 = line['LBDA_REST']
+                            add_gaussian_par(params, fname, name, l0, wave_rest, data_rest)
+                        if line_ratios is not None:
+                            # add line ratios bounds
+                            add_line_ratio(params, line_ratios, dlines)
+    if has_lya:
+        family_lines['lyalpha'] = {'lines':['LYALPHA'], 'fun':'asymgauss'}
+        name = 'LYALPHA'
+        line = lines[lines['LINE']==name][0]
+        # we fit an asymmetric line
+        fname = name.lower()
+        family_lines[fname] = dict(lines=[line['LINE']], fun='asymgauss')
+        params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
+        params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX_LYA) 
+        l0 = line['LBDA_REST']
+        add_asymgauss_par(params, fname, name, l0, wave_rest, data_rest, redshift, lsf)                
+             
         
     minner = Minimizer(residuals, params, fcn_args=(wave_rest, data_rest, std_rest, family_lines, redshift, lsf))
     
@@ -524,7 +541,7 @@ def add_gaussian_par(params, family_name, name, l0, wave, data, z, lsf):
     flux = SQRT2PI*sigma*vmax
     params.add(f"{name}_gauss_flux", value=flux, min=0)
     
-def add_asymgauss_par(params, family_name, name, l0, wave, data):
+def add_asymgauss_par(params, family_name, name, l0, wave, data, z, lsf):
     params.add(f"{name}_asymgauss_l0", value=l0, vary=False)  
     ksel = np.abs(wave-l0) < WINDOW_MAX
     vmax = data[ksel].max()

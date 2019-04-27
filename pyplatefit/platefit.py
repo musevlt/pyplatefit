@@ -216,7 +216,7 @@ class Platefit:
             # from this get, mean continuum and std            
             # compute continuum flux average over line +/- fwhm 
             sp = smooth_cont.subspec(lmin=l1,lmax=l2)
-            spmean = sp.mean()[0]
+            spmean = np.mean(sp.data)
             # mask lines TOBEDONE 
             spl = spline.subspec(lmin=l1,lmax=l2)
             spm,spmed,stddev = sigma_clipped_stats(spl.data)
