@@ -3,6 +3,8 @@ import os
 import sys
 
 from astropy.convolution import Gaussian1DKernel, convolve, Box1DKernel
+from scipy.signal import medfilt
+from astropy.table import Table
 from astropy.io import fits
 from mpdaf.obj import airtovac, vactoair
 from logging import getLogger
@@ -293,29 +295,33 @@ class Contfit:
         res['ages'] = self.settings['ssp_ages'][np.array(np.where(best_contCoefs[1:] > 0)).squeeze()]
         res['weights'] = best_contCoefs[1:][np.array(np.where(best_contCoefs[1:] > 0)).squeeze()]
 
+        # compute residual correction
+        resid_cont = flux - best_continuum 
+        sm_resid_cont = medfilt(resid_cont, 151)
+        kernel = Box1DKernel(51)
+        sm_resid_cont = convolve(sm_resid_cont, kernel)  
+        
+        # save results in a table (in rest frame)
+        tab = Table(data=[restwl,flux,err,best_continuum,sm_resid_cont], 
+                    names=['RESTWL','FLUX','ERR','CONTFIT','CONTRESID'])
+        tab['CONT'] = tab['CONTFIT'] + tab['CONTRESID']
+        tab['LINE'] = tab['FLUX'] - tab['CONT']
+        tab['AIRWL'] = airwl
+        res['table_spec'] = tab
+        
+        # compute result MPDAF spectrum in observed frame
         cont_fit = spec.clone()
         # rebin continuum in linear
         cont_fit.data = np.interp(spec.wave.coord(), airwl, best_continuum)
         cont_fit.data = cont_fit.data / (1 + z)
         
-        # compute residual correction
-        resid_cont = spec - cont_fit 
-        sm_resid_cont = resid_cont.median_filter(kernel_size=151)
-        kernel = Box1DKernel(51)
-        sm_resid_cont.data = convolve(sm_resid_cont.data, kernel)  
-        
-        cont = cont_fit + sm_resid_cont
-        
-        res['cont_spec_resid'] = sm_resid_cont  
+        cont = spec.clone()
+        cont.data = np.interp(spec.wave.coord(), airwl, tab['CONT'])
+        cont.data = cont.data / (1 + z)
+
         res['cont_spec'] = cont
         res['cont_fit'] = cont_fit   
         res['line_spec'] = spec - cont 
-        
-        res['wave'] = restwl 
-        res['data'] = flux
-        res['std'] = err 
-
-        vacwl_orig = spec.wave.coord(medium='vacuum')
                
         return res
 
