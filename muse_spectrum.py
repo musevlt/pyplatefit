@@ -52,7 +52,7 @@ vdisp = 80.0
 sp = Spectrum(name)
 
 pl = Platefit()
-res = pl.fit(sp, z, emcee=False, vel_uniq_offset=False, full_output=False, eqw=True)
+res = pl.fit(sp, z, emcee=False, vel_uniq_offset=False, eqw=True)
 #cont = pl.smooth_cont(sp, res['linefit'])
 
 

@@ -128,14 +128,6 @@ class Linefit:
 
         
 
-            
-
-        
-
-
-    
-
-
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        major_lines=False, emcee=False,
@@ -450,7 +442,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     
     # fill the lines table with the fit results
     lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','FAMILY','LBDA_EXP'])
-    colnames = ['VEL','VEL_ERR','Z','Z_ERR','VDISP','VDISP_ERR',
+    colnames = ['VEL','VEL_ERR','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR',
                     'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']
     if lsf:
         colnames.append('VDINST')
@@ -459,6 +451,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     for colname in colnames:
         lines[colname].format = '.2f'
     lines['Z'].format = '.5f'
+    lines['Z_INIT'].format = '.5f'
     lines['Z_ERR'].format = '.2e'
        
     par = result.params
@@ -488,6 +481,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             row['VEL'] = dv
             row['VEL_ERR'] = dv_err
             row['Z'] = redshift + dv/C
+            row['Z_INIT'] = redshift
             row['Z_ERR'] = dv_err/C
             row['FLUX'] = flux
             row['FLUX_ERR'] = flux_err
