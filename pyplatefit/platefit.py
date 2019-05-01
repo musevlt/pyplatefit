@@ -94,6 +94,29 @@ class Platefit:
        reshift 
     vdisp : float
        velocity dispersion in km/s 
+    Return
+    ------
+    result: dict
+    result['table_spec'] astropy table with the following columns
+       - RESTWL: restframe vacuum wavelength
+       - FLUX: data value in restframe
+       - ERR: stddev of data value
+       - CONTFIT: continuum fit (restframe)
+       - CONTRESID: smoothed continuum residual (restframe)
+       - CONT: continuum fit + residual
+       - LINE: continuum subtracted 
+       - AIRWL: observed wavelength in air
+    result['cont_spec']: MPDAF spectrum continuum (fit + smooth residual) in observed frame
+    result['cont_fit']: MPDAF spectrum continuum (fit only) in observed frame
+    result['line_spec']: MPDAF continuum subtracted spectrum in observed frame
+    result['success']: True or False
+    result['z']: Metallicity
+    result['ebv']: E(B-V)
+    result['chi2']: Chi2 fit
+    result['ages']: fitted ages
+    result['weights']: used weights
+    
+    
         """
         return self.cont.fit(spec, z, vdisp)
     
