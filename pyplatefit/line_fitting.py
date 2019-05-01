@@ -171,20 +171,45 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     The columns are:
     - LINE: the name of the line
     - LBDA_REST: The the rest-frame position of the line in vacuum
+    - FAMILY: the line family name (eg balmer)
     - DNAME: The display name for the line (set to None for close doublets)
     - VEL: The velocity offset in km/s with respect to the initial redshift (rest frame)
     - VEL_ERR: The error in velocity offset in km/s 
     - Z: The fitted redshift in vacuum of the line (note for lyman-alpha the line peak is used)
     - Z_ERR: The error in fitted redshift of the line.
+    - Z_INIT: The initial redshift 
     - VDISP: The fitted velocity dispersion in km/s (rest frame)
     - VDISP_ERR: The error in fitted velocity dispersion
     - FLUX: Flux in the line. The unit depends on the units of the spectrum.
     - FLUX_ERR: The fitting uncertainty on the flux value.
+    - SNR: the SNR of the line
     - SKEW: The skewness of the asymetric line (for Lyman-alpha line only).
     - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
     - LBDA_OBS: The fitted position the line in the observed frame
     - PEAK_OBS: The fitted peak of the line in the observed frame
     - FWHM_OBS: The full width at half maximum of the line in the observed frame 
+    - VDINST: The instrumental velocity dispersion in km/s
+    - EQW: The restframe line equivalent width 
+    - EQW_ERR: The error in EQW
+    - CONT_OBS: The continuum mean value in Observed frame
+    - CONT: the continuum mean value in rest frame
+    - CONT_ERR: the error in rest frame continuum
+    
+    The redshift table is saved in result.ztable
+    The columns are:
+    - FAMILY: the line family name
+    - VEL: the velocity offset with respect to the original z in km/s
+    - ERR_VEL: the error in velocity offset
+    - Z: the fitted redshift (in vacuum)
+    - ERR_Z: the error in redshift
+    - VDISP: The fitted velocity dispersion in km/s (rest frame)
+    - VDISP_ERR: The error in fitted velocity dispersion
+    - SNRMAX: the maximum SNR
+    - SNRSUM: the sum of SNR (all lines)
+    - SNRSUM_CLIPPED: the sum of SNR (only lines above a MIN SNR (default 3))
+    - NL: number of fitted lines
+    - NL_CLIPPED: number of lines with SNR>SNR_MIN
+    
     
   
     Parameters
@@ -212,9 +237,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         - or an astropy table with the information on the lines to fit. The
           table must contain a LINE column with the name of the line and a LBDA
           column with the rest-frame, vaccuum wavelength of the lines.  Only the
-          lines that are expected in the spectrum will be fitted. Note that the
-          names of the resonant lines in the LINE column is important an must
-          match the names in RESONANT_LINES.
+          lines that are expected in the spectrum will be fitted. 
     line_ratios: list of (str, str, float, float) tuples or string
         List on line ratio constraints (line1 name, line2 name, line2/line1
         minimum, line2/line1 maximum.
@@ -222,7 +245,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         If true, the fit is restricted to the major lines as defined in mpdaf line table (used only when lines is None, )
         default: False
     emcee : boolean, optional
-        if true, errors and best fit is estimated with EMCEE starting from the leastsq solution
+        if true, errors and best fit is estimated with MCMC starting from the leastsq solution
         default: False
     vel_uniq_offset: boolean, optional
         if True, use same velocity offset for all lines (not recommended)
@@ -236,8 +259,19 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
 
     Returns
     -------
-    result_dict : OrderedDict
+    result : OrderedDict
         Dictionary containing several parameters from the fitting.
+        result is the lmfit MinimizerResult object (see lmfit documentation)
+        in addition it contains
+        result.tabspec an astropy table with the following columns
+            - RESTWL: restframe wavelength
+            - FLUX: resframe data value
+            - ERR: stddev of FLUX
+            - INIT: init value for the fit
+            - LINEFIT: final fit value
+        result.linetable (see above)
+        result.ztable (see above)
+        
 
     Raises
     ------

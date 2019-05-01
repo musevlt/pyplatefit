@@ -48,12 +48,26 @@ class Platefit:
     use_line_ratios: boolean
        if True, use constrain line ratios in fit
        default True 
+    vel_uniq_offset: boolean
+       if True, a unique velocity offset is fitted for all lines except lyman-alpha
+       default: False
+    lsf: boolean
+       if True, use LSF model to take into account the instrumental LSF
+       default: True
     eqw: boolean
        if True compute equivalent widths
        
     Return
     ------
     result dict
+    result['linetable']: astropy line table
+    result['ztable']; astropy z table
+    result['cont']: MPDAF spectrum, fitted continuum in observed frame
+    result['line']: MPDAF spectrum, continnum removed spectrum in observed frame
+    result['linefit']: MPDAF spectrum, fitted emission lines in observed frame
+    result['fit']: MPDAF spectrum, fitted line+continuum in observed frame
+    result['res_cont']: return dictionary from fit_cont
+    result['res_line']: returned ResultObject from fit_lines
         """
         res_cont = self.fit_cont(spec, z, vdisp)
         res_line = self.fit_lines(res_cont['line_spec'], z, major_lines=major_lines, lines=lines, 
@@ -106,7 +120,12 @@ class Platefit:
     use_line_ratios: boolean
        if True, use constrain line ratios in fit
        default True
-
+    vel_uniq_offset: boolean
+       if True, a unique velocity offset is fitted for all lines except lyman-alpha
+       default: False
+    lsf: boolean
+       if True, use LSF model to take into account the instrumental LSF
+       default: True
         """
         return self.line.fit(line, z, major_lines=major_lines, lines=lines, emcee=emcee, 
                              use_line_ratios=use_line_ratios, 
@@ -126,33 +145,7 @@ class Platefit:
         
     def eqw(self, lines_table, spec, smooth_cont, window=50):
         self.eqw.compute_eqw(lines_table, spec, smooth_cont, window=window)
-           
-            
-    #def plot(self, ax, res):
-        #"""
-        #plot results
-        #"""
-        #axc = ax[0] if type(ax) in [list, np.ndarray] else ax          
-        #if 'spec' in res:
-            #res['spec'].plot(ax=axc,  label='Spec')
-        #if 'cont_spec' in res:
-            #res['cont_spec'].plot(ax=axc, alpha=0.8, label='Cont Fit')
-        #axc.set_title('Cont Fit')
-        #axc.legend()
-        #if 'line_spec' in res:
-            #axc = ax[1] if type(ax) in [list, np.ndarray] else ax
-            #res['line_spec'].plot(ax=axc, label='Line')
-            #axc.set_title('Line')
-            #axc.legend()
-        #if 'line_fit' in res: 
-            #data_kws = dict(markersize=2)
-            #res['lmfit'].plot_fit(ax=axc, data_kws=data_kws, show_init=True)
-            #for row in res['table']:
-                #axc.axvline(row['LBDA_EXP'], color='r', alpha=0.2) 
-                #axc.axvline(row['LBDA'], color='k', alpha=0.2) 
-                ##y1,y2 = axc.get_ylim()
-                ##axc.text(row['LBDA']+5, y2-0.1*(y2-y1), row['LINE'], color='k', fontsize=8)                   
-            #axc.set_title('Line Fit')    
+             
             
         
     
