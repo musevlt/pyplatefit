@@ -74,7 +74,7 @@ class Linefit:
     This class implement Emission Line def
     """
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-5,0,5), 
-                 windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000):
+                 windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0):
         self.logger = getLogger(__name__)
         # FIXME parameters not passed to leastsq
         self.maxfev = maxfev # nb max of iterations (leastsq)
@@ -86,6 +86,7 @@ class Linefit:
         self.vdisp_lya_max = vdisp_lya_max
         self.gamma = gamma_lya
         self.windmax = windmax
+        self.minsnr = minsnr
        
         return
     
@@ -102,7 +103,7 @@ class Linefit:
         else:
             line_ratios = None
         fit_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
-        fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma)
+        fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma, minsnr=self.minsnr)
         return fit_mpdaf_spectrum(line_spec, z, major_lines=major_lines, lines=lines, emcee=emcee, line_ratios=line_ratios,
                                   vel_uniq_offset=vel_uniq_offset, lsf=lsf, fit_kws=fit_kws, fit_lws=fit_lws)
     
@@ -124,8 +125,7 @@ class Linefit:
             #self.logger.info(f"Line Fit dV Lyalpha: {res['v_lyalpha']:.2f} Err: {res['v_lyalpha_err']:.2f} km/s Bounds [{res['v_lyalpha_min']:.0f} : {res['v_lyalpha_max']:.0f}] Init: {res['v_lyalpha_init']:.0f} km/s")
             #self.logger.info(f"Line Fit Vdisp Lyalpha: {res['vdisp_lyalpha']:.2f} Err: {res['vdisp_lyalpha_err']:.2f} km/s Bounds [{res['vdisp_lyalpha_min']:.0f} : {res['vdisp_lyalpha_max']:.0f}] Init: {res['vdisp_lyalpha_init']:.0f} km/s")
             #self.logger.info(f"Line Fit Skewness Lyalpha: {res['skewlya']:.2f} Err: {res['skewlya_err']:.2f} Bounds [{res['skewlya_min']:.0f} : {res['skewlya_max']:.0f}] Init: {res['skewlya_init']:.0f}")
-        
-
+    
         
 
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
@@ -261,6 +261,8 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = fit_lws['gamma_lya']
     if 'windmax' in fit_lws.keys():
         WINDOW_MAX = fit_lws['windmax']
+    if 'minsnr' in fit_lws.keys():
+            MIN_SNR = fit_lws['minsnr']    
     
     # convert wavelength in restframe and vacuum, scale flux and std
     wave_rest = airtovac(wave)/(1+redshift)
@@ -405,7 +407,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                         for line in dlines:
                             name = line['LINE']
                             l0 = line['LBDA_REST']
-                            add_gaussian_par(params, fname, name, l0, wave_rest, data_rest)
+                            add_gaussian_par(params, fname, name, l0, wave_rest, data_rest, redshift, lsf)
                         if line_ratios is not None:
                             # add line ratios bounds
                             add_line_ratio(params, line_ratios, dlines)
@@ -433,15 +435,17 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         result = minner.emcee(params=result.params, is_weighted=True)
         logger.debug('End EMCEE after %d iterations, redChi2 = %.3f',result.nfev,result.redchi)
     
-    # save input data, initial and best fit (in rest frame)
-    result.wave = wave_rest
-    result.data = data_rest
-    result.std = std_rest
-    result.init = model(params, wave_rest, family_lines, redshift, lsf)
-    result.fit = model(result.params, wave_rest, family_lines, redshift, lsf)
-    
+    # save input data, initial and best fit (in rest frame) in the table_spec table
+    data_init = model(params, wave_rest, family_lines, redshift, lsf)
+    data_fit = model(result.params, wave_rest, family_lines, redshift, lsf)
+     
+    tabspec = Table(data=[wave_rest,data_rest,std_rest,data_init,data_fit], 
+                names=['RESTWL','FLUX','ERR','INIT','LINEFIT'])
+    result.spectable = tabspec
+
+   
     # fill the lines table with the fit results
-    lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','FAMILY','LBDA_EXP'])
+    lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','LBDA_EXP'])
     colnames = ['VEL','VEL_ERR','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR',
                     'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']
     if lsf:
@@ -453,7 +457,20 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     lines['Z'].format = '.5f'
     lines['Z_INIT'].format = '.5f'
     lines['Z_ERR'].format = '.2e'
-       
+
+#   set ztable for global results by family 
+    ftab = Table()
+    ftab.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True))
+    colnames =  ['VEL','ERR_VEL','Z','Z_ERR','VDISP','VDISP_ERR','SNRMAX','SNRSUM','SNRSUM_CLIPPED']
+    for colname in colnames:
+        ftab.add_column(MaskedColumn(name=colname, dtype=np.float, mask=True))
+    for colname in colnames:
+        ftab[colname].format = '.2f'
+    for colname in ['NL','NL_CLIPPED']:
+            ftab.add_column(MaskedColumn(name=colname, dtype=np.int, mask=True))  
+    ftab['Z'].format = '.5f'
+    ftab['Z_ERR'].format = '.2e'    
+        
     par = result.params
     zf = 1+redshift
     for fname,fdict in family_lines.items():
@@ -464,6 +481,9 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         fwhm = 2.355*vdisp
         fwhm_err = 2.355*vdisp_err
         fun = fdict['fun']
+        snr = []
+        zlist = []
+        dvlist = []
         for row in lines:
             name = row['LINE']
             if name not in fdict['lines']:
@@ -520,10 +540,33 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                 row['FWHM_OBS'] = fwhm*(1+row['Z'])
                 # save peak position in observed frame
                 row['LBDA_OBS'] = vactoair(l1*(1+row['Z']))
+            zlist.append(row['Z'])
+            dvlist.append(row['VEL'])
+            snr.append(row['SNR'])
                 
-  
+        snr = np.array(snr)
+        snrmax = np.max(snr)
+        nline = len(snr)
+        sum_snr = np.sqrt(np.sum(snr**2))
+        snr = snr[snr>MIN_SNR]
+        nline_snr_clipped = len(snr)
+        if nline_snr_clipped == 0:
+            sum_snr_clipped = np.nan
+        else:
+            sum_snr_clipped = np.sqrt(np.sum(snr**2))
+        dv = np.mean(dvlist)
+        zm = np.mean(zlist)
+        ftab.add_row(dict(FAMILY=fname, VEL=dv, ERR_VEL=dv_err, VDISP=vdisp, VDISP_ERR=vdisp_err, 
+                          Z=zm, Z_ERR=dv_err/C, SNRMAX=snrmax,
+                          NL=nline, NL_CLIPPED=nline_snr_clipped, SNRSUM=sum_snr, SNRSUM_CLIPPED=sum_snr_clipped))
+        
+        
     # save line table
     result.linetable = lines
+    # save z table results
+    result.ztable = ftab
+   
+    
     
     return result
 
@@ -674,15 +717,20 @@ def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=
                              vel_uniq_offset=vel_uniq_offset, lsf=lsf,
                              fit_kws=fit_kws, fit_lws=fit_lws)
     
-    # add fitted spectra on the observed plane
-    spfit = spectrum.clone()
+    tab = res.spectable    
     # convert wave to observed frame and air
-    wave = res.wave*(1 + redshift)
+    wave = tab['RESTWL']*(1 + redshift)
     wave = vactoair(wave)
-    spfit.data = np.interp(spectrum.wave.coord(), wave, res.fit)
+    # add init and fitted spectra on the observed plane
+    spfit = spectrum.clone()
+    spfit.data = np.interp(spectrum.wave.coord(), wave, tab['LINEFIT'])
     spfit.data = spfit.data / (1 + redshift)
-    
+    spinit = spectrum.clone()
+    spinit.data = np.interp(spectrum.wave.coord(), wave, tab['INIT'])
+    spinit.data = spinit.data / (1 + redshift)
+        
     res.spec_fit = spfit
+    res.init_fit = spinit
             
     return res
 

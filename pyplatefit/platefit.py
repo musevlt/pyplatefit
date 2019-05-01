@@ -64,7 +64,7 @@ class Platefit:
             self.eqw.comp_eqw(spec, res_cont['line_spec'], z, res_line.linetable)
         
 
-        return dict(table=res_line.linetable, cont=res_cont['cont_spec'], line=res_cont['line_spec'], 
+        return dict(linetable=res_line.linetable, ztable=res_line.ztable, cont=res_cont['cont_spec'], line=res_cont['line_spec'], 
                         linefit=res_line.spec_fit, fit=res_line.spec_fit+res_cont['cont_spec'],
                         res_cont=res_cont, res_line=res_line)
                       
@@ -123,6 +123,7 @@ class Platefit:
         print some info
         """
         self.line.info(res)  
+        
     def eqw(self, lines_table, spec, smooth_cont, window=50):
         self.eqw.compute_eqw(lines_table, spec, smooth_cont, window=window)
            

@@ -33,12 +33,12 @@ z= 0.41909
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00216.fits'
 #z = 0.99738
 
-#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref09667.fits'
-#z = 1.55051
-# emiline fit succeed only (dz=0)
+name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref09667.fits'
+z = 1.55051
+
 
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00142.fits'
-# z = 3.749
+#z = 3.749
 
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref07407.fits'
 #z = 0.844
@@ -52,8 +52,8 @@ vdisp = 80.0
 sp = Spectrum(name)
 
 pl = Platefit()
-res = pl.fit(sp, z, emcee=False, vel_uniq_offset=False, eqw=True)
-#cont = pl.smooth_cont(sp, res['linefit'])
+res = pl.fit(sp, z, emcee=True, vel_uniq_offset=False, eqw=True)
+
 
 
 
