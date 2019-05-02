@@ -131,16 +131,19 @@ class Contfit:
                 self.logger.info(f"Cont fit status: {res['status']}")
                 self.logger.info(f"Cont Init Z: {res['init_z']:.5f}")
                 self.logger.info(f"Cont Fit Metallicity: {res['z']:.5f}")
-                self.logger.info(f"Cont Fit Z: {res['z']:.5f}")             
+                self.logger.info(f"Cont Fit Z: {res['z']:.5f}") 
+                
+    def plot(self, ax, res):
+        res['spec'].plot(ax=ax, color='k', label='data')
+        res['cont_fit'].plot(ax=ax, color='r', label='fit')
+        res['cont_spec'].plot(ax=ax, color='b', label='cont') 
+        ax.legend()
+        name = getattr(res['spec'], 'filename', '')
+        if name != '':
+            name = os.path.basename(name)
+        ax.set_title(f'Continuum fit {name}')
 
             
-    def clean(self):
-        """ clean all attributes, except the settings"""
-        for attr in dir(self):
-            if attr == 'settings':
-                continue
-            delattr(self, attr)
-        
         
     def fit(self, spec, z, vdisp=80):
         """

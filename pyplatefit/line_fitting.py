@@ -28,8 +28,10 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
+
 import logging
 from collections import OrderedDict
+import os
 
 from astropy import constants
 from astropy import units as u
@@ -41,6 +43,7 @@ import numpy as np
 from scipy.special import erf
 from scipy.signal import argrelmin
 from logging import getLogger
+from matplotlib import transforms
 
 from mpdaf.sdetect.linelist import get_emlines
 from mpdaf.obj.spectrum import vactoair, airtovac
@@ -71,7 +74,7 @@ class NoLineError(ValueError):
 
 class Linefit:
     """
-    This class implement Emission Line def
+    This class implement Emission Line fit
     """
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-5,0,5), 
                  windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0):
@@ -107,26 +110,22 @@ class Linefit:
         return fit_mpdaf_spectrum(line_spec, z, major_lines=major_lines, lines=lines, emcee=emcee, line_ratios=line_ratios,
                                   vel_uniq_offset=vel_uniq_offset, lsf=lsf, fit_kws=fit_kws, fit_lws=fit_lws)
     
-    def info(self, res):
-        #if res.get('spec', None) is not None:
-            #if hasattr(res['spec'], 'filename'):
-                #self.logger.info(f"Spectrum: {res['spec'].filename}")
-                
-        report_fit(res)
+    def info(self, res, full_output=False):
+        if hasattr(res, 'ier'):
+            self.logger.info(f"Line Fit (LSQ) Status: {res.ier} {res.message} Niter: {res.nfev}")
+        else: 
+            self.logger.info(f"Line Fit (EMCEE) Niter: {res.nfev}")
+        self.logger.info(f"Line Fit RedChi2: {res.redchi:.2f} Bic: {res.bic:.2f}")
+        self.logger.info(res.ztable)
+ 
+        if full_output:
+            report_fit(res)
             
-        #self.logger.info(f"Line Fit Status: {res['ier']} {res['mesg']} Niter: {res['nfev']}")
-        #self.logger.info(f"Line Fit Chi2: {res['redchi']:.2f} Bic: {res['bic']:.2f}")
-        #self.logger.info(f"Line Fit Z: {res['z']:.5f} Err: {res['z_err']:.5f} dZ: {res['dz']:.5f}")
-        #self.logger.info(f"Line Fit dV: {res['v']:.2f} Err: {res['v_err']:.2f} km/s Bounds [{res['v_min']:.0f} : {res['v_max']:.0f}] Init: {res['v_init']:.0f} km/s")
-        #self.logger.info(f"Line Fit Vdisp: {res['vdisp']:.2f} Err: {res['vdisp_err']:.2f} km/s Bounds [{res['vdisp_min']:.0f} : {res['vdisp_max']:.0f}] Init: {res['vdisp_init']:.0f} km/s")
-        
-        #if res.get('v_lyalpha', None) is not None:
-            #self.logger.info(f"Line Fit Z Lyalpha: {res['zlya']:.5f} Err: {res['zlya_err']:.5f} dZ: {res['dzlya']:.5f}")
-            #self.logger.info(f"Line Fit dV Lyalpha: {res['v_lyalpha']:.2f} Err: {res['v_lyalpha_err']:.2f} km/s Bounds [{res['v_lyalpha_min']:.0f} : {res['v_lyalpha_max']:.0f}] Init: {res['v_lyalpha_init']:.0f} km/s")
-            #self.logger.info(f"Line Fit Vdisp Lyalpha: {res['vdisp_lyalpha']:.2f} Err: {res['vdisp_lyalpha_err']:.2f} km/s Bounds [{res['vdisp_lyalpha_min']:.0f} : {res['vdisp_lyalpha_max']:.0f}] Init: {res['vdisp_lyalpha_init']:.0f} km/s")
-            #self.logger.info(f"Line Fit Skewness Lyalpha: {res['skewlya']:.2f} Err: {res['skewlya_err']:.2f} Bounds [{res['skewlya_min']:.0f} : {res['skewlya_max']:.0f}] Init: {res['skewlya_init']:.0f}")
-    
-        
+    def plot(self, ax, res, start=False, iden=True, minsnr=0, line=None, margin=5,
+             dplot={'dl':2.0, 'y':0.95, 'size':10}):
+        plotline(ax, res.spec, res.spec_fit, None, res.init_fit, res.linetable, start=start,
+                 iden=iden, minsnr=minsnr, line=line, margin=margin, dplot=dplot)
+  
 
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
@@ -762,7 +761,8 @@ def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=
     spinit = spectrum.clone()
     spinit.data = np.interp(spectrum.wave.coord(), wave, tab['INIT'])
     spinit.data = spinit.data / (1 + redshift)
-        
+    
+    res.spec = spectrum    
     res.spec_fit = spfit
     res.init_fit = spinit
             
@@ -875,3 +875,48 @@ def measure_fwhm(wave, data, mode):
         hm2_idx = mode_idx
 
     return wave[hm2_idx] - wave[hm1_idx]
+
+def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=True, minsnr=0, line=None, margin=5,
+         dplot={'dl':2.0, 'y':0.95, 'size':10}):
+    sp = spec
+    spfit = spec_fit
+    spinit = init_fit
+    spcont = spec_cont
+    if line is not None:
+        if line not in table['LINE']:
+            self.logger.error('Line %s not found in table', line)
+            return
+        row = table[table['LINE']==line][0]
+        l0 = row['LBDA_OBS']
+        l1 = l0 - 3*row['FWHM_OBS'] - margin
+        l2 = l0 + 3*row['FWHM_OBS'] + margin
+        sp = spec.subspec(lmin=l1, lmax=l2)
+        spfit = spec_fit.subspec(lmin=l1, lmax=l2)
+        if start:
+            spinit = init_fit.subspec(lmin=l1, lmax=l2)
+        if spcont is not None:
+            spcont = spec_cont.subspec(lmin=l1, lmax=l2)
+        
+    # plot the continuum removed spectrum
+    sp.plot(ax=ax, label='data', color='k')
+    # plot the line fit and eventually the fir initialization
+    spfit.plot(ax=ax, color='r', drawstyle='default', label='fit') 
+    if start:
+        spinit.plot(ax=ax, color='g', drawstyle='default', label='init', alpha=0.4) 
+    if spcont is not None:
+        spcont.plot(ax=ax, color='g', drawstyle='default', label='cont', alpha=0.8)
+    if iden:
+        trans = transforms.blended_transform_factory(
+            ax.transData, ax.transAxes)            
+        for line in table:               
+            if (line['DNAME'] == 'None') or (line['SNR']<minsnr):
+                ax.axvline(line['LBDA_OBS'], color='blue', alpha=0.2)
+            else:
+                ax.axvline(line['LBDA_OBS'], color='blue', alpha=0.4)
+                ax.text(line['LBDA_OBS']+dplot['dl'], dplot['y'], line['DNAME'], dict(fontsize=dplot['size']), transform=trans)
+        
+    ax.legend()
+    name = getattr(spec, 'filename', '')
+    if name != '':
+        name = os.path.basename(name)
+    ax.set_title(f'Emission Lines Fit {name}')  

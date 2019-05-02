@@ -7,7 +7,7 @@ from logging import getLogger
 
 
 from .cont_fitting import Contfit
-from .line_fitting import Linefit
+from .line_fitting import Linefit, plotline
 from .eqw import EquivalentWidth
 
 
@@ -62,6 +62,7 @@ class Platefit:
     result dict
     result['linetable']: astropy line table
     result['ztable']; astropy z table
+    result['spec']: MPDAF original spectrum
     result['cont']: MPDAF spectrum, fitted continuum in observed frame
     result['line']: MPDAF spectrum, continnum removed spectrum in observed frame
     result['linefit']: MPDAF spectrum, fitted emission lines in observed frame
@@ -80,7 +81,7 @@ class Platefit:
 
         return dict(linetable=res_line.linetable, ztable=res_line.ztable, cont=res_cont['cont_spec'], line=res_cont['line_spec'], 
                         linefit=res_line.spec_fit, fit=res_line.spec_fit+res_cont['cont_spec'],
-                        res_cont=res_cont, res_line=res_line)
+                        spec=spec, res_cont=res_cont, res_line=res_line)
                       
     def fit_cont(self, spec, z, vdisp):
         """
@@ -160,14 +161,73 @@ class Platefit:
         """
         self.cont.info(res)
         
-    def info_lines(self, res):
+    def info_lines(self, res, full_output=False):
         """
         print some info
         """
-        self.line.info(res)  
+        self.line.info(res, full_output=full_output)
+        
+    def info(self, res, full_output=False):
+        self.logger.info('++++ Continuum fit info')
+        self.cont.info(res['res_cont'])
+        self.logger.info('++++ Line fit info')
+        self.line.info(res['res_line'], full_output=full_output)
+        
         
     def eqw(self, lines_table, spec, smooth_cont, window=50):
         self.eqw.compute_eqw(lines_table, spec, smooth_cont, window=window)
+        
+    def plot_cont(self, ax, res):
+        self.cont.plot(ax, res)
+        
+    def plot_lines(self, ax, res, start=False, iden=True, minsnr=0, line=None,
+                   margin=5, dplot={'dl':2.0, 'y':0.95, 'size':10}):
+        self.line.plot(ax, res, start=start, iden=iden, minsnr=minsnr,
+                       line=line, margin=margin, dplot=dplot) 
+        
+    def plot(self, ax, res, mode=2, start=False, iden=True, minsnr=0, line=None,
+                   margin=5, dplot={'dl':2.0, 'y':0.95, 'size':10}):
+        """
+        plot results fo fit
+        
+        Parameters
+        ----------
+        ax : axes
+           matplotlib ax
+        res: dictionary
+           result as given by fit
+        mode: integer
+           plot mode: 0=continuum, 1=line, 2=cont+line
+           default: 2
+        start: boolean
+           use for plot mode = 1, display start fitting value
+           default False
+        iden: boolean
+           if True, display line names (mode=1,2 only)
+        minsnr: float
+           minimum SNR to display the line name (mode=1,2 only)
+           default: 0
+        line: string
+           name of the line where to center the plot (eg HALPHA)
+           defaut None, display the full spectrum
+        margin: integer
+           number of margin pixel to add for the zoom window
+           default: 5
+        dplot: dictionary
+           dl: offset in A to display the line name [default 2]
+           y: location of the line name in y (relative) [default 0.95]
+           size: font size for label display [default 10]
+        """
+        if mode == 0:
+            self.cont.plot(ax, res['res_cont'])
+        elif mode == 1:
+            self.line.plot(ax, res['res_line'], start=start, iden=iden, minsnr=minsnr,
+                           line=line, margin=margin, dplot=dplot)  
+        elif mode == 2:
+            plotline(ax, res['spec'], res['fit'], res['cont'], None, res['linetable'],
+                     iden=iden, minsnr=minsnr, line=line, margin=margin, dplot=dplot)            
+        else:
+            self.logger.error('unknown plot mode (0=cont,1=line,2=full)')
              
             
         
