@@ -2,7 +2,9 @@ import numpy as np
 import os
 import sys
 
-from astropy.convolution import Gaussian1DKernel, convolve
+from astropy.convolution import Gaussian1DKernel, convolve, Box1DKernel
+from scipy.signal import medfilt
+from astropy.table import Table
 from astropy.io import fits
 from mpdaf.obj import airtovac, vactoair
 from logging import getLogger
@@ -122,26 +124,26 @@ class Contfit:
             if res['success']:
                 self.logger.info(f"Cont fit status: {res['status']}")
                 self.logger.info(f"Cont Init Z: {res['init_z']:.5f}")
-                self.logger.info(f"Cont Fit dV (km/s): {res['dv']:.2f}")
-                self.logger.info(f"Cont Fit dZ: {res['dz']:.5f}")
-                self.logger.info(f"Cont Fit Z: {res['z']:.5f}")
+                self.logger.info(f"Cont Fit Metallicity: {res['z']:.5f}")
                 self.logger.info(f"Cont Fit E(B-V): {res['ebv']:.2f}")
                 self.logger.info(f"Cont Chi2: {res['chi2']:.2f}")
             else:
                 self.logger.info(f"Cont fit status: {res['status']}")
                 self.logger.info(f"Cont Init Z: {res['init_z']:.5f}")
-                self.logger.info(f"Cont Fit dV (km/s): {res['dv']:.2f}")
-                self.logger.info(f"Cont Fit dZ: {res['dz']:.5f}")
-                self.logger.info(f"Cont Fit Z: {res['z']:.5f}")             
+                self.logger.info(f"Cont Fit Metallicity: {res['z']:.5f}")
+                self.logger.info(f"Cont Fit Z: {res['z']:.5f}") 
+                
+    def plot(self, ax, res):
+        res['spec'].plot(ax=ax, color='k', label='data')
+        res['cont_fit'].plot(ax=ax, color='r', label='fit')
+        res['cont_spec'].plot(ax=ax, color='b', label='cont') 
+        ax.legend()
+        name = getattr(res['spec'], 'filename', '')
+        if name != '':
+            name = os.path.basename(name)
+        ax.set_title(f'Continuum fit {name}')
 
             
-    def clean(self):
-        """ clean all attributes, except the settings"""
-        for attr in dir(self):
-            if attr == 'settings':
-                continue
-            delattr(self, attr)
-        
         
     def fit(self, spec, z, vdisp=80):
         """
@@ -250,10 +252,8 @@ class Contfit:
                 self.logger.warning('Continnum fit failed, use constant')
                 res['success'] = False
                 res['status'] = 'Continnum fit failed, cste median used'
-                res['dz'] = 0
-                res['dv'] = 0
+                res['z'] = 0
                 res['ebv'] = 0
-                res['z'] = z
                 res['init_z'] = z
                 res['chi2'] = 0
 
@@ -291,24 +291,41 @@ class Contfit:
         # fill result dict
         res['success'] = True
         res['status'] = 'Continuum fit successful'
-        res['dz'] = best_szval
-        res['dv'] = best_szval * cspeed
+        res['z'] = best_szval # metallicity
         res['ebv'] = best_ebv
-        res['z'] = z + best_szval
         res['init_z'] = z
         res['chi2'] = best_modelChi[0]        
         res['ages'] = self.settings['ssp_ages'][np.array(np.where(best_contCoefs[1:] > 0)).squeeze()]
         res['weights'] = best_contCoefs[1:][np.array(np.where(best_contCoefs[1:] > 0)).squeeze()]
 
-        cont = spec.clone()
+        # compute residual correction
+        resid_cont = flux - best_continuum 
+        sm_resid_cont = medfilt(resid_cont, 151)
+        kernel = Box1DKernel(51)
+        sm_resid_cont = convolve(sm_resid_cont, kernel)  
+        
+        # save results in a table (in rest frame)
+        tab = Table(data=[restwl,flux,err,best_continuum,sm_resid_cont], 
+                    names=['RESTWL','FLUX','ERR','CONTFIT','CONTRESID'])
+        tab['CONT'] = tab['CONTFIT'] + tab['CONTRESID']
+        tab['LINE'] = tab['FLUX'] - tab['CONT']
+        tab['AIRWL'] = airwl
+        res['table_spec'] = tab
+        
+        # compute result MPDAF spectrum in observed frame
+        cont_fit = spec.clone()
         # rebin continuum in linear
-        cont.data = np.interp(spec.wave.coord(), airwl, best_continuum)
+        cont_fit.data = np.interp(spec.wave.coord(), airwl, best_continuum)
+        cont_fit.data = cont_fit.data / (1 + z)
+        
+        cont = spec.clone()
+        cont.data = np.interp(spec.wave.coord(), airwl, tab['CONT'])
         cont.data = cont.data / (1 + z)
-        
+
         res['cont_spec'] = cont
-        
-        res['line_spec'] = spec - cont        
- 
+        res['cont_fit'] = cont_fit   
+        res['line_spec'] = spec - cont 
+               
         return res
 
 
