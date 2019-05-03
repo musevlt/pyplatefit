@@ -201,6 +201,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     - ERR_VEL: the error in velocity offset
     - Z: the fitted redshift (in vacuum)
     - ERR_Z: the error in redshift
+    - Z_INIT: The initial redshift 
     - VDISP: The fitted velocity dispersion in km/s (rest frame)
     - VDISP_ERR: The error in fitted velocity dispersion
     - SNRMAX: the maximum SNR
@@ -478,13 +479,14 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
 
    
     # fill the lines table with the fit results
-    lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','LBDA_EXP'])
+    lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','LBDA_EXP','FAMILY'])
     colnames = ['VEL','VEL_ERR','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR',
                     'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']
     if lsf:
         colnames.append('VDINST')
     for colname in colnames:
         lines.add_column(MaskedColumn(name=colname, dtype=np.float, length=len(lines), mask=True))
+    lines.add_column(MaskedColumn(name='FAMILY', dtype='U20', length=len(lines), mask=True), index=0)
     for colname in colnames:
         lines[colname].format = '.2f'
     lines['Z'].format = '.5f'
@@ -494,7 +496,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
 #   set ztable for global results by family 
     ftab = Table()
     ftab.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True))
-    colnames =  ['VEL','ERR_VEL','Z','Z_ERR','VDISP','VDISP_ERR','SNRMAX','SNRSUM','SNRSUM_CLIPPED']
+    colnames =  ['VEL','ERR_VEL','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR','SNRMAX','SNRSUM','SNRSUM_CLIPPED']
     for colname in colnames:
         ftab.add_column(MaskedColumn(name=colname, dtype=np.float, mask=True))
     for colname in colnames:
@@ -502,7 +504,8 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     for colname in ['NL','NL_CLIPPED']:
             ftab.add_column(MaskedColumn(name=colname, dtype=np.int, mask=True))  
     ftab['Z'].format = '.5f'
-    ftab['Z_ERR'].format = '.2e'    
+    ftab['Z_ERR'].format = '.2e'
+    ftab['Z_INIT'].format = '.5f'
         
     par = result.params
     zf = 1+redshift
@@ -530,7 +533,8 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                 fact = par[expr.split(' ')[-1]]
                 flux2 = par[expr.split(' ')[0]]
                 flux_err = fact.value*flux2.stderr if flux2.stderr is not None else np.nan
-                # fact.value*flux2.stderr + fact.stderr*flux2.value            
+                # fact.value*flux2.stderr + fact.stderr*flux2.value 
+            row['FAMILY'] = fname
             row['VEL'] = dv
             row['VEL_ERR'] = dv_err
             row['Z'] = redshift + dv/C
@@ -578,19 +582,25 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             snr.append(row['SNR'])
                 
         snr = np.array(snr)
-        snrmax = np.max(snr)
         nline = len(snr)
-        sum_snr = np.sqrt(np.sum(snr**2))
-        snr = snr[snr>MIN_SNR]
-        nline_snr_clipped = len(snr)
-        if nline_snr_clipped == 0:
+        if np.all(np.isnan(snr)):
             sum_snr_clipped = np.nan
-        else:
-            sum_snr_clipped = np.sqrt(np.sum(snr**2))
+            sum_snr = np.nan
+            snrmax = np.nan
+            nline_snr_clipped = 0
+        else:       
+            snrmax = np.nanmax(snr)  
+            sum_snr = np.sqrt(np.nansum(snr**2))
+            snr = snr[snr>MIN_SNR]
+            nline_snr_clipped = len(snr)
+            if nline_snr_clipped == 0:
+                sum_snr_clipped = np.nan
+            else:
+                sum_snr_clipped = np.sqrt(np.sum(snr**2))
         dv = np.mean(dvlist)
         zm = np.mean(zlist)
         ftab.add_row(dict(FAMILY=fname, VEL=dv, ERR_VEL=dv_err, VDISP=vdisp, VDISP_ERR=vdisp_err, 
-                          Z=zm, Z_ERR=dv_err/C, SNRMAX=snrmax,
+                          Z=zm, Z_ERR=dv_err/C, SNRMAX=snrmax, Z_INIT=redshift,
                           NL=nline, NL_CLIPPED=nline_snr_clipped, SNRSUM=sum_snr, SNRSUM_CLIPPED=sum_snr_clipped))
         
         

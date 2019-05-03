@@ -4,11 +4,14 @@ import sys
 
 
 from logging import getLogger
-
-
 from .cont_fitting import Contfit
 from .line_fitting import Linefit, plotline
 from .eqw import EquivalentWidth
+from astropy.table import vstack, Column
+from joblib import delayed, Parallel
+from mpdaf.obj import Spectrum
+from .tools import ProgressBar
+
 
 
 class Platefit:
@@ -22,6 +25,7 @@ class Platefit:
         self.line = Linefit(**linepars)
         self.eqw = EquivalentWidth()
 
+        
     def fit(self, spec, z, vdisp=80, major_lines=False, lines=None, emcee=False, 
             use_line_ratios=True, vel_uniq_offset=False, lsf=True,
             eqw=True):
@@ -231,7 +235,89 @@ class Platefit:
              
             
         
+def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colpath='PATH', njobs=1,
+            emcee=True):
+    """
+    fit all spectra from an input table
     
+    Parameters
+    ----------
+    intable: astropy table
+       input table
+    colid: string
+       name of column with ID
+       default: ID
+    colfrom: string
+       name of column with origin
+       default: FROM    
+    colz: string
+       name of column with input redshift
+       default: Z
+    colpath: string
+       name of column with the spectrum path
+       default: PATH
+    njobs: int
+       number of jobs to run in parallel
+       default: 1
+       
+    Return
+    ------
+    ztable,ltable: tuple of astropy tables
+    ztable: table with Z information for each spectra
+    ltable: table with line fit for each spectra
+    """
+    logger = getLogger(__name__)
+    ztab = []
+    ltab = []  
+    kwargs = dict(emcee=emcee)
+    if njobs > 1:    
+        to_compute = []
+        for row in intable:
+            to_compute.append(
+                    delayed(fit_one)(row[colid], row[colfrom], row[colz], row[colpath], kwargs)
+                )
+        results = Parallel(n_jobs=njobs)(ProgressBar(to_compute))
+        for r in results:
+            ztab.append(r[0])
+            ltab.append(r[1])
+    else:
+        for row in intable:
+            logger.info('Fitting ID: %d FROM: %s Z: %.5f Path: %s', row[colid], row[colfrom], row[colz], row[colpath])
+            zt,lt = fit_one(row[colid], row[colfrom], row[colz], row[colpath], kwargs) 
+            ztab.append(zt)
+            ltab.append(lt)
+    ztable = vstack(ztab)
+    ltable = vstack(ltab)
+    return ztable,ltable
+        
+            
+def fit_one(iden, detector, z, path, kwargs):   
+    spec = Spectrum(path)
+    res = fit_spec(spec, z, **kwargs)
+    ztab = res['ztable']
+    ztab.add_column(Column(data=len(ztab)*[iden], name='ID'), index=0)
+    ztab.add_column(Column(data=len(ztab)*[detector], name='FROM'), index=1)
+    ztab['PATH'] = path
+    ltab = res['linetable']
+    ltab.add_column(Column(data=len(ltab)*[iden], name='ID'), index=0)
+    ltab.add_column(Column(data=len(ltab)*[detector], name='FROM'), index=1)    
+    return ztab,ltab
+
+def fit_spec(spec, z, emcee=True):
+    logger = getLogger(__name__)
+    pl = Platefit()
+    res1 = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True)
+    ztab = res1['ztable']
+    ztab = ztab[ztab['FAMILY']=='all']
+    ltab = res1['linetable']
+    ltab = ltab[ltab['FAMILY']=='all']    
+    z2 = ztab[0]['Z']
+    res2 = pl.fit(spec, z2, emcee=emcee, vel_uniq_offset=False)
+    ztab = vstack([ztab, res2['ztable']])
+    ltab = vstack([ltab, res2['linetable']])
+    res2['ztable'] = ztab
+    res2['linetable'] = ltab
+    return res2
             
         
             
