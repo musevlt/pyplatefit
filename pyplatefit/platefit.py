@@ -126,7 +126,7 @@ class Platefit:
         return self.cont.fit(spec, z, vdisp)
     
     def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False, 
-                  use_line_ratios=True, vel_uniq_offset=False, lsf=True):
+                  use_line_ratios=True, vel_uniq_offset=False, lsf=True, mask=False):
         """  
     Perform emission lines fit on a continuum subtracted spectrum 
     
@@ -154,10 +154,12 @@ class Platefit:
     lsf: boolean
        if True, use LSF model to take into account the instrumental LSF
        default: True
+    mask: boolean
+       if True, mask wavelength regions outside +/- N*FWHM
         """
         return self.line.fit(line, z, major_lines=major_lines, lines=lines, emcee=emcee, 
                              use_line_ratios=use_line_ratios, 
-                             lsf=lsf, vel_uniq_offset=vel_uniq_offset)        
+                             lsf=lsf, vel_uniq_offset=vel_uniq_offset, mask=mask)        
         
     def info_cont(self, res):
         """
@@ -304,6 +306,9 @@ def fit_one(iden, detector, z, path, kwargs):
     return ztab,ltab
 
 def fit_spec(spec, z, emcee=True):
+    """ 
+    Perform cont and line fit for a spectrum 
+    """
     logger = getLogger(__name__)
     pl = Platefit()
     res1 = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True)

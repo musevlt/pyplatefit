@@ -23,21 +23,21 @@ logger.setLevel(logging.INFO)
 logger.info('pyplatefit version %s', __version__)
 debug = True
 
-paths = ['/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits', 
-         '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00216.fits',
-         '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00142.fits']
-zlist = [0.41909,0.99738,3.749]
-idlist= [24348,216,142]
-fromlist = ['HSTPRIOR','ORIGIN','ORIGIN']
-cat = Table(data=[idlist,fromlist,zlist,paths],
-            names=['ID','FROM','Z','PATH'])
+#paths = ['/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits', 
+         #'/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00216.fits',
+         #'/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00142.fits']
+#zlist = [0.41909,0.99738,3.749]
+#idlist= [24348,216,142]
+#fromlist = ['HSTPRIOR','ORIGIN','ORIGIN']
+#cat = Table(data=[idlist,fromlist,zlist,paths],
+            #names=['ID','FROM','Z','PATH'])
 
-vdisp = 80.0
+#vdisp = 80.0
 
-ztable,ltable = fit_all(cat, njobs=1, emcee=False)
+#ztable,ltable = fit_all(cat, njobs=1, emcee=False)
 
-#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
-#z= 0.41909
+name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
+z= 0.41909
 
 
 #data_dir = 'PLATEFIT_testdata/'
@@ -60,13 +60,19 @@ ztable,ltable = fit_all(cat, njobs=1, emcee=False)
 #z = 3.32571
 
 
-# emiline fit succeed only if dz is not used
 
-#sp = Spectrum(name)
+sp = Spectrum(name)
 
-#pl = Platefit()
-#res = pl.fit(sp, z, emcee=False, vel_uniq_offset=False, eqw=True)
-#pl.info(res)
+pl = Platefit()
+res = pl.fit(sp, z, emcee=False, vel_uniq_offset=False, eqw=True)
+pl.info(res)
+
+if 'OII3727' in res['linetable']['LINE']:
+    lines = ['OII3727','OII3729']
+res2 = pl.fit_lines(res['line'], z, lines=lines, mask=True)
+pl.info_lines(res2, full_output=True)
+
+
 #fig,ax = plt.subplots(1,1)
 #pl.plot(ax, res, line='HALPHA', margin=30)
 ##pl.plot_lines(ax, res['res_line'], line='HALPHA', margin=30)
