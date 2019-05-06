@@ -1,12 +1,14 @@
+import logging
 from astropy.table import vstack, Column
 from joblib import delayed, Parallel
-from logging import getLogger
 from mpdaf.obj import Spectrum
 
 from .cont_fitting import Contfit
 from .eqw import EquivalentWidth
 from .line_fitting import Linefit, plotline
 from .tools import ProgressBar
+
+__all__ = ('Platefit', 'fit_all', 'fit_one', 'fit_spec')
 
 
 class Platefit:
@@ -15,16 +17,15 @@ class Platefit:
     """
 
     def __init__(self, contpars={}, linepars={}):
-        self.logger = getLogger(__name__)
+        self.logger = logging.getLogger(__name__)
         self.cont = Contfit(**contpars)
         self.line = Linefit(**linepars)
         self.eqw = EquivalentWidth()
 
     def fit(self, spec, z, vdisp=80, major_lines=False, lines=None,
-            emcee=False, use_line_ratios=True, vel_uniq_offset=False, lsf=True,
-            eqw=True):
-        """
-        Perform continuum and emission lines fit on a spectrum
+            emcee=False, use_line_ratios=True, vel_uniq_offset=False,
+            lsf=True, eqw=True):
+        """Perform continuum and emission lines fit on a spectrum
 
         Parameters
         ----------
@@ -96,17 +97,17 @@ class Platefit:
         )
 
     def fit_cont(self, spec, z, vdisp):
-        """
-        Perform continuum lines fit on a spectrum
+        """Perform continuum lines fit on a spectrum
 
         Parameters
         ----------
         line : mpdaf.obj.Spectrum
-           continuum subtracted spectrum
+            Continuum subtracted spectrum
         z : float
-           reshift
+            Reshift
         vdisp : float
-           velocity dispersion in km/s
+            Velocity dispersion in km/s
+
         Return
         ------
         result : dict
@@ -139,33 +140,32 @@ class Platefit:
 
     def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False,
                   use_line_ratios=True, vel_uniq_offset=False, lsf=True):
-        """
-        Perform emission lines fit on a continuum subtracted spectrum
+        """Perform emission lines fit on a continuum subtracted spectrum
 
         Parameters
         ----------
         line : mpdaf.obj.Spectrum
-           continuum subtracted spectrum
+            Continuum subtracted spectrum
         z : float
-           reshift
+            reshift
         major_lines : bool
-           if true, use only major lines as defined in MPDAF line list
-           default False
+            If true, use only major lines as defined in MPDAF line list
+            default False
         lines: list
-           list of MPDAF lines to use in the fit
-           default None
+            List of MPDAF lines to use in the fit
+            default None
         emcee: bool
-           if True perform a second fit using EMCEE to derive improved errors
-           (note cpu intensive), default False
+            If True perform a second fit using EMCEE to derive improved errors
+            (note cpu intensive), default False
         use_line_ratios: bool
-           if True, use constrain line ratios in fit
-           default True
+            If True, use constrain line ratios in fit
+            default True
         vel_uniq_offset: bool
-           if True, a unique velocity offset is fitted for all lines except
-           lyman-alpha, default: False
+            If True, a unique velocity offset is fitted for all lines except
+            lyman-alpha, default: False
         lsf: bool
-           if True, use LSF model to take into account the instrumental LSF
-           default: True
+            If True, use LSF model to take into account the instrumental LSF
+            default: True
 
         """
         return self.line.fit(line, z, major_lines=major_lines, lines=lines,
@@ -199,8 +199,7 @@ class Platefit:
 
     def plot(self, ax, res, mode=2, start=False, iden=True, minsnr=0,
              line=None, margin=5, dplot={'dl': 2.0, 'y': 0.95, 'size': 10}):
-        """
-        plot results fo fit
+        """Plot fit results.
 
         Parameters
         ----------
@@ -229,6 +228,7 @@ class Platefit:
            dl: offset in A to display the line name [default 2]
            y: location of the line name in y (relative) [default 0.95]
            size: font size for label display [default 10]
+
         """
         if mode == 0:
             self.cont.plot(ax, res['res_cont'])
@@ -244,74 +244,56 @@ class Platefit:
             self.logger.error('unknown plot mode (0=cont,1=line,2=full)')
 
 
-def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colpath='PATH',
+def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH',
             njobs=1, emcee=True):
-    """
-    Fit all spectra from an input table.
+    """Fit all spectra from an input table.
 
     Parameters
     ----------
-    intable: astropy table
-       input table
+    intable: astropy.table.Table
+       Input table
     colid: str
-       name of column with ID
-       default: ID
+       Name of column with ID, default: ID
     colfrom: str
-       name of column with origin
-       default: FROM
+       Name of column with origin, default: FROM
     colz: str
-       name of column with input redshift
-       default: Z
-    colpath: str
-       name of column with the spectrum path
-       default: PATH
+       Name of column with input redshift, default: Z
+    colspec: str
+       Name of column with the spectrum object or path, default: PATH
     njobs: int
-       number of jobs to run in parallel
-       default: 1
+       Number of jobs to run in parallel, default: 1
 
     Return
     ------
-    ztable : table
+    ztable : astropy.table.Table
         Z information for each spectra
-    ltable : table
+    ltable : astropy.table.Table
         line fit for each spectra
 
     """
-    logger = getLogger(__name__)
-    ztab = []
-    ltab = []
-    kwargs = dict(emcee=emcee)
-    if njobs > 1:
-        to_compute = []
-        for row in intable:
-            to_compute.append(
-                delayed(fit_one)(row[colid], row[colfrom], row[colz],
-                                 row[colpath], kwargs)
-            )
-        results = Parallel(n_jobs=njobs)(ProgressBar(to_compute))
-        for r in results:
-            ztab.append(r[0])
-            ltab.append(r[1])
-    else:
-        for row in intable:
-            logger.info('Fitting ID: %d FROM: %s Z: %.5f Path: %s',
-                        row[colid], row[colfrom], row[colz], row[colpath])
-            zt, lt = fit_one(row[colid], row[colfrom], row[colz], row[colpath],
-                             kwargs)
-            ztab.append(zt)
-            ltab.append(lt)
+    to_compute = [delayed(fit_one)(row[colid], row[colfrom], row[colz],
+                                   row[colspec], emcee=emcee)
+                  for row in intable]
+    results = Parallel(n_jobs=njobs)(ProgressBar(to_compute))
+    ztab, ltab = zip(*results)
     ztable = vstack(ztab)
     ltable = vstack(ltab)
     return ztable, ltable
 
 
-def fit_one(iden, detector, z, path, kwargs):
-    spec = Spectrum(path)
+def fit_one(iden, detector, z, spec, **kwargs):
+    if isinstance(spec, str):
+        spec = Spectrum(spec)
+
+    logger = logging.getLogger(__name__)
+    logger.info('Fitting ID: %d FROM: %s Z: %.5f Path: %s',
+                iden, detector, z, spec.filename)
+
     res = fit_spec(spec, z, **kwargs)
     ztab = res['ztable']
     ztab.add_column(Column(data=len(ztab) * [iden], name='ID'), index=0)
     ztab.add_column(Column(data=len(ztab) * [detector], name='FROM'), index=1)
-    ztab['PATH'] = path
+    ztab['PATH'] = spec.filename
     ltab = res['linetable']
     ltab.add_column(Column(data=len(ltab) * [iden], name='ID'), index=0)
     ltab.add_column(Column(data=len(ltab) * [detector], name='FROM'), index=1)
