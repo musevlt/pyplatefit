@@ -95,7 +95,7 @@ class Linefit:
     
 
     def fit(self, line_spec, z, major_lines=False, lines=None, emcee=False, use_line_ratios=True,
-            vel_uniq_offset=False, lsf=True):
+            vel_uniq_offset=False, lsf=True, trimm_spec=False):
         """
         perform line fit on a mpdaf spectrum
         
@@ -108,7 +108,8 @@ class Linefit:
         fit_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma, minsnr=self.minsnr)
         return fit_mpdaf_spectrum(line_spec, z, major_lines=major_lines, lines=lines, emcee=emcee, line_ratios=line_ratios,
-                                  vel_uniq_offset=vel_uniq_offset, lsf=lsf, fit_kws=fit_kws, fit_lws=fit_lws)
+                                  vel_uniq_offset=vel_uniq_offset, lsf=lsf, trimm_spec=trimm_spec, 
+                                  fit_kws=fit_kws, fit_lws=fit_lws)
     
     def info(self, res, full_output=False):
         if hasattr(res, 'ier'):
@@ -130,7 +131,7 @@ class Linefit:
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        major_lines=False, emcee=False,
-                       vel_uniq_offset=False, lsf=True,
+                       vel_uniq_offset=False, lsf=True, trimm_spec=False,
                        fit_kws=None, fit_lws=None):
     """Fit lines in a spectrum using lmfit.
 
@@ -254,6 +255,9 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     lsf: boolean, optional
         if True, use LSF estimate to derive instrumental PSF, otherwise assume no LSF
         default: True
+    trimm_spec: boolean, optional
+        if True, mask unused wavelengths part
+        default: False
     fit_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
     fit_lws : dictionary with some default and bounds parameters
 
@@ -353,6 +357,31 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     if not lines:
         raise NoLineError("There is no known line on the spectrum "
                           "coverage.")
+    
+    # Spectrum trimming
+        # The window we keep around each line depend on the minimal and maximal
+        # velocity (responsible for shifting the line), and on the maximal velocity
+        # dispersion (responsible for the spreading of the line). We add a 3σ
+        # margin.
+    if trimm_spec:
+        mask = np.full_like(wave, False, dtype=bool)  # Points to keep
+        for row in lines:
+            line_wave = row["LBDA_REST"]
+            if row['LINE'] == "LYALPHA":
+                vd_max = VD_MAX_LYA
+            else:
+                vd_max = VD_MAX
+            wave_min = line_wave * (1 + VEL_MIN / C)
+            wave_min -= 3 * wave_min * vd_max / C
+            wave_max = line_wave * (1 + VEL_MAX / C)
+            wave_max += 3 * wave_max * vd_max / C
+            mask[(wave_rest >= wave_min) & (wave_rest <= wave_max)] = True
+            logger.debug("Keeping only waves in [%s, %s] for line %s.",
+                         wave_min, wave_max, row['LINE'])
+        wave_rest, data_rest, std_rest = wave_rest[mask], data_rest[mask], std_rest[mask]
+        logger.debug("%.1f %% of the spectrum is used for fitting.",
+                     100 * np.sum(mask) / len(mask))
+    
 
     # The fitting is done with lmfit. The model is a sum of Gaussian (or
     # skewed Gaussian), one per line.
@@ -706,7 +735,7 @@ def asymgauss(peak, l0, sigma, gamma, wave):
 
 
 def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=False, line_ratios=None,
-                       vel_uniq_offset=False, lsf=True, fit_kws={}, fit_lws={}):
+                       vel_uniq_offset=False, lsf=True, trimm_spec=False, fit_kws={}, fit_lws={}):
     """Function use when calling fit_lines from mpdaf spectrum object.
 
 
@@ -757,7 +786,7 @@ def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=
     res = fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
                              unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
                              lines=lines, major_lines=major_lines, emcee=emcee,
-                             vel_uniq_offset=vel_uniq_offset, lsf=lsf,
+                             vel_uniq_offset=vel_uniq_offset, lsf=lsf, trimm_spec=trimm_spec,
                              fit_kws=fit_kws, fit_lws=fit_lws)
     
     tab = res.spectable    

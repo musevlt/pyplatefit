@@ -1,5 +1,5 @@
 import logging
-from astropy.table import vstack, Column
+from astropy.table import vstack, Column, MaskedColumn
 from joblib import delayed, Parallel
 from mpdaf.obj import Spectrum
 
@@ -24,7 +24,7 @@ class Platefit:
 
     def fit(self, spec, z, vdisp=80, major_lines=False, lines=None,
             emcee=False, use_line_ratios=True, vel_uniq_offset=False,
-            lsf=True, eqw=True):
+            lsf=True, eqw=True, trimm_spec=False):
         """Perform continuum and emission lines fit on a spectrum
 
         Parameters
@@ -78,7 +78,8 @@ class Platefit:
         res_line = self.fit_lines(res_cont['line_spec'], z,
                                   major_lines=major_lines, lines=lines,
                                   emcee=emcee, use_line_ratios=use_line_ratios,
-                                  lsf=lsf, vel_uniq_offset=vel_uniq_offset)
+                                  lsf=lsf, vel_uniq_offset=vel_uniq_offset, 
+                                  trimm_spec=trimm_spec)
 
         if eqw:
             self.eqw.comp_eqw(spec, res_cont['line_spec'], z,
@@ -138,39 +139,43 @@ class Platefit:
         """
         return self.cont.fit(spec, z, vdisp)
 
-    def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False,
-                  use_line_ratios=True, vel_uniq_offset=False, lsf=True):
-        """Perform emission lines fit on a continuum subtracted spectrum
-
-        Parameters
-        ----------
-        line : mpdaf.obj.Spectrum
-            Continuum subtracted spectrum
-        z : float
-            reshift
-        major_lines : bool
-            If true, use only major lines as defined in MPDAF line list
-            default False
-        lines: list
-            List of MPDAF lines to use in the fit
-            default None
-        emcee: bool
-            If True perform a second fit using EMCEE to derive improved errors
-            (note cpu intensive), default False
-        use_line_ratios: bool
-            If True, use constrain line ratios in fit
-            default True
-        vel_uniq_offset: bool
-            If True, a unique velocity offset is fitted for all lines except
-            lyman-alpha, default: False
-        lsf: bool
-            If True, use LSF model to take into account the instrumental LSF
-            default: True
-
+    
+    def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False, 
+                  use_line_ratios=True, vel_uniq_offset=False, lsf=True, trimm_spec=False):
+        """  
+    Perform emission lines fit on a continuum subtracted spectrum 
+    
+    Parameters
+    ----------
+    line : mpdaf.obj.Spectrum
+       continuum subtracted spectrum
+    z : float
+       reshift 
+    major_lines : boolean
+       if true, use only major lines as defined in MPDAF line list
+       default False
+    lines: list
+       list of MPDAF lines to use in the fit
+       default None
+    emcee: boolean
+       if True perform a second fit using EMCEE to derive improved errors (note cpu intensive)
+       default False
+    use_line_ratios: boolean
+       if True, use constrain line ratios in fit
+       default True
+    vel_uniq_offset: boolean
+       if True, a unique velocity offset is fitted for all lines except lyman-alpha
+       default: False
+    lsf: boolean
+       if True, use LSF model to take into account the instrumental LSF
+       default: True
+    trimm_spec: boolean
+       if True, mask wavelength regions outside +/- N*FWHM
         """
-        return self.line.fit(line, z, major_lines=major_lines, lines=lines,
-                             emcee=emcee, use_line_ratios=use_line_ratios,
-                             lsf=lsf, vel_uniq_offset=vel_uniq_offset)
+        return self.line.fit(line, z, major_lines=major_lines, lines=lines, emcee=emcee, 
+                             use_line_ratios=use_line_ratios, 
+                             lsf=lsf, vel_uniq_offset=vel_uniq_offset, trimm_spec=trimm_spec)        
+        
 
     def info_cont(self, res):
         """ print some info """
@@ -245,7 +250,7 @@ class Platefit:
 
 
 def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH',
-            njobs=1, emcee=True):
+            njobs=1, emcee=True, comp_bic=False):
     """Fit all spectra from an input table.
 
     Parameters
@@ -262,6 +267,10 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH',
        Name of column with the spectrum object or path, default: PATH
     njobs: int
        Number of jobs to run in parallel, default: 1
+    emcee: boolean
+       if True estimate errors with MCMC
+    comp_bic: boolean
+       if True, estime BIC values from individual fit of lyman-alpha, oii and ciii
 
     Return
     ------
@@ -272,7 +281,7 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH',
 
     """
     to_compute = [delayed(fit_one)(row[colid], row[colfrom], row[colz],
-                                   row[colspec], emcee=emcee)
+                                   row[colspec], emcee=emcee, comp_bic=comp_bic)
                   for row in intable]
     results = Parallel(n_jobs=njobs)(ProgressBar(to_compute))
     ztab, ltab = zip(*results)
@@ -286,7 +295,7 @@ def fit_one(iden, detector, z, spec, **kwargs):
         spec = Spectrum(spec)
 
     logger = logging.getLogger(__name__)
-    logger.info('Fitting ID: %d FROM: %s Z: %.5f Path: %s',
+    logger.debug('Fitting ID: %d FROM: %s Z: %.5f Path: %s',
                 iden, detector, z, spec.filename)
 
     res = fit_spec(spec, z, **kwargs)
@@ -300,7 +309,10 @@ def fit_one(iden, detector, z, spec, **kwargs):
     return ztab, ltab
 
 
-def fit_spec(spec, z, emcee=True):
+def fit_spec(spec, z, emcee=True, comp_bic=False):
+    """ 
+    Perform cont and line fit for a spectrum 
+    """
     pl = Platefit()
     res1 = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True)
     ztab = res1['ztable']
@@ -309,8 +321,42 @@ def fit_spec(spec, z, emcee=True):
     ltab = ltab[ltab['FAMILY'] == 'all']
     z2 = ztab[0]['Z']
     res2 = pl.fit(spec, z2, emcee=emcee, vel_uniq_offset=False)
-    ztab = vstack([ztab, res2['ztable']])
+    ztable2 = res2['ztable']
+    if comp_bic:
+        for name in ['BIC_LYALPHA','BIC_OII','BIC_CIII']:
+            ztable2.add_column(MaskedColumn(name=name, dtype=float, length=len(ztable2), mask=True))
+            ztable2[name].format = '.2f'
+        # compute bic for individual lines (lya,oii,ciii)
+        if 'OII3727' in res2['linetable']['LINE']:
+            lines = ['OII3727','OII3729']
+            res3 = pl.fit_lines(res2['line'], z2, emcee=False, lines=lines, trimm_spec=True)
+            if 'forbidden' in ztable2['FAMILY']:
+                ksel = ztable2['FAMILY'] == 'forbidden'
+                ztable2['BIC_OII'][ksel] = res3.bic
+            else:
+                if 'all' in ztable2['FAMILY']:
+                    ksel = ztable2['FAMILY'] == 'forbidden'
+                    ztable2['BIC_OII'][ksel] = res3.bic
+        if 'CIII1907' in res2['linetable']['LINE']:
+            lines = ['CIII1907','CIII1909']
+            res3 = pl.fit_lines(res2['line'], z2, emcee=False, lines=lines, trimm_spec=True)
+            if 'forbidden' in ztable2['FAMILY']:
+                ksel = ztable2['FAMILY'] == 'forbidden'
+                ztable2['BIC_CIII'][ksel] = res3.bic
+            else:
+                if 'all' in ztable2['FAMILY']:
+                    ksel = ztable2['FAMILY'] == 'forbidden'
+                    ztable2['BIC_CIII'][ksel] = res3.bic            
+        if 'LYALPHA' in res2['linetable']['LINE']:
+            lines = ['LYALPHA']
+            res3 = pl.fit_lines(res2['line'], z2, emcee=False, lines=lines, trimm_spec=True)
+            if 'lyalpha' in ztable2['FAMILY']:
+                ksel = ztable2['FAMILY'] == 'lyalpha'
+                ztable2['BIC_LYALPHA'][ksel] = res3.bic
+             
+    ztab = vstack([ztab, ztable2])
     ltab = vstack([ltab, res2['linetable']])
     res2['ztable'] = ztab
-    res2['linetable'] = ltab
+    res2['linetable'] = ltab        
+    
     return res2

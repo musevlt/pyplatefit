@@ -34,10 +34,10 @@ cat = Table(data=[idlist,fromlist,zlist,paths],
 
 vdisp = 80.0
 
-ztable,ltable = fit_all(cat, njobs=1, emcee=False)
+ztable,ltable = fit_all(cat, njobs=1, emcee=False, comp_bic=True)
 
-#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
-#z= 0.41909
+name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
+z= 0.41909
 
 
 #data_dir = 'PLATEFIT_testdata/'
@@ -60,13 +60,23 @@ ztable,ltable = fit_all(cat, njobs=1, emcee=False)
 #z = 3.32571
 
 
-# emiline fit succeed only if dz is not used
 
 #sp = Spectrum(name)
 
 #pl = Platefit()
 #res = pl.fit(sp, z, emcee=False, vel_uniq_offset=False, eqw=True)
 #pl.info(res)
+#res2 = pl.fit(sp, z, emcee=False, vel_uniq_offset=False, eqw=True, trimm_spec=True)
+#pl.info(res2)
+
+#if 'OII3727' in res['linetable']['LINE']:
+    #lines = ['OII3727','OII3729']
+#res2 = pl.fit_lines(res['line'], z, lines=lines, trimm_spec=True)
+#pl.info_lines(res2, full_output=False)
+#res3 = pl.fit_lines(res['line'], z, lines=lines, trimm_spec=False)
+#pl.info_lines(res3, full_output=False)
+
+
 #fig,ax = plt.subplots(1,1)
 #pl.plot(ax, res, line='HALPHA', margin=30)
 ##pl.plot_lines(ax, res['res_line'], line='HALPHA', margin=30)
