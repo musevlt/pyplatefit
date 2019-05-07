@@ -249,7 +249,7 @@ class Platefit:
             self.logger.error('unknown plot mode (0=cont,1=line,2=full)')
 
 
-def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH',
+def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addcols=None,
             njobs=1, emcee=True, comp_bic=False):
     """Fit all spectra from an input table.
 
@@ -265,6 +265,9 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH',
        Name of column with input redshift, default: Z
     colspec: str
        Name of column with the spectrum object or path, default: PATH
+    addcols: list of str
+       Name of additional columns of the input table to add to the resulting tables
+       default: None
     njobs: int
        Number of jobs to run in parallel, default: 1
     emcee: boolean
@@ -280,8 +283,9 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH',
         line fit for each spectra
 
     """
-    to_compute = [delayed(fit_one)(row[colid], row[colfrom], row[colz],
-                                   row[colspec], emcee=emcee, comp_bic=comp_bic)
+    to_compute = [delayed(fit_one)(row[colid], row[colfrom], row[colz], row[colspec],
+                                   row[addcols] if addcols is not None else None,
+                                   emcee=emcee, comp_bic=comp_bic)
                   for row in intable]
     results = Parallel(n_jobs=njobs)(ProgressBar(to_compute))
     ztab, ltab = zip(*results)
@@ -290,7 +294,7 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH',
     return ztable, ltable
 
 
-def fit_one(iden, detector, z, spec, **kwargs):
+def fit_one(iden, detector, z, spec, addcols, **kwargs):
     if isinstance(spec, str):
         spec = Spectrum(spec)
 
@@ -306,6 +310,10 @@ def fit_one(iden, detector, z, spec, **kwargs):
     ltab = res['linetable']
     ltab.add_column(Column(data=len(ltab) * [iden], name='ID'), index=0)
     ltab.add_column(Column(data=len(ltab) * [detector], name='FROM'), index=1)
+    if addcols is not None:
+        for key in addcols.colnames:
+            ltab[key] = addcols[key]
+            ztab[key] = addcols[key]
     return ztab, ltab
 
 
