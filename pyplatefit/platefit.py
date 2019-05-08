@@ -250,7 +250,7 @@ class Platefit:
 
 
 def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addcols=None,
-            njobs=1, emcee=True, comp_bic=False):
+            njobs=1, emcee=True, comp_bic=False, sourcetpl=None):
     """Fit all spectra from an input table.
 
     Parameters
@@ -274,6 +274,10 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addco
        if True estimate errors with MCMC
     comp_bic: boolean
        if True, estime BIC values from individual fit of lyman-alpha, oii and ciii
+    source_tpl: str or None 
+       source template format
+       if not None, the sources are updated with all fitting results 
+       example: /mydir/source_%05d.fits
 
     Return
     ------
@@ -283,9 +287,18 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addco
         line fit for each spectra
 
     """
+    logger = logging.getLogger(__name__)
+    
+    if source_tpl is not None:
+        # check if directory exist
+        namedir = source_tpl.split('/')[:-1]
+        if not os.path.isdir(namedir):
+            raise OSError('Cannot find source directory %s'%(namedir))
+
+    
     to_compute = [delayed(fit_one)(row[colid], row[colfrom], row[colz], row[colspec],
                                    row[addcols] if addcols is not None else None,
-                                   emcee=emcee, comp_bic=comp_bic)
+                                   emcee=emcee, comp_bic=comp_bic, source_tpl=source_tpl)
                   for row in intable]
     results = Parallel(n_jobs=njobs)(ProgressBar(to_compute))
     ztab, ltab = zip(*results)
@@ -294,7 +307,9 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addco
     return ztable, ltable
 
 
-def fit_one(iden, detector, z, spec, addcols, **kwargs):
+def fit_one(iden, detector, z, spec, addcols, source_tpl, **kwargs):
+    """ perform platefit cont and line fitting on a spectra
+    """
     if isinstance(spec, str):
         spec = Spectrum(spec)
 
@@ -314,22 +329,47 @@ def fit_one(iden, detector, z, spec, addcols, **kwargs):
         for key in addcols.colnames:
             ltab[key] = addcols[key]
             ztab[key] = addcols[key]
+            
+    if source_tpl is not None:
+        # update the source
+        srcname = source_tpl%iden
+        src = Source.from_file(srcname)
+        add_platefit_to_source(src, res)
+        src.write(srcname)
+        
     return ztab, ltab
 
+def add_platefit_to_source(src, res):
+    """ Add platefit info into an existing source
+    """
+    src.add_table(res['linetable'], 'LINEFIT')
+    src.add_table(res['ztable'], 'LINEFIT')
+    return
 
-def fit_spec(spec, z, emcee=True, comp_bic=False):
+
+def fit_spec(spec, z, emcee=True, ziter=True, comp_bic=False):
     """ 
-    Perform cont and line fit for a spectrum 
+    perform platefit cont and line fitting on a spectra
+    
+    Parameters
+    ----------
+    spec: MPDAF spectrum
+    z: redshift (in vacuum)
+    emcee: use MCMC to estimate errors
+    ziter: perform two successive fits
+    comp_bic: compute BIC 
+    
     """
     pl = Platefit()
     res1 = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True)
     ztab = res1['ztable']
-    ztab = ztab[ztab['FAMILY'] == 'all']
     ltab = res1['linetable']
-    ltab = ltab[ltab['FAMILY'] == 'all']
-    z2 = ztab[0]['Z']
-    res2 = pl.fit(spec, z2, emcee=emcee, vel_uniq_offset=False)
-    ztable2 = res2['ztable']
+    if ziter:      
+        ztab = ztab[ztab['FAMILY'] == 'all']      
+        ltab = ltab[ltab['FAMILY'] == 'all']
+        z2 = ztab[0]['Z']
+        res2 = pl.fit(spec, z2, emcee=emcee, vel_uniq_offset=False)
+        ztable2 = res2['ztable']
     if comp_bic:
         for name in ['BIC_LYALPHA','BIC_OII','BIC_CIII']:
             ztable2.add_column(MaskedColumn(name=name, dtype=float, length=len(ztable2), mask=True))
@@ -361,9 +401,10 @@ def fit_spec(spec, z, emcee=True, comp_bic=False):
             if 'lyalpha' in ztable2['FAMILY']:
                 ksel = ztable2['FAMILY'] == 'lyalpha'
                 ztable2['BIC_LYALPHA'][ksel] = res3.bic
-             
-    ztab = vstack([ztab, ztable2])
-    ltab = vstack([ltab, res2['linetable']])
+    
+    if ziter:         
+        ztab = vstack([ztab, ztable2])
+        ltab = vstack([ltab, res2['linetable']])
     res2['ztable'] = ztab
     res2['linetable'] = ltab        
     
