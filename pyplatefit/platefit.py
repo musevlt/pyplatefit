@@ -1,5 +1,6 @@
 import logging
 import datetime
+import os
 from astropy.table import vstack, Column, MaskedColumn
 from joblib import delayed, Parallel
 from mpdaf.obj import Spectrum
@@ -252,7 +253,7 @@ class Platefit:
 
 
 def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addcols=None,
-            njobs=1, emcee=True, comp_bic=False, sourcetpl=None, prefix='PL'):
+            njobs=1, emcee=True, comp_bic=False, ziter=True, source_tpl=None, colprefix=None):
     """Fit all spectra from an input table.
 
     Parameters
@@ -276,14 +277,16 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addco
        if True estimate errors with MCMC
     comp_bic: boolean
        if True, estime BIC values from individual fit of lyman-alpha, oii and ciii
+    ziter: boolean
+       if True, perform a first fit with all+lya lines, then a second fit with balmer+forbidden+resonnant+lya
     source_tpl: str or None 
        source template format
        if not None, the sources are updated with all fitting results 
        example: /mydir/source_%05d.fits
-    prefix: str
-       prefix to add to table and spectra names added in the source 
+    colprefix: str
+       name of column with prefix to add to table and spectra names added in the source 
        used only if source_tpl is not None
-       default: PL
+       default: None
 
     Return
     ------
@@ -295,17 +298,11 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addco
     """
     logger = logging.getLogger(__name__)
     
-    if source_tpl is not None:
-        # check if directory exist
-        namedir = source_tpl.split('/')[:-1]
-        if not os.path.isdir(namedir):
-            raise OSError('Cannot find source directory %s'%(namedir))
-
-    
     to_compute = [delayed(fit_one)(row[colid], row[colfrom], row[colz], row[colspec],
                                    row[addcols] if addcols is not None else None,
                                    emcee=emcee, comp_bic=comp_bic, 
-                                   source_tpl=source_tpl, prefix=prefix)
+                                   source_tpl=source_tpl, ziter=ziter,
+                                   prefix=row[colprefix] if colprefix is not None else None)
                   for row in intable]
     results = Parallel(n_jobs=njobs)(ProgressBar(to_compute))
     ztab, ltab = zip(*results)
@@ -325,6 +322,14 @@ def fit_one(iden, detector, z, spec, addcols, source_tpl, prefix='PL', **kwargs)
                 iden, detector, z, spec.filename)
 
     res = fit_spec(spec, z, **kwargs)
+    
+    if source_tpl is not None:
+        # update the source
+        srcname = source_tpl%iden
+        src = Source.from_file(srcname)
+        add_platefit_to_source(src, res, prefix=prefix)
+        src.write(srcname)
+        
     ztab = res['ztable']
     ztab.add_column(Column(data=len(ztab) * [iden], name='ID'), index=0)
     ztab.add_column(Column(data=len(ztab) * [detector], name='FROM'), index=1)
@@ -337,12 +342,7 @@ def fit_one(iden, detector, z, spec, addcols, source_tpl, prefix='PL', **kwargs)
             ltab[key] = addcols[key]
             ztab[key] = addcols[key]
             
-    if source_tpl is not None:
-        # update the source
-        srcname = source_tpl%iden
-        src = Source.from_file(srcname)
-        add_platefit_to_source(src, res, prefix=prefix)
-        src.write(srcname)
+
         
     return ztab, ltab
 
@@ -352,10 +352,10 @@ def add_platefit_to_source(src, res, prefix='PL'):
     res: result of platefit 
     prefix: to add to the tables and spectra names in source
     """
-    ztable = res['ztable'].copy()
-    ztable.remove_columns(['PATH','ID','FROM'])
+    ztable = res['ztable']
+    #ztable.remove_columns(['PATH','ID','FROM'])
     ltable = res['linetable'].copy()
-    ltable.remove_columns(['ID','FROM'])
+    #ltable.remove_columns(['ID','FROM'])
     
     ltable.remove_column('DNAME') # WIP this cannot be saved in fits ??
     
@@ -370,7 +370,7 @@ def add_platefit_to_source(src, res, prefix='PL'):
     return
 
 
-def fit_spec(spec, z, emcee=True, ziter=True, comp_bic=False):
+def fit_spec(spec, z, ziter=True, emcee=True, comp_bic=False):
     """ 
     perform platefit cont and line fitting on a spectra
     
@@ -385,12 +385,12 @@ def fit_spec(spec, z, emcee=True, ziter=True, comp_bic=False):
     """
     pl = Platefit()
     res1 = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True)
-    ztab = res1['ztable']
-    ltab = res1['linetable']
+    ztab = ztable2 = res1['ztable']
+    res2 = res1
+    z2 = ztab[0]['Z']
     if ziter:      
         ztab = ztab[ztab['FAMILY'] == 'all']      
-        ltab = ltab[ltab['FAMILY'] == 'all']
-        z2 = ztab[0]['Z']
+        ltab = ltab[ltab['FAMILY'] == 'all']      
         res2 = pl.fit(spec, z2, emcee=emcee, vel_uniq_offset=False)
         ztable2 = res2['ztable']
     if comp_bic:
@@ -428,7 +428,9 @@ def fit_spec(spec, z, emcee=True, ziter=True, comp_bic=False):
     if ziter:         
         ztab = vstack([ztab, ztable2])
         ltab = vstack([ltab, res2['linetable']])
-    res2['ztable'] = ztab
-    res2['linetable'] = ltab        
+        res2['ztable'] = ztab
+        res2['linetable'] = ltab            
+    else:
+        res2['ztable'] = ztable2    
     
     return res2
