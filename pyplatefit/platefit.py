@@ -1,7 +1,9 @@
 import logging
+import datetime
 from astropy.table import vstack, Column, MaskedColumn
 from joblib import delayed, Parallel
 from mpdaf.obj import Spectrum
+from mpdaf.sdetect.source import Source
 
 from .cont_fitting import Contfit
 from .eqw import EquivalentWidth
@@ -250,7 +252,7 @@ class Platefit:
 
 
 def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addcols=None,
-            njobs=1, emcee=True, comp_bic=False, sourcetpl=None):
+            njobs=1, emcee=True, comp_bic=False, sourcetpl=None, prefix='PL'):
     """Fit all spectra from an input table.
 
     Parameters
@@ -278,6 +280,10 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addco
        source template format
        if not None, the sources are updated with all fitting results 
        example: /mydir/source_%05d.fits
+    prefix: str
+       prefix to add to table and spectra names added in the source 
+       used only if source_tpl is not None
+       default: PL
 
     Return
     ------
@@ -298,7 +304,8 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addco
     
     to_compute = [delayed(fit_one)(row[colid], row[colfrom], row[colz], row[colspec],
                                    row[addcols] if addcols is not None else None,
-                                   emcee=emcee, comp_bic=comp_bic, source_tpl=source_tpl)
+                                   emcee=emcee, comp_bic=comp_bic, 
+                                   source_tpl=source_tpl, prefix=prefix)
                   for row in intable]
     results = Parallel(n_jobs=njobs)(ProgressBar(to_compute))
     ztab, ltab = zip(*results)
@@ -307,7 +314,7 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addco
     return ztable, ltable
 
 
-def fit_one(iden, detector, z, spec, addcols, source_tpl, **kwargs):
+def fit_one(iden, detector, z, spec, addcols, source_tpl, prefix='PL', **kwargs):
     """ perform platefit cont and line fitting on a spectra
     """
     if isinstance(spec, str):
@@ -334,16 +341,32 @@ def fit_one(iden, detector, z, spec, addcols, source_tpl, **kwargs):
         # update the source
         srcname = source_tpl%iden
         src = Source.from_file(srcname)
-        add_platefit_to_source(src, res)
+        add_platefit_to_source(src, res, prefix=prefix)
         src.write(srcname)
         
     return ztab, ltab
 
-def add_platefit_to_source(src, res):
+def add_platefit_to_source(src, res, prefix='PL'):
     """ Add platefit info into an existing source
+    src: MPDAF source
+    res: result of platefit 
+    prefix: to add to the tables and spectra names in source
     """
-    src.add_table(res['linetable'], 'LINEFIT')
-    src.add_table(res['ztable'], 'LINEFIT')
+    ztable = res['ztable'].copy()
+    ztable.remove_columns(['PATH','ID','FROM'])
+    ltable = res['linetable'].copy()
+    ltable.remove_columns(['ID','FROM'])
+    
+    ltable.remove_column('DNAME') # WIP this cannot be saved in fits ??
+    
+    now = datetime.datetime.now()
+    src.tables[prefix+'_LINES'] = ltable
+    src.tables[prefix+'_Z'] = ztable
+    src.spectra[prefix+'_CONT'] = res['cont']
+    src.spectra[prefix+'_LINE'] = res['line']
+    src.spectra[prefix+'_LINEFIT'] = res['linefit']
+    src.spectra[prefix+'_FIT'] = res['fit']
+    src.add_attr(prefix+'_RUN', now.isoformat(), 'Date of Platefit Run')
     return
 
 

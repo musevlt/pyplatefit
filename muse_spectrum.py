@@ -13,7 +13,7 @@ from astropy.table import Table
 
 import matplotlib.pyplot as plt
 from pyplatefit import __version__
-from pyplatefit.platefit import Platefit, fit_all
+from pyplatefit.platefit import Platefit, fit_all, fit_one
 
 import logging
 
@@ -23,21 +23,30 @@ logger.setLevel(logging.INFO)
 logger.info('pyplatefit version %s', __version__)
 debug = True
 
-paths = ['/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits', 
-         '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00216.fits',
-         '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00142.fits']
-zlist = [0.41909,0.99738,3.749]
-idlist= [24348,216,142]
-fromlist = ['HSTPRIOR','ORIGIN','ORIGIN']
-cat = Table(data=[idlist,fromlist,zlist,paths],
-            names=['ID','FROM','Z','PATH'])
-
 vdisp = 80.0
 
-ztable,ltable = fit_all(cat, njobs=1, emcee=False, comp_bic=True)
+#paths = ['/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits', 
+         #'/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00216.fits',
+         #'/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/orig_specs/ref00142.fits']
+#zlist = [0.41909,0.99738,3.749]
+#idlist= [24348,216,142]
+#fromlist = ['HSTPRIOR','ORIGIN','ORIGIN']
+#cat = Table(data=[idlist,fromlist,zlist,paths],
+            #names=['ID','FROM','Z','PATH'])
 
-name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
-z= 0.41909
+#ztable,ltable = fit_all(cat, njobs=1, emcee=False, comp_bic=True)
+
+src_tpl = '/Users/rolandbacon/UDF/DR2/sources/raf_sources/source-%05d.fits'
+iden = 6726
+z = 2.9409
+srcname = src_tpl%(iden)
+src = Source.from_file(srcname)
+spec = src.spectra[src.REFSPEC]
+addcols = None
+fit_one(iden, 'HSTPRIOR', z, spec, addcols, src_tpl, emcee=False, comp_bic=False, prefix='MZ1')
+
+#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/raf_specs/ref24348.fits'
+#z= 0.41909
 
 
 #data_dir = 'PLATEFIT_testdata/'
