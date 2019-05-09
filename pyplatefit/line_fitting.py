@@ -490,7 +490,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     minner = Minimizer(residuals, params, fcn_args=(wave_rest, data_rest, std_rest, family_lines, redshift, lsf))
     
     logger.debug('Leastsq fitting')
-    result = minner.minimize()
+    result = minner.minimize(**fit_kws)
     logger.debug('%s after %d iterations, redChi2 = %.3f',result.message,result.nfev,result.redchi)
     
     if emcee:
