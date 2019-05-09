@@ -301,14 +301,14 @@ def fit_all(intable, colid='ID', colfrom='FROM', colz='Z', colspec='PATH', addco
                                    row[addcols] if addcols is not None else None,
                                    emcee=emcee, comp_bic=comp_bic)
                   for row in intable]
-    results = Parallel(n_jobs=njobs)(ProgressBar(to_compute))
+    results = Parallel(n_jobs=njobs)(progressbar(to_compute))
     ztab, ltab = zip(*results)
     ztable = vstack(ztab)
     ltable = vstack(ltab)
     return ztable, ltable
 
 
-def fit_one(iden, detector, z, spec, addcols, source_tpl, prefix='PL', **kwargs):
+def fit_one(iden, detector, z, spec, addcols, prefix='PL', **kwargs):
     """ perform platefit cont and line fitting on a spectra
     """
     if isinstance(spec, str):
@@ -351,6 +351,7 @@ def fit_spec(spec, z, ziter=True, emcee=True, comp_bic=False):
     pl = Platefit()
     res1 = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True)
     ztab = ztable2 = res1['ztable']
+    ltab = res1['linetable']
     res2 = res1
     z2 = ztab[0]['Z']
     if ziter:      
