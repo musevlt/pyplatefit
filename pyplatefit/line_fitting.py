@@ -77,25 +77,31 @@ class Linefit:
     This class implement Emission Line fit
     """
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-5,0,5), 
-                 windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0):
+                 windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0,
+                 steps=500, nwalkers=0, burn=0):
         self.logger = getLogger(__name__)
-        # FIXME parameters not passed to leastsq
+        
         self.maxfev = maxfev # nb max of iterations (leastsq)
         self.xtol = xtol # relative error in the solution (leastq)
         self.ftol = ftol # relative error in the sum of square (leastsq)
         
-        self.vel = vel
-        self.vdisp = vdisp
-        self.vdisp_lya_max = vdisp_lya_max
-        self.gamma = gamma_lya
-        self.windmax = windmax
-        self.minsnr = minsnr
+        self.steps = steps # emcee steps
+        self.nwalkers = nwalkers # emcee nwalkers (if 0 auto = even nearest to 3*nvarys)
+        self.burn = burn # emcee burn
+        
+        self.vel = vel # bounds in velocity km/s, rest frame
+        self.vdisp = vdisp # bounds in velocity dispersion km/s, rest frame
+        self.vdisp_lya_max = vdisp_lya_max # maximum lya velocity dispersion km/s, rest frame
+        self.gamma = gamma_lya # bounds in lya asymmetry
+        
+        self.windmax = windmax # maximum half size window to find peak around initial wavelength value
+        self.minsnr = minsnr # minium SNR for writing label of emission line in plot      
        
         return
     
 
-    def fit(self, line_spec, z, major_lines=False, lines=None, emcee=False, use_line_ratios=True,
-            vel_uniq_offset=False, lsf=True, trimm_spec=False):
+    def fit(self, line_spec, z, major_lines=False, lines=None, emcee=False, use_line_ratios=False,
+            vel_uniq_offset=False, lsf=True, trimm_spec=True):
         """
         perform line fit on a mpdaf spectrum
         
@@ -105,11 +111,12 @@ class Linefit:
             line_ratios = DOUBLET_RATIOS
         else:
             line_ratios = None
-        fit_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
+        lsq_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
+        mcmc_kws = dict(steps=self.steps, nwalkers=self.nwalkers, burn=self.burn)
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma, minsnr=self.minsnr)
         return fit_mpdaf_spectrum(line_spec, z, major_lines=major_lines, lines=lines, emcee=emcee, line_ratios=line_ratios,
                                   vel_uniq_offset=vel_uniq_offset, lsf=lsf, trimm_spec=trimm_spec, 
-                                  fit_kws=fit_kws, fit_lws=fit_lws)
+                                  lsq_kws=lsq_kws, mcmc_kws=mcmc_kws, fit_lws=fit_lws)
     
     def info(self, res, full_output=False):
         if hasattr(res, 'ier'):
@@ -131,8 +138,8 @@ class Linefit:
 def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        major_lines=False, emcee=False,
-                       vel_uniq_offset=False, lsf=True, trimm_spec=False,
-                       fit_kws=None, fit_lws=None):
+                       vel_uniq_offset=False, lsf=True, trimm_spec=True,
+                       lsq_kws=None, mcmc_kws=None, fit_lws=None):
     """Fit lines in a spectrum using lmfit.
 
     This function uses lmfit to perform a simple fit of know lines in
@@ -257,8 +264,9 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         default: True
     trimm_spec: boolean, optional
         if True, mask unused wavelengths part
-        default: False
-    fit_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
+        default: True
+    lsq_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
+    mcmc_kws : dictionary with MCMC parameters (see emcee)
     fit_lws : dictionary with some default and bounds parameters
 
     Returns
@@ -486,16 +494,21 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         l0 = line['LBDA_REST']
         add_asymgauss_par(params, fname, name, l0, wave_rest, data_rest, redshift, lsf)                
              
-        
+    # Perform LSQ fit    
     minner = Minimizer(residuals, params, fcn_args=(wave_rest, data_rest, std_rest, family_lines, redshift, lsf))
     
-    logger.debug('Leastsq fitting')
-    result = minner.minimize(**fit_kws)
+    logger.debug('Leastsq fitting with ftol: %.0e xtol: %.0e maxfev: %d',lsq_kws['ftol'],lsq_kws['xtol'],lsq_kws['maxfev'])
+    result = minner.minimize(**lsq_kws)
     logger.debug('%s after %d iterations, redChi2 = %.3f',result.message,result.nfev,result.redchi)
     
-    if emcee:
-        logger.debug('Error estimation using EMCEE')
-        result = minner.emcee(params=result.params, is_weighted=True)
+    # Perform MCMC
+    if emcee:  
+        # check if nwalkers is in auto mode
+        if ('nwalkers' in mcmc_kws) and (mcmc_kws['nwalkers']==0):
+            # nearest even number to 3*nb of variables 
+            mcmc_kws['nwalkers'] = int(np.ceil(3*result.nvarys/2)*2)
+        logger.debug('Error estimation using EMCEE with nsteps: %d nwalkers: %d burn: %d',mcmc_kws['steps'],mcmc_kws['nwalkers'],mcmc_kws['burn'])
+        result = minner.emcee(params=result.params, is_weighted=True, **mcmc_kws)
         logger.debug('End EMCEE after %d iterations, redChi2 = %.3f',result.nfev,result.redchi)
     
     # save input data, initial and best fit (in rest frame) in the table_spec table
@@ -735,7 +748,7 @@ def asymgauss(peak, l0, sigma, gamma, wave):
 
 
 def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=False, line_ratios=None,
-                       vel_uniq_offset=False, lsf=True, trimm_spec=False, fit_kws={}, fit_lws={}):
+                       vel_uniq_offset=False, lsf=True, trimm_spec=True, lsq_kws={}, mcmc_kws={}, fit_lws={}):
     """Function use when calling fit_lines from mpdaf spectrum object.
 
 
@@ -787,7 +800,7 @@ def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=
                              unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
                              lines=lines, major_lines=major_lines, emcee=emcee,
                              vel_uniq_offset=vel_uniq_offset, lsf=lsf, trimm_spec=trimm_spec,
-                             fit_kws=fit_kws, fit_lws=fit_lws)
+                             lsq_kws=lsq_kws, mcmc_kws=mcmc_kws, fit_lws=fit_lws)
     
     tab = res.spectable    
     # convert wave to observed frame and air

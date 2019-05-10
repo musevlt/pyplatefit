@@ -26,7 +26,7 @@ class Platefit:
 
     def fit(self, spec, z, vdisp=80, major_lines=False, lines=None,
             emcee=False, use_line_ratios=True, vel_uniq_offset=False,
-            lsf=True, eqw=True, trimm_spec=False):
+            lsf=True, eqw=True, trimm_spec=True):
         """Perform continuum and emission lines fit on a spectrum
 
         Parameters
@@ -143,7 +143,7 @@ class Platefit:
 
     
     def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False, 
-                  use_line_ratios=True, vel_uniq_offset=False, lsf=True, trimm_spec=False):
+                  use_line_ratios=False, vel_uniq_offset=False, lsf=True, trimm_spec=True):
         """  
     Perform emission lines fit on a continuum subtracted spectrum 
     
