@@ -13,7 +13,7 @@ from astropy.table import Table
 
 import matplotlib.pyplot as plt
 from pyplatefit import __version__
-from pyplatefit.platefit import Platefit, fit_all, fit_one
+from pyplatefit.platefit import Platefit, fit_all, fit_one, fit_spec
 
 import logging
 
@@ -75,10 +75,11 @@ z= 0.41909
 
 
 sp = Spectrum(name)
+res = fit_spec(sp, z, ziter=True, emcee=False, comp_bic=True)
 
 #pl = Platefit(linepars=dict(steps=100))
-pl = Platefit()
-res = pl.fit(sp, z, emcee=True, vel_uniq_offset=False, eqw=True)
+#pl = Platefit()
+#res = pl.fit(sp, z, emcee=True, vel_uniq_offset=False, eqw=True)
 pl.info(res)
 #res2 = pl.fit(sp, z, emcee=False, vel_uniq_offset=False, eqw=True, trimm_spec=True)
 #pl.info(res2)

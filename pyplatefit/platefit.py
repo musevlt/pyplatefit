@@ -349,54 +349,53 @@ def fit_spec(spec, z, ziter=True, emcee=True, comp_bic=False):
     
     """
     pl = Platefit()
-    res1 = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True)
-    ztab = ztable2 = res1['ztable']
-    ltab = res1['linetable']
-    res2 = res1
-    z2 = ztab[0]['Z']
-    if ziter:      
-        ztab = ztab[ztab['FAMILY'] == 'all']      
-        ltab = ltab[ltab['FAMILY'] == 'all']      
-        res2 = pl.fit(spec, z2, emcee=emcee, vel_uniq_offset=False)
-        ztable2 = res2['ztable']
+    res = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True)
+    ztab = res['ztable']
+    if ziter:  
+        z = ztab[0]['Z']
+        ltab = res['linetable']
+        ztab1 = ztab[ztab['FAMILY'] == 'all'] 
+        ltab1 = ltab[ltab['FAMILY'] == 'all'] 
+        res = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=False)
+        ztab = res['ztable']
     if comp_bic:
         for name in ['BIC_LYALPHA','BIC_OII','BIC_CIII']:
-            ztable2.add_column(MaskedColumn(name=name, dtype=float, length=len(ztable2), mask=True))
-            ztable2[name].format = '.2f'
+            ztab.add_column(MaskedColumn(name=name, dtype=float, length=len(ztab), mask=True))
+            ztab[name].format = '.2f'
         # compute bic for individual lines (lya,oii,ciii)
-        if 'OII3727' in res2['linetable']['LINE']:
+        if 'OII3727' in res['linetable']['LINE']:
             lines = ['OII3727','OII3729']
-            res3 = pl.fit_lines(res2['line'], z2, emcee=False, lines=lines, trimm_spec=True)
-            if 'forbidden' in ztable2['FAMILY']:
-                ksel = ztable2['FAMILY'] == 'forbidden'
-                ztable2['BIC_OII'][ksel] = res3.bic
+            res3 = pl.fit_lines(res['line'], z, emcee=False, lines=lines, trimm_spec=True)
+            if 'forbidden' in ztab['FAMILY']:
+                ksel = ztab['FAMILY'] == 'forbidden'
+                ztab['BIC_OII'][ksel] = res3.bic
             else:
-                if 'all' in ztable2['FAMILY']:
-                    ksel = ztable2['FAMILY'] == 'forbidden'
-                    ztable2['BIC_OII'][ksel] = res3.bic
-        if 'CIII1907' in res2['linetable']['LINE']:
+                if 'all' in ztab['FAMILY']:
+                    ksel = ztab['FAMILY'] == 'all'
+                    ztab['BIC_OII'][ksel] = res3.bic
+        if 'CIII1907' in res['linetable']['LINE']:
             lines = ['CIII1907','CIII1909']
-            res3 = pl.fit_lines(res2['line'], z2, emcee=False, lines=lines, trimm_spec=True)
-            if 'forbidden' in ztable2['FAMILY']:
-                ksel = ztable2['FAMILY'] == 'forbidden'
-                ztable2['BIC_CIII'][ksel] = res3.bic
+            res3 = pl.fit_lines(res['line'], z, emcee=False, lines=lines, trimm_spec=True)
+            if 'forbidden' in ztab['FAMILY']:
+                ksel = ztab['FAMILY'] == 'forbidden'
+                ztab['BIC_CIII'][ksel] = res3.bic
             else:
-                if 'all' in ztable2['FAMILY']:
-                    ksel = ztable2['FAMILY'] == 'forbidden'
-                    ztable2['BIC_CIII'][ksel] = res3.bic            
-        if 'LYALPHA' in res2['linetable']['LINE']:
+                if 'all' in ztab['FAMILY']:
+                    ksel = ztab['FAMILY'] == 'all'
+                    ztab['BIC_CIII'][ksel] = res3.bic            
+        if 'LYALPHA' in res['linetable']['LINE']:
             lines = ['LYALPHA']
-            res3 = pl.fit_lines(res2['line'], z2, emcee=False, lines=lines, trimm_spec=True)
-            if 'lyalpha' in ztable2['FAMILY']:
-                ksel = ztable2['FAMILY'] == 'lyalpha'
-                ztable2['BIC_LYALPHA'][ksel] = res3.bic
+            res3 = pl.fit_lines(res['line'], z, emcee=False, lines=lines, trimm_spec=True)
+            if 'lyalpha' in ztab['FAMILY']:
+                ksel = ztab['FAMILY'] == 'lyalpha'
+                ztab['BIC_LYALPHA'][ksel] = res3.bic
     
     if ziter:         
-        ztab = vstack([ztab, ztable2])
-        ltab = vstack([ltab, res2['linetable']])
-        res2['ztable'] = ztab
-        res2['linetable'] = ltab            
+        ztab = vstack([ztab1, ztab])
+        ltab = vstack([ltab1, res['linetable']])
+        res['ztable'] = ztab
+        res['linetable'] = ltab            
     else:
-        res2['ztable'] = ztable2    
+        res['ztable'] = ztab   
     
-    return res2
+    return res
