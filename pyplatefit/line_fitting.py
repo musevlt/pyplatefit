@@ -384,8 +384,8 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             wave_max = line_wave * (1 + VEL_MAX / C)
             wave_max += 3 * wave_max * vd_max / C
             mask[(wave_rest >= wave_min) & (wave_rest <= wave_max)] = True
-            logger.debug("Keeping only waves in [%s, %s] for line %s.",
-                         wave_min, wave_max, row['LINE'])
+            #logger.debug("Keeping only waves in [%s, %s] for line %s.",
+                         #wave_min, wave_max, row['LINE'])
         wave_rest, data_rest, std_rest = wave_rest[mask], data_rest[mask], std_rest[mask]
         logger.debug("%.1f %% of the spectrum is used for fitting.",
                      100 * np.sum(mask) / len(mask))
