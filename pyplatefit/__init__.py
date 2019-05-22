@@ -1,6 +1,6 @@
 from .version import __version__
 from .platefit import *
-from .line_fitting import fit_mpdaf_spectrum
+from .line_fitting import fit_mpdaf_spectrum, NoLineError
 
 
 def _setup_logging():
