@@ -249,7 +249,7 @@ class Contfit:
             mean_chi2 = np.array(settings_nnls['mean'][:])
 
             if contcoefs[0] < -90:              
-                self.logger.warning('Continnum fit failed, use constant')
+                self.logger.debug('Continnum fit failed, use constant')
                 res['success'] = False
                 res['status'] = 'Continnum fit failed, cste median used'
                 res['z'] = 0
@@ -511,7 +511,10 @@ class Contfit:
         # ----------------------------------- Call the fitting routine -----------------------------------------------------
 
         settings_nnls = {}  # Declare the 'settings_nnls' structure which will hold the NNLS outputs
-        settings_nnls = self.fit_burst_nnls(flux, restwl, 1.0 / np.sqrt(weight), ok, settings_nnls)
+        wmed = np.median(weight)    
+        weight[weight<=0] = wmed
+        w = 1./weight
+        settings_nnls = self.fit_burst_nnls(flux, restwl, w, ok, settings_nnls)
 
         fitcoefs = settings_nnls['params']
         yfit = self.model_combine(restwl, fitcoefs, settings_nnls)
