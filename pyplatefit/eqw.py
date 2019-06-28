@@ -84,6 +84,8 @@ class EquivalentWidth:
             l0 = line['LBDA_REST']
             l1,l2 = (l0-self.window,l0+self.window)
             ksel = (wave > l1) & (wave < l2)
+            if data[ksel].count() == 0:
+                continue
             spmean,spmed,tmp = sigma_clipped_stats(data[ksel])
             tmp,tmp2,stddev = sigma_clipped_stats(line_data[ksel], sigma=5.0)
             line['CONT_OBS'] = spmean/(1+z)
