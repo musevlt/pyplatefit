@@ -59,7 +59,7 @@ SQRT2PI = np.sqrt(2*np.pi)
 VEL_MIN, VEL_INIT, VEL_MAX = -500, 0, 500  # Velocity
 VD_MIN, VD_INIT, VD_MAX = 10, 50, 300  # Velocity dispersion
 VD_MAX_LYA = 700  # Maximum velocity dispersion for Lyman α
-GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -5, 0, 5  # γ parameter for Lyman α
+GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -1, 0, 10  # γ parameter for Lyman α
 WINDOW_MAX = 30 # search radius in A for peak around starting wavelength
 MARGIN_EMLINES = 0 # margin in pixel for emission line selection wrt to the spectrum edge
 
@@ -80,7 +80,7 @@ class Linefit:
     """
     This class implement Emission Line fit
     """
-    def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-5,0,5), 
+    def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-1,0,10), 
                  windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0,
                  steps=500, nwalkers=0, burn=0):
         self.logger = getLogger(__name__)
