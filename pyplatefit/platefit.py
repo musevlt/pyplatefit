@@ -335,7 +335,7 @@ def fit_one(iden, detector, z, spec, addcols, prefix='PL', **kwargs):
     return ztab, ltab
 
 
-def fit_spec(spec, z, ziter=True, emcee=True, comp_bic=False):
+def fit_spec(spec, z, ziter=True, emcee=True, comp_bic=False, contpars={}, linepars={}):
     """ 
     perform platefit cont and line fitting on a spectra
     
@@ -348,7 +348,7 @@ def fit_spec(spec, z, ziter=True, emcee=True, comp_bic=False):
     comp_bic: compute BIC 
     
     """
-    pl = Platefit()
+    pl = Platefit(contpars=contpars, linepars=linepars)
     res = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True)
     ztab = res['ztable']
     if ziter:  
