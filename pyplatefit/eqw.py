@@ -82,7 +82,10 @@ class EquivalentWidth:
         for line in lines_table:
             name = line['LINE']
             l0 = line['LBDA_REST']
-            l1,l2 = (l0-self.window,l0+self.window)
+            if name == 'LYALPHA':
+                l1,l2 = (l0,l0+2*self.window)
+            else:
+                l1,l2 = (l0-self.window,l0+self.window)
             ksel = (wave > l1) & (wave < l2)
             if data[ksel].count() == 0:
                 continue
