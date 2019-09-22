@@ -1,6 +1,8 @@
 from .version import __version__
-from .platefit import *
-from .line_fitting import fit_mpdaf_spectrum, NoLineError
+from .platefit import Platefit, fit_spec
+from .cont_fitting import Contfit
+from .line_fitting import Linefit, fit_lines
+from .eqw import EquivalentWidth
 
 
 def _setup_logging():

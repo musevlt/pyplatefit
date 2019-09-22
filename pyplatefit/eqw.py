@@ -17,6 +17,7 @@ class EquivalentWidth:
         self.logger = getLogger(__name__)
         self.nfwhm = 2.0
         self.window = 50
+        self.sigma_clip = 5
         return
 
 
@@ -90,7 +91,7 @@ class EquivalentWidth:
             if data[ksel].count() == 0:
                 continue
             spmean,spmed,tmp = sigma_clipped_stats(data[ksel])
-            tmp,tmp2,stddev = sigma_clipped_stats(line_data[ksel], sigma=5.0)
+            tmp,tmp2,stddev = sigma_clipped_stats(line_data[ksel], sigma=self.sigma_clip)
             line['CONT_OBS'] = spmean/(1+z)
             line['CONT'] = spmean
             # compute continuum error     

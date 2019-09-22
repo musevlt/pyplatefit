@@ -13,11 +13,26 @@ from .nnls_burst import fit_continuum1
 
 CURDIR = os.path.dirname(os.path.abspath(__file__))
 
+__all__ = ('Contfit')
+
 class Contfit:
     """
-    This class is a poorman version of continuum fit Platefit
+    This class is a python version of Platefit continuum fit 
     """
     def __init__(self):
+        """ Initialise parameters for continuum fit
+        
+        The following parameters are used:
+        
+          - Burst model file: BC03/bc_models_subset_cb08_milesx__bursts_extlam.fit 
+          - Model metallicity: [0.0001, 0.0004, 0.001, 0.004, 0.008, 0.017, 0.04, 0.07]
+          - zsolar: 0.02
+          - velocity dispersion of the models: 75 km/s
+        
+        Returns
+        -------
+        cont: a Contfit object
+        """
         self.logger = getLogger(__name__)
         # ---------------------------------------------- GENERAL SETTINGS --------------------------------------------------
         settings = {
@@ -117,6 +132,13 @@ class Contfit:
         self.settings = settings    
         
     def info(self, res):
+        """ print continuum fit information 
+        
+        Parameters
+        ----------
+        res: dictionary
+             the results of :func:`fit`
+        """
         if res.get('spec', None) is not None:
             if hasattr(res['spec'], 'filename'):
                 self.logger.info(f"Spectrum: {res['spec'].filename}")
@@ -134,6 +156,17 @@ class Contfit:
                 self.logger.info(f"Cont Fit Z: {res['z']:.5f}") 
                 
     def plot(self, ax, res):
+        """ plot continuum fit results
+        
+            Parameters
+            ----------
+            ax: matplotlib.axes.Axes
+               Axes instance in which to draw the plot
+            
+            res: dictionary 
+                 results of `fit`
+        
+        """
         res['spec'].plot(ax=ax, color='k', label='data')
         res['cont_fit'].plot(ax=ax, color='r', label='fit')
         res['cont_spec'].plot(ax=ax, color='b', label='cont') 
@@ -147,19 +180,45 @@ class Contfit:
         
     def fit(self, spec, z, vdisp=80):
         """
-        perform continuum fit on a mpdaf spectrum
+        Perform continuum fit on a mpdaf spectrum
+        
+        This is the python translation of "fiber_continfit.pro" (part of the IDL PLATEFIT -
+        contact: jarle@strw.leidenuniv.nl).
 
-        Jan 15, 2019, Madusha Gunawardhana (gunawardhana@strw.leidenuniv.nl)
-        Translation of "fiber_continfit.pro" (part of the IDL PLATEFIT -
-        contact: jarle@strw.leidenuniv.nl)
+        Parameters
+        ----------
+        spec: mpdaf.obj.Spectrum
+          input spectrum              
+        z: float
+          redshift            
+        vdisp: float
+          velocity dispersion in km/s, defaulted to 80 km/s            
+               
+        Returns
+        -------
+        res: dictionary
+        
+          - success : True if fit converged
+          - status: fit status (string)
+          - z: fitted metallicity
+          - ebv: extinction
+          - init_z: input metallicity
+          - chi2: fit chi2
+          - ages: fitted ages for each population (list)
+          - weights: fitted weight for each population (list)
+          - table_spec: astropy table with the following columns
+          
+            + RESTWL: rest frame wavelength (A)
+            + AIRWL: observed wavelength (A)
+            + FLUX: rest frame flux
+            + ERR: rest frame flux std
+            + CONTFIT: rest frame fitted continuum
+            + CONTRESID: smoothed residuals left by the fit
+            + CONT: CONTFIT + CONTRESID
+            + LINE: FLUX - CONT
+            
+          
 
-        Jan 18, 2019, Madusha:
-        In the case NNLS fitting of the continuum is failed, settings returns best_sz = -99.0
-
-        Apr 7, 2019, Roland:
-        return cont,dz
-        cont: mpdaf fitted continuum
-        dz: fitted offset in z
 
         """
         cspeed = 2.99792E5
@@ -242,7 +301,7 @@ class Contfit:
         for isz in range(nsz):
             # Notice that the definition of chi squared is that returned by NNLS
 
-            continuum[:, isz], settings_nnls = self.model_fit_nnls(logwl, flux, err, redshift, vdisp, isz,
+            continuum[:, isz], settings_nnls = self._model_fit_nnls(logwl, flux, err, redshift, vdisp, isz,
                                                                    firstcall=True, debug=False)
 
             contcoefs = np.array(settings_nnls['params'][:])
@@ -329,7 +388,7 @@ class Contfit:
         return res
 
 
-    def model_fit_nnls(self, logwl, flux, err, z, vdisp, modelsz, firstcall=None, debug=False):
+    def _model_fit_nnls(self, logwl, flux, err, z, vdisp, modelsz, firstcall=None, debug=False):
         """
             Jan 15, 2019, Madusha Gunawardhana (gunawardhana@strw.leidenuniv.nl)
             Translation of "bc_model_fit_nnls.pro" (part of the IDL PLATEFIT - contact: jarle@strw.leidenuniv.nl)
@@ -347,7 +406,7 @@ class Contfit:
 
         # Interpolate models to match the data and convolve to velocity dispersion
         if firstcall is True:
-            self.resample_model(logwl, z, vdisp, modelsz)
+            self._resample_model(logwl, z, vdisp, modelsz)
 
         modellib = self.settings['modellib']
 
@@ -514,10 +573,10 @@ class Contfit:
         wmed = np.median(weight)    
         weight[weight<=0] = wmed
         w = 1./weight
-        settings_nnls = self.fit_burst_nnls(flux, restwl, w, ok, settings_nnls)
+        settings_nnls = self._fit_burst_nnls(flux, restwl, w, ok, settings_nnls)
 
         fitcoefs = settings_nnls['params']
-        yfit = self.model_combine(restwl, fitcoefs, settings_nnls)
+        yfit = self._model_combine(restwl, fitcoefs, settings_nnls)
 
         settings_nnls['ok_fit'] = ok
         settings_nnls['not_ok_fit'] = not_ok
@@ -547,7 +606,7 @@ class Contfit:
 
         return yfit, settings_nnls
 
-    def resample_model(self, logwl, z, vdisp, modelsz):
+    def _resample_model(self, logwl, z, vdisp, modelsz):
         """
         Jan 15, 2019, Madusha Gunawardhana (gunawardhana@strw.leidenuniv.nl)
         Translation of "resample_model.pro" (part of the IDL PLATEFIT -
@@ -623,7 +682,7 @@ class Contfit:
 
         return
 
-    def fit_burst_nnls(self, flux, wavelength, dflux, ok, settings_nnls):
+    def _fit_burst_nnls(self, flux, wavelength, dflux, ok, settings_nnls):
         """
         Jan 15, 2019, Madusha Gunawardhana (gunawardhana@strw.leidenuniv.nl)
         Translation of "fit_burst_nnls.pro" (part of the IDL PLATEFIT -
@@ -684,7 +743,7 @@ class Contfit:
 
         return settings_nnls
 
-    def model_combine(self, x, a, settings_nnls, good_data=None, ssp_ages=None,
+    def _model_combine(self, x, a, settings_nnls, good_data=None, ssp_ages=None,
                       individual=False, correct=None):
         """
         Jan 15, 2019, Madusha Gunawardhana (gunawardhana@strw.leidenuniv.nl)

@@ -37,6 +37,7 @@ from astropy import constants
 from astropy import units as u
 from astropy.table import Table
 from astropy.table import MaskedColumn
+from astropy.convolution import convolve, Box1DKernel
 from lmfit.parameter import Parameters
 from lmfit import Minimizer, report_fit
 import numpy as np
@@ -63,11 +64,7 @@ GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -1, 0, 10  # γ parameter for Lyman α
 WINDOW_MAX = 30 # search radius in A for peak around starting wavelength
 MARGIN_EMLINES = 0 # margin in pixel for emission line selection wrt to the spectrum edge
 
-
-DOUBLET_RATIOS = [
-    ("CIII1907", "CIII1909", 0.6, 1.2),
-    ("OII3727", "OII3729", 1.0, 2.0),
-]
+__all__ = ('Linefit', 'fit_lines')
 
 
 class NoLineError(ValueError):
@@ -82,7 +79,53 @@ class Linefit:
     """
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-1,0,10), 
                  windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0,
-                 steps=500, nwalkers=0, burn=0):
+                 steps=1000, nwalkers=0, min_nwalkers=100, burn=20, seed=None,
+                 line_ratios = [
+                    ("CIII1907", "CIII1909", 0.6, 1.2),
+                    ("OII3727", "OII3729", 1.0, 2.0)
+                    ]
+                 ):
+        """Initialize line fit parameters and return a Linefit object
+          
+        Parameters
+        ----------
+        vel : tuple of floats
+          Minimum, init and maximum values of velocity offset in km/s (default: -500,0,500).
+        vdisp: tuple of floats
+          Minimum, init and maximum values of rest frame velocity dispersion in km/s (default: 5,80,300). 
+        vdisp_lya_max : float
+          Maximum velocity dispersion for the Lya line in km/s (default: 700).
+        gamma_lya : tuple of floats
+          Minimum, init and maximum values of the skeness parameter for the asymetric gaussain fit (default: -1,0,10).
+        windmax : float 
+          maximum half size window in A to find peak values around initial wavelength value (default: 10).
+        xtol : float
+          relative error in the solution for the leastq fitting (default: 1.e-4).
+        ftol : float
+          relative error in the sum of square for the leastsq fitting (default: 1.e-6).
+        maxfev : int
+          max number of iterations for the leastsq fitting (default: 1000).
+        steps : int
+          number of steps for the emcee minimisation (default: 1000).
+        nwalkers : int
+          number of walkers for the emcee minimisation,
+          if 0, it is computed as the nearest even number to 3*nvariables (default: 0).
+        burn : int
+          number of first samples to remove from the analysis in emcee (default: 20).
+        seed : None or int
+          Random number seed (default: None)
+        minsnr : float
+          Minimum SNR to display line ID in plots (default: 3.0).
+        line_ratios : list of tuples
+          List of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]      
+              
+        Return
+        ------
+        Linefit object
+        
+        """
+    
+             
         self.logger = getLogger(__name__)
         
         self.maxfev = maxfev # nb max of iterations (leastsq)
@@ -92,6 +135,7 @@ class Linefit:
         self.steps = steps # emcee steps
         self.nwalkers = nwalkers # emcee nwalkers (if 0 auto = even nearest to 3*nvarys)
         self.burn = burn # emcee burn
+        self.seed = seed # emcee seed
         
         self.vel = vel # bounds in velocity km/s, rest frame
         self.vdisp = vdisp # bounds in velocity dispersion km/s, rest frame
@@ -99,7 +143,10 @@ class Linefit:
         self.gamma = gamma_lya # bounds in lya asymmetry
         
         self.windmax = windmax # maximum half size window to find peak around initial wavelength value
-        self.minsnr = minsnr # minium SNR for writing label of emission line in plot      
+        self.minsnr = minsnr # minium SNR for writing label of emission line in plot
+        
+        self.line_ratios = line_ratios # list of line ratios constraints
+                    
        
         return
     
@@ -109,20 +156,100 @@ class Linefit:
         """
         perform line fit on a mpdaf spectrum
         
+        Parameters
+        ----------
+        line_spec : `mpdaf.obj.Spectrum`
+                   input spectrum 
+        z : float
+                   initial redshift
+        major_lines : boolean
+                      if true, use only major lines as defined in MPDAF line list, 
+                      default False
+        lines: list or None
+               list of MPDAF lines to use in the fit,
+               default None (use the lines from mpdaf get_emlines function)
+        emcee: boolean
+               if True perform a second fit using EMCEE to derive improved errors (note cpu intensive),
+               default False
+        line_ratios: list or None
+                     list of constrained line ratios (see :func:`fit_spectrum_lines`),
+                     default None
+
+        Returns
+        -------
+           res : dictionary
+                 See `fit_spectrum_lines`,
+                 return in addition the fitted spectrum in the observed frame
+
         """
-        if use_line_ratios:
-            # we use a default for OII and CIII
-            line_ratios = DOUBLET_RATIOS
-        else:
-            line_ratios = None
+        
+   
+
         lsq_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
-        mcmc_kws = dict(steps=self.steps, nwalkers=self.nwalkers, burn=self.burn)
+        mcmc_kws = dict(steps=self.steps, nwalkers=self.nwalkers, burn=self.burn, seed=self.seed)
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma, minsnr=self.minsnr)
-        return fit_mpdaf_spectrum(line_spec, z, major_lines=major_lines, lines=lines, emcee=emcee, line_ratios=line_ratios,
-                                  vel_uniq_offset=vel_uniq_offset, lsf=lsf, trimm_spec=trimm_spec, 
-                                  lsq_kws=lsq_kws, mcmc_kws=mcmc_kws, fit_lws=fit_lws)
+        if use_line_ratios:
+            line_ratios = self.line_ratios
+        else:
+            line_ratios = None        
+           
+        wave = line_spec.wave.coord(unit=u.angstrom).copy()
+        data = line_spec.data   
+        if line_spec.var is not None:
+            std = np.sqrt(line_spec.var)
+        else:
+            std = None
+    
+        # FIXME: ODHIN may produce spectra with the variance to 0 in some
+        # points. Use infinite for these points so that they are not taken into
+        # account.
+        if std is not None:
+            bad_points = std == 0
+            std[bad_points] = np.inf
+    
+        try:
+            unit_data = u.Unit(line_spec.data_header.get("BUNIT", None))
+        except ValueError:
+            unit_data = None
+                
+    
+        res = fit_lines(wave=wave, data=data, std=std, redshift=z,
+                                 unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
+                                 lines=lines, major_lines=major_lines, emcee=emcee,
+                                 vel_uniq_offset=vel_uniq_offset, lsf=lsf, trimm_spec=trimm_spec,
+                                 lsq_kws=lsq_kws, mcmc_kws=mcmc_kws, fit_lws=fit_lws)
+        
+        tab = res.spectable    
+        # convert wave to observed frame and air
+        wave = tab['RESTWL']*(1 + z)
+        wave = vactoair(wave)
+        # add init and fitted spectra on the observed plane
+        spfit = line_spec.clone()
+        spfit.data = np.interp(line_spec.wave.coord(), wave, tab['LINEFIT'])
+        spfit.data = spfit.data / (1 + z)
+        spinit = line_spec.clone()
+        spinit.data = np.interp(line_spec.wave.coord(), wave, tab['INIT'])
+        spinit.data = spinit.data / (1 + z)
+        
+        res.spec = line_spec    
+        res.spec_fit = spfit
+        res.init_fit = spinit
+                
+        return res        
     
     def info(self, res, full_output=False):
+        """ Print fit informations 
+        
+        Parameters
+        ----------
+        res : dictionary       
+              results of `fit`
+              
+        full_output:
+              boolean
+              if True display more info,
+              default False
+        """
         if hasattr(res, 'ier'):
             self.logger.info(f"Line Fit (LSQ) Status: {res.ier} {res.message} Niter: {res.nfev}")
         else: 
@@ -135,16 +262,30 @@ class Linefit:
             
     def plot(self, ax, res, start=False, iden=True, minsnr=0, line=None, margin=5,
              dplot={'dl':2.0, 'y':0.95, 'size':10}):
+        """ plot fit results
+        
+        Parameters
+        ----------
+        ax: matplotlib.axes.Axes
+           Axes instance in which to draw the plot
+        
+        res: dictionary 
+             results of `fit`
+             
+        start: boolean
+        
+        """
         plotline(ax, res.spec, res.spec_fit, None, res.init_fit, res.linetable, start=start,
                  iden=iden, minsnr=minsnr, line=line, margin=margin, dplot=dplot)
   
 
-def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
+def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        major_lines=False, emcee=False,
                        vel_uniq_offset=False, lsf=True, trimm_spec=True,
+                       find_lya_vel_offset=True,
                        lsq_kws=None, mcmc_kws=None, fit_lws=None):
-    """Fit lines in a spectrum using lmfit.
+    """Fit lines from a set of arrays (wave, data, std) using lmfit.
 
     This function uses lmfit to perform a simple fit of know lines in
     a spectrum with a given redshift, to compute the flux and flux uncertainty
@@ -180,47 +321,49 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
 
     The table of the lines found in the spectrum are given as result.linetable. 
     The columns are:
-    - LINE: the name of the line
-    - LBDA_REST: The the rest-frame position of the line in vacuum
-    - FAMILY: the line family name (eg balmer)
-    - DNAME: The display name for the line (set to None for close doublets)
-    - VEL: The velocity offset in km/s with respect to the initial redshift (rest frame)
-    - VEL_ERR: The error in velocity offset in km/s 
-    - Z: The fitted redshift in vacuum of the line (note for lyman-alpha the line peak is used)
-    - Z_ERR: The error in fitted redshift of the line.
-    - Z_INIT: The initial redshift 
-    - VDISP: The fitted velocity dispersion in km/s (rest frame)
-    - VDISP_ERR: The error in fitted velocity dispersion
-    - FLUX: Flux in the line. The unit depends on the units of the spectrum.
-    - FLUX_ERR: The fitting uncertainty on the flux value.
-    - SNR: the SNR of the line
-    - SKEW: The skewness of the asymetric line (for Lyman-alpha line only).
-    - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
-    - LBDA_OBS: The fitted position the line in the observed frame
-    - PEAK_OBS: The fitted peak of the line in the observed frame
-    - FWHM_OBS: The full width at half maximum of the line in the observed frame 
-    - VDINST: The instrumental velocity dispersion in km/s
-    - EQW: The restframe line equivalent width 
-    - EQW_ERR: The error in EQW
-    - CONT_OBS: The continuum mean value in Observed frame
-    - CONT: the continuum mean value in rest frame
-    - CONT_ERR: the error in rest frame continuum
+    
+      - LINE: the name of the line
+      - LBDA_REST: The the rest-frame position of the line in vacuum
+      - FAMILY: the line family name (eg balmer)
+      - DNAME: The display name for the line (set to None for close doublets)
+      - VEL: The velocity offset in km/s with respect to the initial redshift (rest frame)
+      - VEL_ERR: The error in velocity offset in km/s 
+      - Z: The fitted redshift in vacuum of the line (note for lyman-alpha the line peak is used)
+      - Z_ERR: The error in fitted redshift of the line.
+      - Z_INIT: The initial redshift 
+      - VDISP: The fitted velocity dispersion in km/s (rest frame)
+      - VDISP_ERR: The error in fitted velocity dispersion
+      - FLUX: Flux in the line. The unit depends on the units of the spectrum.
+      - FLUX_ERR: The fitting uncertainty on the flux value.
+      - SNR: the SNR of the line
+      - SKEW: The skewness parameter of the asymetric line (for Lyman-alpha line only).
+      - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
+      - LBDA_OBS: The fitted position the line in the observed frame
+      - PEAK_OBS: The fitted peak of the line in the observed frame
+      - FWHM_OBS: The full width at half maximum of the line in the observed frame 
+      - VDINST: The instrumental velocity dispersion in km/s
+      - EQW: The restframe line equivalent width 
+      - EQW_ERR: The error in EQW
+      - CONT_OBS: The continuum mean value in Observed frame
+      - CONT: the continuum mean value in rest frame
+      - CONT_ERR: the error in rest frame continuum
     
     The redshift table is saved in result.ztable
     The columns are:
-    - FAMILY: the line family name
-    - VEL: the velocity offset with respect to the original z in km/s
-    - ERR_VEL: the error in velocity offset
-    - Z: the fitted redshift (in vacuum)
-    - ERR_Z: the error in redshift
-    - Z_INIT: The initial redshift 
-    - VDISP: The fitted velocity dispersion in km/s (rest frame)
-    - VDISP_ERR: The error in fitted velocity dispersion
-    - SNRMAX: the maximum SNR
-    - SNRSUM: the sum of SNR (all lines)
-    - SNRSUM_CLIPPED: the sum of SNR (only lines above a MIN SNR (default 3))
-    - NL: number of fitted lines
-    - NL_CLIPPED: number of lines with SNR>SNR_MIN
+    
+      - FAMILY: the line family name
+      - VEL: the velocity offset with respect to the original z in km/s
+      - ERR_VEL: the error in velocity offset
+      - Z: the fitted redshift (in vacuum)
+      - ERR_Z: the error in redshift
+      - Z_INIT: The initial redshift 
+      - VDISP: The fitted velocity dispersion in km/s (rest frame)
+      - VDISP_ERR: The error in fitted velocity dispersion
+      - SNRMAX: the maximum SNR
+      - SNRSUM: the sum of SNR (all lines)
+      - SNRSUM_CLIPPED: the sum of SNR (only lines above a MIN SNR (default 3))
+      - NL: number of fitted lines
+      - NL_CLIPPED: number of lines with SNR>SNR_MIN
     
     
   
@@ -269,6 +412,8 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
     trimm_spec: boolean, optional
         if True, mask unused wavelengths part
         default: True
+    find_lya_vel_offset: boolean, optional
+        if True, compute a starting velocity offset for lya on the data
     lsq_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
     mcmc_kws : dictionary with MCMC parameters (see emcee)
     fit_lws : dictionary with some default and bounds parameters
@@ -280,19 +425,23 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         result is the lmfit MinimizerResult object (see lmfit documentation)
         in addition it contains
         result.tabspec an astropy table with the following columns
+        
             - RESTWL: restframe wavelength
             - FLUX: resframe data value
             - ERR: stddev of FLUX
             - INIT: init value for the fit
             - LINEFIT: final fit value
+            
         result.linetable (see above)
         result.ztable (see above)
         
 
     Raises
     ------
-    NoLineError: when none of the fitted line can be on the spectrum at the
+    NoLineError: 
+        when none of the fitted line can be on the spectrum at the
         given redshift.
+        
     """
     logger = logging.getLogger(__name__)
 
@@ -493,10 +642,15 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
         # we fit an asymmetric line
         fname = name.lower()
         family_lines[fname] = dict(lines=[line['LINE']], fun='asymgauss')
-        params.add(f'dv_{fname}', value=VEL_INIT, min=VEL_MIN, max=VEL_MAX)
-        params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX_LYA) 
         l0 = line['LBDA_REST']
-        add_asymgauss_par(params, fname, name, l0, wave_rest, data_rest, redshift, lsf)                
+        if find_lya_vel_offset:
+            vel_init = get_lya_vel_offset(l0, wave_rest, data_rest)
+        else:
+            vel_init = VEL_INIT
+        params.add(f'dv_{fname}', value=vel_init, min=vel_init+VEL_MIN, max=vel_init+VEL_MAX)
+        params.add(f'vdisp_{fname}', value=VD_INIT, min=VD_MIN, max=VD_MAX_LYA) 
+        add_asymgauss_par(params, fname, name, l0, wave_rest, data_rest, redshift, lsf)
+        logger.debug('Lyman alpha asymetric line fit')
              
     # Perform LSQ fit    
     minner = Minimizer(residuals, params, fcn_args=(wave_rest, data_rest, std_rest, family_lines, redshift, lsf))
@@ -512,7 +666,7 @@ def fit_spectrum_lines(wave, data, std, redshift, *, unit_wave=None,
             # nearest even number to 3*nb of variables 
             mcmc_kws['nwalkers'] = int(np.ceil(3*result.nvarys/2)*2)
         logger.debug('Error estimation using EMCEE with nsteps: %d nwalkers: %d burn: %d',mcmc_kws['steps'],mcmc_kws['nwalkers'],mcmc_kws['burn'])
-        result = minner.emcee(params=result.params, is_weighted=True, **mcmc_kws)
+        result = minner.emcee(params=result.params, is_weighted=True, float_behavior='chi2', **mcmc_kws)
         logger.debug('End EMCEE after %d iterations, redChi2 = %.3f',result.nfev,result.redchi)
     
     # save input data, initial and best fit (in rest frame) in the table_spec table
@@ -676,6 +830,20 @@ def add_asymgauss_par(params, family_name, name, l0, wave, data, z, lsf):
     params.add(f"{name}_asymgauss_flux", value=flux, min=0)
     params.add(f"{name}_asymgauss_asym", value=GAMMA_INIT, min=GAMMA_MIN, max=GAMMA_MAX)
     
+def get_lya_vel_offset(l0, wave, data, box_filter=3):
+    ksel = np.abs(wave-l0) < WINDOW_MAX
+    sel_data = data[ksel]
+    if box_filter > 0:
+        fsel_data =  convolve(sel_data, Box1DKernel(box_filter))
+    else:
+        fsel_data = sel_data
+    kmax = fsel_data.argmax()
+    lmax = wave[ksel][kmax]
+    vel_off = (lmax/l0 - 1)*C
+    return vel_off
+    
+    
+    
 def add_line_ratio(params, line_ratios, dlines):
     for line1,line2,ratio_min,ratio_max in line_ratios:
         if (line1 in dlines['LINE']) and (line2 in dlines['LINE']):
@@ -749,80 +917,6 @@ def asymgauss(peak, l0, sigma, gamma, wave):
     f = 1 + erf(gamma*dl/(1.4142135623730951*sigma))
     h = f*g
     return h
-
-
-def fit_mpdaf_spectrum(spectrum, redshift, major_lines=False, lines=None, emcee=False, line_ratios=None,
-                       vel_uniq_offset=False, lsf=True, trimm_spec=True, lsq_kws={}, mcmc_kws={}, fit_lws={}):
-    """Function use when calling fit_lines from mpdaf spectrum object.
-
-
-    Parameters
-    ----------
-    spectrum : mpdaf.obj.Spectrum
-    redshift : float
-    major_lines : boolean
-       if true, use only major lines as defined in MPDAF line list
-    lines: list
-       list of MPDAF lines to use in the fit
-       default None
-    emcee: boolean
-       if True perform a second fit using EMCEE to derive improved errors (note cpu intensive)
-       default False
-    line_ratios: list
-       list of constrained line ratios (see fit-spectrum_lines)
-       default None
-
-    Returns
-    -------
-    See fit_spectrum_lines.
-    return in addition the fitted spectrum in the observed frame
-
-    """
-
-    wave = spectrum.wave.coord(unit=u.angstrom).copy()
-    data = spectrum.data
-
-    if spectrum.var is not None:
-        std = np.sqrt(spectrum.var)
-    else:
-        std = None
-
-    # FIXME: ODHIN may produce spectra with the variance to 0 in some
-    # points. Use infinite for these points so that they are not taken into
-    # account.
-    if std is not None:
-        bad_points = std == 0
-        std[bad_points] = np.inf
-
-    try:
-        unit_data = u.Unit(spectrum.data_header.get("BUNIT", None))
-    except ValueError:
-        unit_data = None
-            
-
-    res = fit_spectrum_lines(wave=wave, data=data, std=std, redshift=redshift,
-                             unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
-                             lines=lines, major_lines=major_lines, emcee=emcee,
-                             vel_uniq_offset=vel_uniq_offset, lsf=lsf, trimm_spec=trimm_spec,
-                             lsq_kws=lsq_kws, mcmc_kws=mcmc_kws, fit_lws=fit_lws)
-    
-    tab = res.spectable    
-    # convert wave to observed frame and air
-    wave = tab['RESTWL']*(1 + redshift)
-    wave = vactoair(wave)
-    # add init and fitted spectra on the observed plane
-    spfit = spectrum.clone()
-    spfit.data = np.interp(spectrum.wave.coord(), wave, tab['LINEFIT'])
-    spfit.data = spfit.data / (1 + redshift)
-    spinit = spectrum.clone()
-    spinit.data = np.interp(spectrum.wave.coord(), wave, tab['INIT'])
-    spinit.data = spinit.data / (1 + redshift)
-    
-    res.spec = spectrum    
-    res.spec_fit = spfit
-    res.init_fit = spinit
-            
-    return res
 
 def mode_skewedgaussian(location, scale, shape):
     """Compute the mode of a skewed Gaussian.
