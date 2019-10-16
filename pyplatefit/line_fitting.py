@@ -322,8 +322,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     The table of the lines found in the spectrum are given as result.linetable. 
     The columns are:
     
-      - LINE: the name of the line
-      - LBDA_REST: The the rest-frame position of the line in vacuum
+      - LINE: The name of the line
+      - LBDA_REST: The rest-frame position of the line in vacuum
       - FAMILY: the line family name (eg balmer)
       - DNAME: The display name for the line (set to None for close doublets)
       - VEL: The velocity offset in km/s with respect to the initial redshift (rest frame)
@@ -338,7 +338,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
       - SNR: the SNR of the line
       - SKEW: The skewness parameter of the asymetric line (for Lyman-alpha line only).
       - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
-      - LBDA_OBS: The fitted position the line in the observed frame
+      - LBDA_OBS: The fitted position the line peak in the observed frame
       - PEAK_OBS: The fitted peak of the line in the observed frame
       - FWHM_OBS: The full width at half maximum of the line in the observed frame 
       - VDINST: The instrumental velocity dispersion in km/s
@@ -681,7 +681,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     # fill the lines table with the fit results
     lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','LBDA_EXP','FAMILY'])
     colnames = ['VEL','VEL_ERR','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR',
-                    'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS','PEAK_OBS','FWHM_OBS']
+                    'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS',
+                    'PEAK_OBS','SIGMA_OBS','FWHM_OBS']
     if lsf:
         colnames.append('VDINST')
     for colname in colnames:
@@ -756,21 +757,25 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             row['PEAK_OBS'] = peak
             row['FWHM_OBS'] = 2.355*sigma 
             if fun == 'asymgauss':
+                # WIP A REPRENDRE 
                 skew = par[f"{name}_{fun}_asym"].value 
                 row['SKEW'] = skew 
                 row['SKEW_ERR'] = par[f"{name}_{fun}_asym"].stderr if par[f"{name}_{fun}_asym"].stderr is not None else np.nan
-                # compute peak location and peak value in rest frame  
-                l0 = row['LBDA_REST']    
+                # compute peak location and peak value in rest frame 
+                l0 = row['LBDA_REST'] 
+                peak = flux/(SQRT2PI*sigma)
                 sigma = vdisp*l0/C
-                l1 = mode_skewedgaussian(l0, sigma, skew)
+                ksel = np.abs(wave_rest-l0)<50
+                swave_rest = wave_rest[ksel]
+                vmodel = asymgauss(peak, l0, sigma, skew, swave_rest)                
+                kmax = np.argmax(vmodel)    
+                l1 = swave_rest[kmax]
                 # these position is used for redshift and dv
                 dv = C*(l1-l0)/l0
                 row['VEL'] = dv
                 row['Z'] = redshift + dv/C
                 # compute the peak value and convert it to observed frame
-                peak = flux/(SQRT2PI*sigma)
-                ksel = np.abs(wave_rest-l0)<50
-                vmodel = asymgauss(peak, l0, sigma, skew, wave_rest[ksel])
+                
                 row['PEAK_OBS'] = np.max(vmodel)/(1+row['Z'])
                 # compute FWHM
                 fwhm = measure_fwhm(wave_rest[ksel], vmodel, l1)   
@@ -873,22 +878,32 @@ def model(params, wave, lines, z, lsf=True):
         for line in ldict['lines']:
             if ldict['fun']=='gauss':
                 flux = params[f"{line}_gauss_flux"]
-                l0 = params[f"{line}_gauss_l0"]*(1+dv/C)
-                sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)      
-                peak = flux/(SQRT2PI*sigma)
-                model += gauss(peak, l0, sigma, wave)
+                l0 = params[f"{line}_gauss_l0"]
+                model += model_gauss(l0, flux, vdisp, dv, wave)
             elif ldict['fun']=='asymgauss':
                 flux = params[f"{line}_asymgauss_flux"]
-                l0 = params[f"{line}_asymgauss_l0"]*(1+dv/C)
-                beta = params[f"{line}_asymgauss_asym"].value     
-                # FIXME not sure this is correct for LAE, given it is an asymetric function
-                sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)               
-                peak = flux/(SQRT2PI*sigma)
-                model += asymgauss(peak, l0, sigma, beta, wave)            
+                l0 = params[f"{line}_asymgauss_l0"]
+                beta = params[f"{line}_asymgauss_asym"].value  
+                model += model_asymgauss(l0, flux, beta, vdisp, dv, wave)         
             else:
                 logger.error('Unknown function %s', fun)
                 raise ValueError
     return model
+
+def model_asymgauss(l0, flux, beta, vdisp, dv, wave):
+    l1 = l0*(1+dv/C)
+    sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)               
+    peak = flux/(SQRT2PI*sigma)
+    model = asymgauss(peak, l1, sigma, beta, wave)
+    return model
+
+def model_gauss(l0, flux, vdisp, dv, wave):
+    l1 = l0*(1+dv/C)
+    sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)               
+    peak = flux/(SQRT2PI*sigma)
+    model = gauss(peak, l1, sigma, wave)
+    return model
+
 
 def complsf(wave, kms=False):
     # compute estimation of LSF in A
@@ -918,6 +933,28 @@ def asymgauss(peak, l0, sigma, gamma, wave):
     h = f*g
     return h
 
+def fwhm_asymgauss(l0, sigma, gamma, frac=0.5, nsig=2, nlbda=100):
+    l1,l2 = (l0-sigma*nsig, l0+sigma*nsig) 
+    lbda = np.linspace(l1,l2,2*nlbda+1)
+    g = asymgauss(1.0, l0, sigma, gamma, lbda)
+    g /= g.max()
+    kmax = g.argmax()
+    l1 = None
+    for k in range(kmax,0,-1):
+        if g[k] < frac:
+            l1 = np.interp(0.5, [g[k],g[k+1]],[lbda[k],lbda[k+1]])
+            break
+    if l1 is None:
+        return None
+    l2 = None
+    for k in range(kmax,2*nlbda+1,1):
+        if g[k] < frac:
+            l2 = np.interp(0.5, [g[k],g[k-1]],[lbda[k],lbda[k-1]])
+            break
+    if l2 is None:
+        return None 
+    return l1,l2
+    
 def mode_skewedgaussian(location, scale, shape):
     """Compute the mode of a skewed Gaussian.
 
