@@ -339,6 +339,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
       - SKEW: The skewness parameter of the asymetric line (for Lyman-alpha line only).
       - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
       - LBDA_OBS: The fitted position the line peak in the observed frame
+      - LBDA_LEFT: The wavelength at the left of the peak with 0.5*peak value
+      - LBDA_RIGHT: The wavelength at the rigth of the peak with 0.5*peak value
       - PEAK_OBS: The fitted peak of the line in the observed frame
       - FWHM_OBS: The full width at half maximum of the line in the observed frame 
       - VDINST: The instrumental velocity dispersion in km/s
@@ -682,7 +684,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','LBDA_EXP','FAMILY'])
     colnames = ['VEL','VEL_ERR','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR',
                     'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS',
-                    'PEAK_OBS','SIGMA_OBS','FWHM_OBS']
+                    'PEAK_OBS','LBDA_LEFT','LBDA_RIGHT','FWHM_OBS']
     if lsf:
         colnames.append('VDINST')
     for colname in colnames:
@@ -752,10 +754,12 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 row['LBDA_OBS'] = vactoair(row['LBDA_OBS'])
             sigma = get_sigma(vdisp, row['LBDA_OBS'], row['Z'], lsf, restframe=False) 
             if lsf:
-                row['VDINST'] = complsf(row['LBDA_OBS'], kms=True)
+                row['VDINST'] = complsf(row['LBDA_OBS'], kms=True)      
             peak = flux/(SQRT2PI*sigma)
             row['PEAK_OBS'] = peak
             row['FWHM_OBS'] = 2.355*sigma 
+            row['LBDA_LEFT'] = row['LBDA_OBS'] - 0.5*row['FWHM_OBS']
+            row['LBDA_RIGHT'] = row['LBDA_OBS'] + 0.5*row['FWHM_OBS']
             if fun == 'asymgauss':
                 skew = par[f"{name}_{fun}_asym"].value 
                 row['SKEW'] = skew 
@@ -764,22 +768,24 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 l0 = row['LBDA_REST'] 
                 peak = flux/(SQRT2PI*sigma)
                 sigma = vdisp*l0/C
-                ksel = np.abs(wave_rest-l0)<50
-                swave_rest = wave_rest[ksel]
+                swave_rest = np.linspace(l0-50,l0+50,1000)
+                #ksel = np.abs(wave_rest-l0)<50
+                #swave_rest = wave_rest[ksel]
                 vmodel_rest = model_asymgauss(redshift, lsf, l0, flux, skew, vdisp, dv, swave_rest)
                 kmax = np.argmax(vmodel_rest)    
                 l1 = swave_rest[kmax]
+                left_rest,right_rest = rest_fwhm_asymgauss(swave_rest, vmodel_rest)
                 # these position is used for redshift and dv
                 dv = C*(l1-l0)/l0
                 row['VEL'] = dv
-                row['Z'] = redshift + dv/C
+                row['Z'] = redshift + dv/C  
                 # compute the peak value and convert it to observed frame    
                 row['PEAK_OBS'] = np.max(vmodel_rest)/(1+row['Z'])
-                # compute FWHM
-                fwhm = measure_fwhm(swave_rest, vmodel_rest, l1)   
-                row['FWHM_OBS'] = fwhm*(1+row['Z'])
                 # save peak position in observed frame
                 row['LBDA_OBS'] = vactoair(l1*(1+row['Z']))
+                row['LBDA_LEFT'] = vactoair(left_rest*(1+row['Z']))
+                row['LBDA_RIGHT'] = vactoair(right_rest*(1+row['Z']))
+                row['FWHM_OBS'] = row['LBDA_RIGHT'] - row['LBDA_LEFT'] 
             zlist.append(row['Z'])
             dvlist.append(row['VEL'])
             snr.append(row['SNR'])
@@ -930,22 +936,19 @@ def asymgauss(peak, l0, sigma, gamma, wave):
     h = f*g
     return h
 
-def fwhm_asymgauss(l0, sigma, gamma, frac=0.5, nsig=2, nlbda=100):
-    l1,l2 = (l0-sigma*nsig, l0+sigma*nsig) 
-    lbda = np.linspace(l1,l2,2*nlbda+1)
-    g = asymgauss(1.0, l0, sigma, gamma, lbda)
-    g /= g.max()
+def rest_fwhm_asymgauss(lbda, flux):
+    g = flux/flux.max()
     kmax = g.argmax()
     l1 = None
     for k in range(kmax,0,-1):
-        if g[k] < frac:
+        if g[k] < 0.5:
             l1 = np.interp(0.5, [g[k],g[k+1]],[lbda[k],lbda[k+1]])
             break
     if l1 is None:
         return None
     l2 = None
-    for k in range(kmax,2*nlbda+1,1):
-        if g[k] < frac:
+    for k in range(kmax,len(lbda),1):
+        if g[k] < 0.5:
             l2 = np.interp(0.5, [g[k],g[k-1]],[lbda[k],lbda[k-1]])
             break
     if l2 is None:
