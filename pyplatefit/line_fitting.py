@@ -757,7 +757,6 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             row['PEAK_OBS'] = peak
             row['FWHM_OBS'] = 2.355*sigma 
             if fun == 'asymgauss':
-                # WIP A REPRENDRE 
                 skew = par[f"{name}_{fun}_asym"].value 
                 row['SKEW'] = skew 
                 row['SKEW_ERR'] = par[f"{name}_{fun}_asym"].stderr if par[f"{name}_{fun}_asym"].stderr is not None else np.nan
@@ -767,18 +766,17 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 sigma = vdisp*l0/C
                 ksel = np.abs(wave_rest-l0)<50
                 swave_rest = wave_rest[ksel]
-                vmodel = asymgauss(peak, l0, sigma, skew, swave_rest)                
-                kmax = np.argmax(vmodel)    
+                vmodel_rest = model_asymgauss(redshift, lsf, l0, flux, skew, vdisp, dv, swave_rest)
+                kmax = np.argmax(vmodel_rest)    
                 l1 = swave_rest[kmax]
                 # these position is used for redshift and dv
                 dv = C*(l1-l0)/l0
                 row['VEL'] = dv
                 row['Z'] = redshift + dv/C
-                # compute the peak value and convert it to observed frame
-                
-                row['PEAK_OBS'] = np.max(vmodel)/(1+row['Z'])
+                # compute the peak value and convert it to observed frame    
+                row['PEAK_OBS'] = np.max(vmodel_rest)/(1+row['Z'])
                 # compute FWHM
-                fwhm = measure_fwhm(wave_rest[ksel], vmodel, l1)   
+                fwhm = measure_fwhm(swave_rest, vmodel_rest, l1)   
                 row['FWHM_OBS'] = fwhm*(1+row['Z'])
                 # save peak position in observed frame
                 row['LBDA_OBS'] = vactoair(l1*(1+row['Z']))
