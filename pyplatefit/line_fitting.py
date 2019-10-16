@@ -879,25 +879,25 @@ def model(params, wave, lines, z, lsf=True):
             if ldict['fun']=='gauss':
                 flux = params[f"{line}_gauss_flux"]
                 l0 = params[f"{line}_gauss_l0"]
-                model += model_gauss(l0, flux, vdisp, dv, wave)
+                model += model_gauss(z, lsf, l0, flux, vdisp, dv, wave)
             elif ldict['fun']=='asymgauss':
                 flux = params[f"{line}_asymgauss_flux"]
                 l0 = params[f"{line}_asymgauss_l0"]
                 beta = params[f"{line}_asymgauss_asym"].value  
-                model += model_asymgauss(l0, flux, beta, vdisp, dv, wave)         
+                model += model_asymgauss(z, lsf, l0, flux, beta, vdisp, dv, wave)         
             else:
                 logger.error('Unknown function %s', fun)
                 raise ValueError
     return model
 
-def model_asymgauss(l0, flux, beta, vdisp, dv, wave):
+def model_asymgauss(z, lsf, l0, flux, beta, vdisp, dv, wave):
     l1 = l0*(1+dv/C)
     sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)               
     peak = flux/(SQRT2PI*sigma)
     model = asymgauss(peak, l1, sigma, beta, wave)
     return model
 
-def model_gauss(l0, flux, vdisp, dv, wave):
+def model_gauss(z, lsf, l0, flux, vdisp, dv, wave):
     l1 = l0*(1+dv/C)
     sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)               
     peak = flux/(SQRT2PI*sigma)
