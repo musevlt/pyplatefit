@@ -892,18 +892,17 @@ def model(params, wave, lines, z, lsf=True):
 
 def model_asymgauss(z, lsf, l0, flux, beta, vdisp, dv, wave):
     l1 = l0*(1+dv/C)
-    sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)               
+    sigma = get_sigma(vdisp, l1, z, lsf, restframe=True)               
     peak = flux/(SQRT2PI*sigma)
     model = asymgauss(peak, l1, sigma, beta, wave)
     return model
 
 def model_gauss(z, lsf, l0, flux, vdisp, dv, wave):
     l1 = l0*(1+dv/C)
-    sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)               
+    sigma = get_sigma(vdisp, l1, z, lsf, restframe=True)               
     peak = flux/(SQRT2PI*sigma)
     model = gauss(peak, l1, sigma, wave)
     return model
-
 
 def complsf(wave, kms=False):
     # compute estimation of LSF in A
