@@ -144,10 +144,10 @@ def test_fit_spec(workdir):
     assert_allclose(res['res_line'].redchi, 14.342062863, rtol=1.e-3)
     
     res = fit_spec(sp, z, ziter=False, lines=['OII3727','OII3729'], use_line_ratios=True)
-    assert_allclose(res['res_line'].redchi, 11.46921247, rtol=1.e-3)
+    assert_allclose(res['res_line'].redchi, 11.4692, rtol=1.e-3)
     
     
     res = fit_spec(sp, z, ziter=False, lines=['OII3727','OII3729'], use_line_ratios=True, 
                    linepars=dict(line_ratios=[("OII3727", "OII3729", 0.5, 0.8)]))
-    assert_allclose(res['res_line'].redchi, 91.3640581, rtol=1.e-3)
+    assert_allclose(res['res_line'].redchi, 11.4692, rtol=1.e-3)
      

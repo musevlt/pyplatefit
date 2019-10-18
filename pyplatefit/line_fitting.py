@@ -146,53 +146,44 @@ class Linefit:
         self.minsnr = minsnr # minium SNR for writing label of emission line in plot
         
         self.line_ratios = line_ratios # list of line ratios constraints
-                    
-       
+                         
         return
     
 
-    def fit(self, line_spec, z, major_lines=False, lines=None, emcee=False, use_line_ratios=False,
-            vel_uniq_offset=False, lsf=True, trimm_spec=True):
+    def fit(self, line_spec, z, **kwargs):
         """
         perform line fit on a mpdaf spectrum
         
         Parameters
         ----------
         line_spec : `mpdaf.obj.Spectrum`
-                   input spectrum 
+            input spectrum (must be continnum subtracted)
         z : float
-                   initial redshift
-        major_lines : boolean
-                      if true, use only major lines as defined in MPDAF line list, 
-                      default False
-        lines: list or None
-               list of MPDAF lines to use in the fit,
-               default None (use the lines from mpdaf get_emlines function)
-        emcee: boolean
-               if True perform a second fit using EMCEE to derive improved errors (note cpu intensive),
-               default False
-        line_ratios: list or None
-                     list of constrained line ratios (see :func:`fit_spectrum_lines`),
-                     default None
+            initial redshift
+        **kwargs : keyword arguments
+            Additional arguments passed to the `fit_lines` function.
 
         Returns
         -------
-           res : dictionary
-                 See `fit_spectrum_lines`,
-                 return in addition the fitted spectrum in the observed frame
+        res : dictionary
+           See `fit_lines`,
+           return in addition the following spectrum in the observed frame
+           res.spec initial spectrum,
+           res.init_fit spectrum of the starting solution for the line fit,
+           res.spec_fit spectrum of the line fit
 
         """
-        
-   
-
+ 
         lsq_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
         mcmc_kws = dict(steps=self.steps, nwalkers=self.nwalkers, burn=self.burn, seed=self.seed)
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma, minsnr=self.minsnr)
+        use_line_ratios = kwargs.pop('use_line_ratios', False)
         if use_line_ratios:
             line_ratios = self.line_ratios
         else:
             line_ratios = None        
-           
+
+        
         wave = line_spec.wave.coord(unit=u.angstrom).copy()
         data = line_spec.data   
         if line_spec.var is not None:
@@ -200,9 +191,6 @@ class Linefit:
         else:
             std = None
     
-        # FIXME: ODHIN may produce spectra with the variance to 0 in some
-        # points. Use infinite for these points so that they are not taken into
-        # account.
         if std is not None:
             bad_points = std == 0
             std[bad_points] = np.inf
@@ -211,13 +199,11 @@ class Linefit:
             unit_data = u.Unit(line_spec.data_header.get("BUNIT", None))
         except ValueError:
             unit_data = None
-                
-    
+                   
         res = fit_lines(wave=wave, data=data, std=std, redshift=z,
-                                 unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
-                                 lines=lines, major_lines=major_lines, emcee=emcee,
-                                 vel_uniq_offset=vel_uniq_offset, lsf=lsf, trimm_spec=trimm_spec,
-                                 lsq_kws=lsq_kws, mcmc_kws=mcmc_kws, fit_lws=fit_lws)
+                        unit_wave=u.angstrom, unit_data=unit_data, 
+                        lsq_kws=lsq_kws, mcmc_kws=mcmc_kws, fit_lws=fit_lws,
+                        **kwargs)
         
         tab = res.spectable    
         # convert wave to observed frame and air
@@ -355,9 +341,9 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     
       - FAMILY: the line family name
       - VEL: the velocity offset with respect to the original z in km/s
-      - ERR_VEL: the error in velocity offset
+      - VEL_ERR: the error in velocity offset
       - Z: the fitted redshift (in vacuum)
-      - ERR_Z: the error in redshift
+      - Z_ERR: the error in redshift
       - Z_INIT: The initial redshift 
       - VDISP: The fitted velocity dispersion in km/s (rest frame)
       - VDISP_ERR: The error in fitted velocity dispersion
@@ -647,6 +633,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         l0 = line['LBDA_REST']
         if find_lya_vel_offset:
             vel_init = get_lya_vel_offset(l0, wave_rest, data_rest)
+            logger.debug('Computed Lya init velocity offset: %.2f', vel_init)
         else:
             vel_init = VEL_INIT
         params.add(f'dv_{fname}', value=vel_init, min=vel_init+VEL_MIN, max=vel_init+VEL_MAX)
@@ -684,7 +671,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     lines.remove_columns(['LBDA_LOW','LBDA_UP','TYPE','DOUBLET','LBDA_EXP','FAMILY'])
     colnames = ['VEL','VEL_ERR','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR',
                     'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS',
-                    'PEAK_OBS','LBDA_LEFT','LBDA_RIGHT','FWHM_OBS']
+                    'PEAK_OBS','LBDA_LEFT','LBDA_RIGHT','FWHM_OBS', 'RCHI2'] 
     if lsf:
         colnames.append('VDINST')
     for colname in colnames:
@@ -699,7 +686,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
 #   set ztable for global results by family 
     ftab = Table()
     ftab.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True))
-    colnames =  ['VEL','ERR_VEL','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR','SNRMAX','SNRSUM','SNRSUM_CLIPPED']
+    colnames =  ['VEL','VEL_ERR','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR','SNRMAX','SNRSUM','SNRSUM_CLIPPED']
     for colname in colnames:
         ftab.add_column(MaskedColumn(name=colname, dtype=np.float, mask=True))
     for colname in colnames:
@@ -765,9 +752,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 row['SKEW'] = skew 
                 row['SKEW_ERR'] = par[f"{name}_{fun}_asym"].stderr if par[f"{name}_{fun}_asym"].stderr is not None else np.nan
                 # compute peak location and peak value in rest frame 
-                l0 = row['LBDA_REST'] 
-                peak = flux/(SQRT2PI*sigma)
-                sigma = vdisp*l0/C
+                l0 = row['LBDA_REST']  
                 swave_rest = np.linspace(l0-50,l0+50,1000)
                 #ksel = np.abs(wave_rest-l0)<50
                 #swave_rest = wave_rest[ksel]
@@ -808,7 +793,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 sum_snr_clipped = np.sqrt(np.sum(snr**2))
         dv = np.mean(dvlist)
         zm = np.mean(zlist)
-        ftab.add_row(dict(FAMILY=fname, VEL=dv, ERR_VEL=dv_err, VDISP=vdisp, VDISP_ERR=vdisp_err, 
+        ftab.add_row(dict(FAMILY=fname, VEL=dv, VEL_ERR=dv_err, VDISP=vdisp, VDISP_ERR=vdisp_err, 
                           Z=zm, Z_ERR=dv_err/C, SNRMAX=snrmax, Z_INIT=redshift,
                           NL=nline, NL_CLIPPED=nline_snr_clipped, SNRSUM=sum_snr, SNRSUM_CLIPPED=sum_snr_clipped))
         
@@ -877,16 +862,16 @@ def model(params, wave, lines, z, lsf=True):
     """ wave is rest frame wavelengths """
     model = 0
     for name,ldict in lines.items():
-        vdisp = params[f"vdisp_{name}"]
-        dv = params[f"dv_{name}"]
+        vdisp = params[f"vdisp_{name}"].value
+        dv = params[f"dv_{name}"].value
         for line in ldict['lines']:
             if ldict['fun']=='gauss':
-                flux = params[f"{line}_gauss_flux"]
-                l0 = params[f"{line}_gauss_l0"]
+                flux = params[f"{line}_gauss_flux"].value
+                l0 = params[f"{line}_gauss_l0"].value
                 model += model_gauss(z, lsf, l0, flux, vdisp, dv, wave)
             elif ldict['fun']=='asymgauss':
-                flux = params[f"{line}_asymgauss_flux"]
-                l0 = params[f"{line}_asymgauss_l0"]
+                flux = params[f"{line}_asymgauss_flux"].value
+                l0 = params[f"{line}_asymgauss_l0"].value
                 beta = params[f"{line}_asymgauss_asym"].value  
                 model += model_asymgauss(z, lsf, l0, flux, beta, vdisp, dv, wave)         
             else:

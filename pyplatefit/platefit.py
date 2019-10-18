@@ -39,9 +39,7 @@ class Platefit:
         self.line = Linefit(**linepars)
         self.eqw = EquivalentWidth(**eqwpars)
 
-    def fit(self, spec, z, vdisp=80, major_lines=False, lines=None,
-            emcee=False, use_line_ratios=True, vel_uniq_offset=False,
-            lsf=True, eqw=True, trimm_spec=True, fitcont=True):
+    def fit(self, spec, z, fitcont=True, eqw=True, **kwargs):
         """Perform continuum and emission lines fit on a spectrum
 
         Parameters
@@ -49,30 +47,13 @@ class Platefit:
         spec : mpdaf.obj.Spectrum
            continuum subtracted spectrum
         z : float
-           reshift
-        vdisp : float
-           velocity dispersion in km/s (default 80 km/s).
-        major_lines : bool
-           if true, use only major lines as defined in MPDAF line list (default False).
-        lines: list
-           list of MPDAF lines to use in the fit (default None).
-        emcee: bool
-           if True perform a second fit using EMCEE to derive improved errors
-           (note cpu intensive), default False.
-        use_line_ratios: bool
-           if True, use constrain line ratios in fit (default True)
-        vel_uniq_offset: bool
-           if True, a unique velocity offset is fitted for all lines except
-           lyman-alpha  (default False).
-        lsf: bool
-           if True, use LSF model to take into account the instrumental LSF (default True).
-        eqw: bool
-           if True compute equivalent widths (default True).
-        trim_spec : bool
-           if True, trimmed spec around selected emission lines (default True).
+           initial reshift
         fitcont : bool
-           if True, perform continuum fit and subtract it for line fitting (default True).
-
+           Fit and remove continuum prior to line fitting.
+        eqw : bool
+           Compute Equivalent Width
+        **kwargs : keyword arguments
+           Additional arguments passed to `Linefit.fit` function.  
 
         Returns
         -------
@@ -94,16 +75,14 @@ class Platefit:
 
         """
         if fitcont:
+            vdisp = kwargs.pop('vdisp', 80)
             res_cont = self.fit_cont(spec, z, vdisp)
             linespec = res_cont['line_spec']
         else:
             res_cont = {}
             linespec = spec
-        res_line = self.fit_lines(linespec, z,
-                                  major_lines=major_lines, lines=lines,
-                                  emcee=emcee, use_line_ratios=use_line_ratios,
-                                  lsf=lsf, vel_uniq_offset=vel_uniq_offset, 
-                                  trimm_spec=trimm_spec)
+        
+        res_line = self.fit_lines(linespec, z, **kwargs)
 
         if eqw and fitcont:
             self.eqw.comp_eqw(spec, linespec, z,
@@ -166,114 +145,26 @@ class Platefit:
         return self.cont.fit(spec, z, vdisp)
 
     
-    def fit_lines(self, line, z, major_lines=False, lines=None, emcee=False, 
-                  use_line_ratios=False, vel_uniq_offset=False, lsf=True, trimm_spec=True):
+    def fit_lines(self, line, z, **kwargs):
         """  
-    Perform emission lines fit on a continuum subtracted spectrum 
+        Perform emission lines fit on a continuum subtracted spectrum 
     
-    Parameters
-    ----------
-    line : mpdaf.obj.Spectrum
-       continuum subtracted spectrum
-    z : float
-       reshift 
-    major_lines : boolean
-       if true, use only major lines as defined in MPDAF line list
-       default False
-    lines: list
-       list of MPDAF lines to use in the fit (see mpdaf get_emlines function to find the line names)
-       default None (use all lines defined in mpdaf)
-    emcee: boolean
-       if True perform a second fit using EMCEE to derive improved errors (note cpu intensive)
-       default False
-    use_line_ratios: boolean
-       if True, use constrain line ratios in fit
-       default False
-    vel_uniq_offset: boolean
-       if True, a unique velocity offset is fitted for all lines except lyman-alpha
-       default: False
-    lsf: boolean
-       if True, use LSF model to take into account the instrumental LSF
-       default: True
-    trimm_spec: boolean
-       if True, mask wavelength regions outside +/- N*FWHM
+        Parameters
+        ----------
+        line : mpdaf.obj.Spectrum
+            continuum subtracted spectrum
+        z : float
+            reshift 
+        kwargs : keyword arguments
+           Additional arguments passed to the `fit_lines` function.
+
        
-    Returns
-    -------
-    result : OrderedDict
-        Dictionary containing several parameters from the fitting.
-        
-        result is the lmfit MinimizerResult object (see lmfit documentation)
-        
-        In addition it contains: 
-        
-        result.tabspec 
-           An astropy table with the following columns:
-        
-            - RESTWL: restframe wavelength
-            - FLUX: resframe data value
-            - ERR: stddev of FLUX
-            - INIT: init value for the fit
-            - LINEFIT: final fit value
-            
-        result.linetable
-           An astropy lines table with the following columns:
-    
-            - LINE: the name of the line
-            - LBDA_REST: The the rest-frame position of the line in vacuum
-            - FAMILY: the line family name (eg balmer)
-            - DNAME: The display name for the line (set to None for close doublets)
-            - VEL: The velocity offset in km/s with respect to the initial redshift (rest frame)
-            - VEL_ERR: The error in velocity offset in km/s 
-            - Z: The fitted redshift in vacuum of the line (note for lyman-alpha the line peak is used)
-            - Z_ERR: The error in fitted redshift of the line.
-            - Z_INIT: The initial redshift 
-            - VDISP: The fitted velocity dispersion in km/s (rest frame)
-            - VDISP_ERR: The error in fitted velocity dispersion
-            - FLUX: Flux in the line. The unit depends on the units of the spectrum.
-            - FLUX_ERR: The fitting uncertainty on the flux value.
-            - SNR: the SNR of the line
-            - SKEW: The skewness of the asymetric line (for Lyman-alpha line only).
-            - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
-            - LBDA_OBS: The fitted position the line in the observed frame
-            - PEAK_OBS: The fitted peak of the line in the observed frame
-            - FWHM_OBS: The full width at half maximum of the line in the observed frame 
-            - VDINST: The instrumental velocity dispersion in km/s
-            - EQW: The restframe line equivalent width 
-            - EQW_ERR: The error in EQW
-            - CONT_OBS: The continuum mean value in Observed frame
-            - CONT: the continuum mean value in rest frame
-            - CONT_ERR: the error in rest frame continuum
-            
-        result.ztable
-           An astropy redshift table with the following columns:
-            
-            - FAMILY: the line family name
-            - VEL: the velocity offset with respect to the original z in km/s
-            - ERR_VEL: the error in velocity offset
-            - Z: the fitted redshift (in vacuum)
-            - ERR_Z: the error in redshift
-            - Z_INIT: The initial redshift 
-            - VDISP: The fitted velocity dispersion in km/s (rest frame)
-            - VDISP_ERR: The error in fitted velocity dispersion
-            - SNRMAX: the maximum SNR
-            - SNRSUM: the sum of SNR (all lines)
-            - SNRSUM_CLIPPED: the sum of SNR (only lines above a MIN SNR (default 3))
-            - NL: number of fitted lines
-            - NL_CLIPPED: number of lines with SNR>SNR_MIN
-            
-        result.spec
-           Observed spectrum in osberved frame
-           
-        result.spec_fit
-           Fitted spectrum in osberved frame
-           
-        result.spec_init
-           Initial solution to the fit in osberved frame
+        Returns
+        -------
+       res : dictionary
+           See `Linefit.fit`
         """
-        return self.line.fit(line, z, major_lines=major_lines, lines=lines, emcee=emcee, 
-                             use_line_ratios=use_line_ratios, 
-                             lsf=lsf, vel_uniq_offset=vel_uniq_offset, trimm_spec=trimm_spec)        
+        return self.line.fit(line, z, **kwargs)        
         
 
     def info_cont(self, res):
@@ -396,7 +287,8 @@ class Platefit:
 
 
 def fit_spec(spec, z, ziter=True, emcee=False, comp_bic=False, fitcont=True, lines=None, 
-             major_lines=False, vdisp=80, use_line_ratios=False, lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={}):
+             major_lines=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True,
+             lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={}):
     """ 
     perform platefit cont and line fitting on a spectra
     
@@ -422,11 +314,13 @@ def fit_spec(spec, z, ziter=True, emcee=False, comp_bic=False, fitcont=True, lin
        if true, use only major lines as defined in MPDAF line list (default False).
     vdisp : float
        velocity dispersion in km/s (default 80 km/s).
-    use_line_ratios: bool
+    use_line_ratios : bool
        if True, use constrain line ratios in fit (default False)
-    lsf: bool
+    find_lya_vel_offset : bool
+       if True, perform an initial search for the lya velocity offset
+    lsf : bool
        if True, use LSF model to take into account the instrumental LSF (default True).
-    eqw: bool
+    eqw : bool
        if True compute equivalent widths (default True).
     trimm_spec : bool
        if True, trimmed spec around selected emission lines (default True).    
@@ -461,7 +355,8 @@ def fit_spec(spec, z, ziter=True, emcee=False, comp_bic=False, fitcont=True, lin
         spec = Spectrum(spec)    
     pl = Platefit(contpars=contpars, linepars=linepars)
     logger.debug('First iteration: Continuum and Line fit without line family selection except for lyman-alpha')
-    res = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=True, fitcont=fitcont, lines=lines, use_line_ratios=use_line_ratios,
+    res = pl.fit(spec, z, emcee=emcee if not ziter else False, vel_uniq_offset=True, fitcont=fitcont,
+                 lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,    
                  lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec)
     ztab = res['ztable']
     if ziter:  

@@ -60,16 +60,16 @@ def test_fit_lines(workdir):
     assert res_line.nfev == 108
     r = res_line.linetable[0]
     assert r['LINE'] == 'LYALPHA'
-    assert_allclose(r['VEL'],82.14,rtol=1.e-3)
+    assert_allclose(r['VEL'],86.3987,rtol=1.e-3)
     assert_allclose(r['Z'],4.77691,rtol=1.e-5)
     assert_allclose(r['FLUX'],4172.96,rtol=1.e-3)
     assert_allclose(r['SKEW'],7.23,rtol=1.e-3)
     assert_allclose(r['LBDA_OBS'],7022.63,rtol=1.e-3)
-    assert_allclose(r['FWHM_OBS'],8.39,rtol=1.e-3)
+    assert_allclose(r['FWHM_OBS'],8.3508,rtol=1.e-3)
     assert_allclose(r['SKEW'],7.2346,rtol=1.e-3)
     
     r = res_line.ztable[0]
-    assert_allclose(r['VEL'],23.73,rtol=1.e-3)
+    assert_allclose(r['VEL'],23.672,rtol=1.e-3)
     assert_allclose(r['Z'],4.77674,rtol=1.e-5)
     assert r['NL'] == 4
     
@@ -84,7 +84,7 @@ def test_fit(workdir):
     
     r = res['linetable'][0]
     assert r['LINE'] == 'LYALPHA'
-    assert_allclose(r['VEL'],82.14,rtol=1.e-2)
+    assert_allclose(r['VEL'],86.3987,rtol=1.e-3)
     assert_allclose(r['Z'],4.77691,rtol=1.e-5)
     assert_allclose(r['FLUX'],4174.33,rtol=1.e-3)
     assert_allclose(r['FLUX_ERR'],23.59,rtol=1.e-1)

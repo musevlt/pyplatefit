@@ -25,9 +25,17 @@ debug = True
 
 vdisp = 80.0
 
-name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00002.fits'
-z = 0.41892
+#name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00002.fits'
+#z = 0.41892
+
+name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00723.fits'
+z = 3.18817
+
 sp = Spectrum(name)
+
+res = fit_spec(sp, z, emcee=False, ziter=False, find_lya_vel_offset=False)
+print(res['res_line'].redchi)
+
 
 #pl = Platefit()
 #res = pl.fit(sp, z, emcee=True, vel_uniq_offset=False, eqw=False)
@@ -39,9 +47,9 @@ sp = Spectrum(name)
 #res = fit_spec(sp, z, ziter=False, emcee=False, comp_bic=True, lines=['OII3727','OII3729'], use_line_ratios=True,
                #linepars=dict(line_ratios=[("OII3727", "OII3729", 0.5, 0.8)])
                #)
-res = fit_spec(sp, z, ziter=False, lines=['OII3727','OII3729'], use_line_ratios=True, 
-               linepars=dict(line_ratios=[("OII3727", "OII3729", 0.5, 0.8)]))
-print(res['res_line'].redchi)
+#res = fit_spec(sp, z, ziter=False, lines=['OII3727','OII3729'], use_line_ratios=True, 
+               #linepars=dict(line_ratios=[("OII3727", "OII3729", 0.5, 0.8)]))
+
 
 #pl = Platefit(linepars=dict(steps=100))
 #res2 = pl.fit(sp, z, emcee=False, vel_uniq_offset=False, eqw=True, trimm_spec=True)
