@@ -268,7 +268,7 @@ class Linefit:
 def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        major_lines=False, emcee=False,
-                       vel_uniq_offset=False, lsf=True, trimm_spec=True,
+                       fit_all=False, lsf=True, trimm_spec=True,
                        find_lya_vel_offset=True,
                        lsq_kws=None, mcmc_kws=None, fit_lws=None):
     """Fit lines from a set of arrays (wave, data, std) using lmfit.
@@ -390,9 +390,10 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     emcee : boolean, optional
         if true, errors and best fit is estimated with MCMC starting from the leastsq solution
         default: False
-    vel_uniq_offset: boolean, optional
-        if True, use same velocity offset for all lines (not recommended)
-        if False, allow different velocity offsets between balmer, forbidden and resonnant lines
+    fit_all: boolean, optional
+        if True, use same velocity offset and velocity dispersion for all lines except Lya
+        if False, allow different velocity offsets and velocity disperions between balmer,
+        forbidden and resonnant lines
         default: false 
     lsf: boolean, optional
         if True, use LSF estimate to derive instrumental PSF, otherwise assume no LSF
@@ -532,18 +533,31 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                      100 * np.sum(mask) / len(mask))
     
 
-    # The fitting is done with lmfit. The model is a sum of Gaussian (or
-    # skewed Gaussian), one per line.
-    params = Parameters()  # All the parameters of the fit
-    family_lines = {} # dictionary of family lines
+    # The fitting is done with lmfit. T
+    # The model is a sum of Gaussian (or skewed Gaussian), one per line.
+    #
+    # Fitting strategy
+    # if fit_all, all lines except Lya are fitted together with the same dv and vdisp
+    # else all families are fitted independantly in the following order
+    # 1. all balmer lines
+    # 2. all forbidden lines
+    # 3. lya
+    # 4+ all other resonnant lines (done separately)
     
+    has_lya = 'LYALPHA' in lines['LINE']
     
-    if vel_uniq_offset:
+    if fit_all:
+        logger.debug('Fitting all %d lines together', len(lines) - has_lya)
+        
+    
+    if fit_all:
         families = [[[1,2,3],'all']]
     else:
         # fit different velocity and velocity dispersion for balmer and forbidden family 
         families = [[[1],'balmer'],[[2],'forbidden']]
 
+    params = Parameters()  # All the parameters of the fit
+    family_lines = {} # dictionary of family lines
     
     has_lya = False    
     for family_ids,family_name in families:
@@ -579,7 +593,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             add_line_ratio(params, line_ratios, dlines)
             
 
-    if not vel_uniq_offset:   
+    if not fit_all:   
         # fit a different velocity and velocity dispersion for each resonnant lines(or doublet)
         family_id = 3; family_name = 'resonnant'
         sel_lines = lines[lines['FAMILY']==family_id]

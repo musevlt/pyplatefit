@@ -161,8 +161,9 @@ class Platefit:
        
         Returns
         -------
-       res : dictionary
+        res : dictionary
            See `Linefit.fit`
+           
         """
         return self.line.fit(line, z, **kwargs)        
         
@@ -355,7 +356,7 @@ def fit_spec(spec, z, ziter=True, emcee=False, comp_bic=False, fitcont=True, lin
         spec = Spectrum(spec)    
     pl = Platefit(contpars=contpars, linepars=linepars)
     logger.debug('First iteration: Continuum and Line fit without line family selection except for lyman-alpha')
-    res = pl.fit(spec, z, emcee=emcee if not ziter else False, vel_uniq_offset=True, fitcont=fitcont,
+    res = pl.fit(spec, z, emcee=emcee if not ziter else False, fit_all=True, fitcont=fitcont,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,    
                  lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec)
     ztab = res['ztable']
@@ -365,7 +366,7 @@ def fit_spec(spec, z, ziter=True, emcee=False, comp_bic=False, fitcont=True, lin
         ltab = res['linetable']
         ztab1 = ztab[ztab['FAMILY'] == 'all'] 
         ltab1 = ltab[ltab['FAMILY'] == 'all'] 
-        res = pl.fit(spec, z, emcee=emcee, vel_uniq_offset=False)
+        res = pl.fit(spec, z, emcee=emcee, fit_all=False)
         ztab = res['ztable']
     if comp_bic:
         for name in ['BIC_LYALPHA','BIC_OII','BIC_CIII']:
