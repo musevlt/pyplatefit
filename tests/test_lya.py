@@ -20,7 +20,7 @@ def workdir(tmpdir_factory):
     tmpdir = str(tmpdir_factory.mktemp("pyplatefit_tests"))
     print("create tmpdir:", tmpdir)
     os.makedirs(tmpdir, exist_ok=True)
-    for f in ['udf10_00053.fits']:
+    for f in ['udf10_00053.fits','udf10_00723.fits']:
         if not os.path.exists(os.path.join(tmpdir, f)):
             shutil.copy(os.path.join(DATADIR, f), tmpdir)
 
@@ -56,22 +56,26 @@ def test_fit_lines(workdir):
     assert spline.shape == (3681,)
      
     res_line = pf.fit_lines(spline, z, emcee=False)
-    assert_allclose(res_line.redchi,2.9597095,rtol=1.e-4)
-    assert res_line.nfev == 108
-    r = res_line.linetable[0]
+    assert_allclose(res_line['lmfit_lyalpha'].redchi,2.976,rtol=1.e-2)
+    assert res_line['lmfit_lyalpha'].nfev == 49
+    r = res_line['lines'][0]
     assert r['LINE'] == 'LYALPHA'
-    assert_allclose(r['VEL'],86.3987,rtol=1.e-3)
+    assert_allclose(r['VEL'],86.3987,rtol=1.e-2)
     assert_allclose(r['Z'],4.77691,rtol=1.e-5)
-    assert_allclose(r['FLUX'],4172.96,rtol=1.e-3)
-    assert_allclose(r['SKEW'],7.23,rtol=1.e-3)
-    assert_allclose(r['LBDA_OBS'],7022.63,rtol=1.e-3)
-    assert_allclose(r['FWHM_OBS'],8.3508,rtol=1.e-3)
-    assert_allclose(r['SKEW'],7.2346,rtol=1.e-3)
+    assert_allclose(r['FLUX'],4172.96,rtol=1.e-2)
+    assert_allclose(r['SKEW'],7.247,rtol=1.e-2)
+    assert_allclose(r['LBDA_OBS'],7022.95,rtol=1.e-2)
+    assert_allclose(r['FWHM_OBS'],8.351,rtol=1.e-2)
+    assert_allclose(r['RCHI2'],2.976,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],34.96,rtol=1.e-2)
+    assert_allclose(r['SKEW_ERR'],0.374,rtol=1.e-2)
+    assert_allclose(r['SNR'],119.36,rtol=1.e-2)
+   
     
-    r = res_line.ztable[0]
-    assert_allclose(r['VEL'],23.672,rtol=1.e-3)
-    assert_allclose(r['Z'],4.77674,rtol=1.e-5)
-    assert r['NL'] == 4
+    r = res_line['ztable'][0]
+    assert_allclose(r['VEL'],86.40,rtol=1.e-2)
+    assert_allclose(r['SNRSUM'],119.36,rtol=1.e-2)
+    assert r['NL'] == 1
     
 def test_fit(workdir):
     os.chdir(workdir)
@@ -82,12 +86,65 @@ def test_fit(workdir):
     pf = Platefit(linepars=dict(seed=1)) 
     res = pf.fit(sp, z, emcee=True, major_lines=True)
     
-    r = res['linetable'][0]
+    r = res['lines'][0]
     assert r['LINE'] == 'LYALPHA'
     assert_allclose(r['VEL'],86.3987,rtol=1.e-3)
     assert_allclose(r['Z'],4.77691,rtol=1.e-5)
     assert_allclose(r['FLUX'],4174.33,rtol=1.e-3)
-    assert_allclose(r['FLUX_ERR'],23.59,rtol=1.e-1)
+    assert_allclose(r['FLUX_ERR'],20.346,rtol=1.e-1)
+    assert_allclose(r['SNR'],205.20,rtol=1.e-2)
+    assert_allclose(r['EQW'],-60.63,rtol=1.e-2)
+    assert_allclose(r['EQW_ERR'],1.702,rtol=1.e-2)
+    
+    
+def test_faint(workdir):
+    os.chdir(workdir)
+    
+    sp = Spectrum('udf10_00723.fits')
+    z = 3.18817
+    
+    res = fit_spec(sp, z)
+    
+    tab = res['lines']
+    assert 'LYALPHA' in tab['LINE']
+    r = tab[tab['LINE']=='LYALPHA'][0]
+    assert_allclose(r['VEL'],37.03,rtol=1.e-2)
+    assert_allclose(r['VDISP'],263.94,rtol=1.e-2)
+    assert_allclose(r['FLUX'],117.54,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],16.48,rtol=1.e-2)
+    assert_allclose(r['SNR'],7.13,rtol=1.e-2)
+    assert np.ma.is_masked(r['EQW'])
+    
+    assert 'HEII1640' in tab['LINE']
+    r = tab[tab['LINE']=='HEII1640'][0]
+    assert_allclose(r['VEL'],-27.48,rtol=1.e-2)
+    assert_allclose(r['VDISP'],120.2,rtol=1.e-2)
+    assert_allclose(r['FLUX'],0.01,rtol=1.e-2)
+    assert np.ma.is_masked(r['FLUX_ERR']) 
+    assert np.ma.is_masked(r['SNR'])   
+    assert np.ma.is_masked(r['EQW'])  
+    
+    res = fit_spec(sp, z, emcee=True, linepars={'seed':1})
+    tab = res['lines']
+    
+    assert 'LYALPHA' in tab['LINE']
+    r = tab[tab['LINE']=='LYALPHA'][0]
+    assert_allclose(r['VEL'],61.71,rtol=1.e-2)
+    assert_allclose(r['VDISP'],270.72,rtol=1.e-2)
+    assert_allclose(r['FLUX'],116.74,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],28.14,rtol=1.e-2)
+    assert_allclose(r['SNR'],4.15,rtol=1.e-2)
+    assert np.ma.is_masked(r['EQW'])
+    
+    assert 'HEII1640' in tab['LINE']
+    r = tab[tab['LINE']=='HEII1640'][0]
+    assert_allclose(r['VEL'],-34.68,rtol=1.e-2)
+    assert_allclose(r['VDISP'],206.56,rtol=1.e-2)
+    assert_allclose(r['FLUX'],0.0172,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],0.0253,rtol=1.e-2)
+    assert_allclose(r['SNR'],0.68,rtol=1.e-2) 
+    assert_allclose(r['EQW'],-0.237,rtol=1.e-2) 
+       
     
 
     
