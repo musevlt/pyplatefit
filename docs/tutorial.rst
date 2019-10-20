@@ -2,6 +2,7 @@ Tutorial
 ========
 
 This tutorial show how to use pyplatefit to perform continuum and emission line
+fit.
 
 .. _basic:
 
@@ -15,21 +16,34 @@ Basic usage
    sp = Spectrum('test_data/udf10_00002.fits')
    z = 0.41892
    res = fit_spec(sp, z)
-
 ::
 
-[DEBUG] Getting lines from get_emlines...
-[DEBUG] 21.3 % of the spectrum is used for fitting.
-[DEBUG] 22 all lines to fit
-[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
-[DEBUG] Fit succeeded. after 284 iterations, redChi2 = 19.921
-[DEBUG] Getting lines from get_emlines...
-[DEBUG] 21.2 % of the spectrum is used for fitting.
-[DEBUG] 9 balmer lines to fit
-[DEBUG] 13 forbidden lines to fit
-[DEBUG] No resonnant lines to fit
-[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
-[DEBUG] Fit succeeded. after 163 iterations, redChi2 = 14.342
+	[DEBUG] Performing continuum and line fitting
+	[DEBUG] Getting lines from get_emlines...
+	[DEBUG] 21.3 % of the spectrum is used for fitting.
+	[DEBUG] Found 2 non resonnant line families to fit
+	[DEBUG] Performing fitting of family balmer
+	[DEBUG] LSQ Fitting of 9 lines
+	[DEBUG] added 9 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 85 iterations, redChi2 = 249.367
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Performing fitting of family forbidden
+	[DEBUG] LSQ Fitting of 13 lines
+	[DEBUG] added 13 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 148 iterations, redChi2 = 255.486
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Found 0 resonnant line families to fit
+
+By default the program perform independant fit for each line family. In this case, the
+fit was performed for the Balmer and Forbidden families with respectively 9 and 13
+emission lines.
+A unique velocity offset (and corresponding redshift) an velocity dispersion is fitted
+for all the lines of the same family. See section :ref:`emlines`. for more details.
+
+
+
 
 .. note::
 
@@ -44,144 +58,433 @@ Basic usage
    res = sp.fit_lines(z)
    
 The ``res`` dictionary contains all the fit results. Consult the API documentation
-for the full description.
+for the full description at `pyplatefit.fit_lines`.
 
-Let's first display the results of the fit:
+Let's first display a summary of the fit results by family:
 
 .. code::
 
-   import matplotlib.pyplot as plt
-   fig,ax = plt.subplots(1,2) 
-   sp.plot(ax=ax[0])
-   res['cont'].plot(ax=ax[0], color='r')
-   res['line'].plot(ax=ax[1])
-   res['linefit'].plot(ax=ax[1], color='r')
-   plt.show()
+   res['ztable'].pprint_all()
    
-.. image:: images/high_fig1.png
-
-One can see on the left, the continuum fit and on the right, the line emission fit of
-the continuum subtracted spectrum.
-
-The results are saved into tow tables: ``ztable`` and ``linetable`` which contain
-respectively the redshift information for each line **family** and the individual line
-fitting information.
-
-.. note::
-
-   A line **family** is defined by a set of lines which have all the same velocity offset
-   with respect to the input redshift and the same velocity dispersion. Typical families
-   are: all, balmer, forbidden, lyalpha and other resonant lines such as MgII doublet.
-   
-    
-.. code::
-
-   res['ztable']
-   
-will write the following:
-
 ::
 
-  <Table masked=True length=3>
-  FAMILY    VEL   ERR_VEL    Z     Z_ERR    Z_INIT  VDISP  VDISP_ERR  SNRMAX  SNRSUM SNRSUM_CLIPPED   NL  NL_CLIPPED
-  str20   float64 float64 float64 float64  float64 float64  float64  float64 float64    float64     int64   int64
-  --------- ------- ------- ------- -------- ------- ------- --------- ------- ------- -------------- ----- ----------
-        all   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98   75.42  126.25         126.17    22         16
-     balmer   25.99    0.88 0.41929 2.95e-06 0.41921   64.74      0.98   88.58  109.44         109.43     9          8
-  forbidden   30.37    1.24 0.41931 4.13e-06 0.41921   65.53      1.42   48.35   91.64          91.61    13          9
+	  FAMILY   VEL  VEL_ERR    Z     Z_ERR    Z_INIT VDISP VDISP_ERR SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED NFEV RCHI2 
+	--------- ----- ------- ------- -------- ------- ----- --------- ------ ------ -------------- --- ---------- ---- ------
+	   balmer 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  20.63  13.28          12.97   9          5   85 249.37
+	forbidden 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  13.94  16.84          20.69  13          6  148 255.49
 
-The first row show the result of the first line fitting iteration. All available lines
-have been fitted together with a unique velocity offset and velocity dispersion.
-The second iteration is shown in the next two rows. The resulting redshift has been used
-as initial value and the two different families, balmer and forbidden, have been fitted
-separately. The resulting redshifts and velocity dispersion are reported here.
-
-Some statistical information is also given such as the number, sum and maximum SNR of 
-all lines for each family.
+As we can see the velocity offset is slightly different for the Balmer and Forbidden
+lines. The columns SNRMAX, SNRSUM and SNRSUM_CLIPPED are useful information to decide
+on the relevance of the fit.
 
 .. Note::
 
    Redshift are given in vacuum and all given values are given in rest frame, except
    if specified. The velocity dispersion is the intrinsic value, corrected by the
    instrumental LSF, except if the option ``lsf=False`` is used.
+
+In this specific case the two families given similar results and it can be useful to 
+fit all lines simultaneously.
+
+.. code::
+
+   res = sp.fit_lines(z, fit_all=True)
+   res['ztable'].pprint_all()
+
+::
+
+	[DEBUG] Performing continuum and line fitting
+	[DEBUG] Getting lines from get_emlines...
+	[DEBUG] 21.3 % of the spectrum is used for fitting.
+	[DEBUG] Performing fitting of all expect Lya lines together
+	[DEBUG] LSQ Fitting of 22 lines
+	[DEBUG] added 22 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 358 iterations, redChi2 = 19.921
+	[DEBUG] Saving results to tablines and ztab
+	
+	FAMILY  VEL  VEL_ERR    Z     Z_ERR    Z_INIT VDISP VDISP_ERR SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED NFEV RCHI2
+	------ ----- ------- ------- -------- ------- ----- --------- ------ ------ -------------- --- ---------- ---- -----
+	   all 85.88    0.88 0.41921 2.92e-06 0.41892 65.86      0.98  75.39  62.12          69.13  22         16  358 19.92	
+
+The next step is to visualize the fit quality.
+
+.. code::
+
+   import matplotlib.pyplot as plt
+   fig,ax = plt.subplots(1,2) 
+   sp.plot(ax=ax[0], color='k')
+   res['cont_spec'].plot(ax=ax[0], color='b')
+   res['spec_fit'].plot(ax=ax[0], color='r')
+   res['line_spec'].plot(ax=ax[1])
+   res['line_fit'].plot(ax=ax[1], color='r')
+   plt.show()
+   
+.. image:: images/high_fig1.png
+
+One can see on the left, the continuum and full spectrum fit and on the right, 
+the line emission fit of the continuum subtracted spectrum.
+
+The individual line information is given in the ``lines`` table. 
    
 .. code::
 
-   res['linetable']
+   res['lines'].pprint_all()
    
 will write the following:
 
 ::
 
- <Table masked=True length=44>
-   FAMILY     LINE   LBDA_REST  DNAME    VEL   VEL_ERR    Z     Z_ERR    Z_INIT  VDISP  VDISP_ERR   FLUX   FLUX_ERR   SNR     SKEW  SKEW_ERR LBDA_OBS PEAK_OBS FWHM_OBS  VDINST   EQW   EQW_ERR CONT_OBS   CONT  CONT_ERR
-   str20     str20    float32  bytes10 float64 float64 float64 float64  float64 float64  float64  float64  float64  float64 float64 float64  float64  float64  float64  float64 float64 float64 float64  float64 float64
- --------- --------- --------- ------- ------- ------- ------- -------- ------- ------- --------- -------- -------- ------- ------- -------- -------- -------- -------- ------- ------- ------- -------- ------- --------
-       all   NEV3427   3426.85     Neᴠ   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98     1.46   138.74    0.01      --       --  4862.05     0.37     3.68   70.34   -0.00    0.17   574.57  815.27    30.12
-       all   OII3727   3727.09    None   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98  4190.92   115.67   36.23      --       --  5288.04  1046.45     3.76   62.05   -5.01    0.16   589.73  836.78    41.88
-       all   OII3729   3729.88   [Oɪɪ]   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98  6171.63   117.26   52.63      --       --  5292.00  1540.67     3.76   61.98   -7.32    0.17   593.92  842.73    42.22
-       all       H11    3771.7     H11   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98   189.90   111.83    1.70      --       --  5351.33    47.24     3.78   60.96   -0.20    0.12   678.39  962.58    46.23
-       all       H10   3798.98     H10   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98   314.74   108.55    2.90      --       --  5390.04    78.11     3.79   60.32   -0.32    0.11   700.12  993.41    41.11
-       all        H9   3836.47      H9   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98   565.71   107.52    5.26      --       --  5443.23   139.94     3.80   59.45   -0.54    0.10   744.95 1057.03    40.19
-       all NEIII3870   3870.16 [Neɪɪɪ]   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98   402.85   107.54    3.75      --       --  5491.03    99.35     3.81   58.69   -0.38    0.10   752.97 1068.41    38.28
-       all   HEI3890   3889.73    None   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98  1347.71   427.52    3.15      --       --  5518.79   331.78     3.82   58.26   -1.23    0.40   771.42 1094.59    63.25
-       all        H8   3890.15      H8   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98     0.06   427.89    0.00      --       --  5519.39     0.02     3.82   58.25   -0.00    0.39   770.81 1093.72    63.27
-       all NEIII3967   3968.91    None   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98   375.23   115.66    3.24      --       --  5631.14    91.69     3.85   56.57   -0.33    0.10   802.90 1139.25    59.16
-       all  HEPSILON    3971.2      Hε   85.87    0.88 0.41921 2.92e-06 0.41892   65.99      0.98   962.32   114.98    8.37      --       --  5634.39   235.09     3.85   56.53   -0.84    0.10   805.59 1143.07    59.02
-       ...       ...       ...     ...     ...     ...     ...      ...     ...     ...       ...      ...      ...     ...     ...      ...      ...      ...      ...     ...     ...     ...      ...     ...      ...
-    balmer    HDELTA   4102.89      Hδ   25.99    0.88 0.41929 2.95e-06 0.41921   64.74      0.98  2117.37    90.39   23.42      --       --  5821.59   516.25     3.85   53.93   -1.81    0.08   824.48 1170.11    20.39
-    balmer    HGAMMA   4341.68      Hγ   25.99    0.88 0.41929 2.95e-06 0.41921   64.74      0.98  3837.99    82.96   46.26      --       --  6160.41   912.22     3.95   49.80   -3.45    0.08   784.55 1113.44    25.85
- forbidden  OIII4364   4364.44    None   30.37    1.24 0.41931 4.13e-06 0.41921   65.53      1.42     7.41    81.62    0.09      --       --  6192.77     1.74     3.99   49.44   -0.01    0.07   798.15 1132.74    25.99
-    balmer     HBETA   4862.68      Hβ   25.99    0.88 0.41929 2.95e-06 0.41921   64.74      0.98  8802.49    99.37   88.58      --       --  6899.66  1964.12     4.21   42.93   -8.08    0.11   767.45 1089.17    22.68
- forbidden  OIII4960    4960.3    None   30.37    1.24 0.41931 4.13e-06 0.41921   65.53      1.42   737.56    62.50   11.80      --       --  7038.25   161.12     4.30   41.91   -0.67    0.06   778.03 1104.18    16.09
- forbidden  OIII5008   5008.24  [Oɪɪɪ]   30.37    1.24 0.41931 4.13e-06 0.41921   65.53      1.42  2299.99    64.36   35.73      --       --  7106.27   499.27     4.33   41.44   -2.11    0.06   769.86 1092.60    15.74
- forbidden   HEI5877   5877.25    None   30.37    1.24 0.41931 4.13e-06 0.41921   65.53      1.42   899.50   107.50    8.37      --       --  8339.33   173.20     4.88   35.41   -0.88    0.11   724.00 1027.50    48.95
- forbidden    OI6302   6302.05    [Oɪ]   30.37    1.24 0.41931 4.13e-06 0.41921   65.53      1.42   717.22   223.90    3.20      --       --  8942.09   130.07     5.18   33.85   -0.74    0.24   680.39  965.62    81.93
- forbidden   NII6550   6549.85    None   30.37    1.24 0.41931 4.13e-06 0.41921   65.53      1.42  4478.01   163.27   27.43      --       --  9293.70   784.21     5.36   33.26   -4.57    0.18   690.13  979.44    28.15
-    balmer    HALPHA   6564.61      Hα   25.99    0.88 0.41929 2.95e-06 0.41921   64.74      0.98 23620.83   679.14   34.78      --       --  9314.54  4167.63     5.32   33.23  -24.00    0.86   693.54  984.27    66.01
- forbidden   NII6585   6585.28    None   30.37    1.24 0.41931 4.13e-06 0.41921   65.53      1.42 11571.15   239.33   48.35      --       --  9343.97  2016.34     5.39   33.19  -11.76    0.68   693.33  983.98   291.67
+	  FAMILY     LINE   LBDA_REST  DNAME   VEL  VEL_ERR    Z     Z_ERR    Z_INIT VDISP VDISP_ERR VDINST   FLUX   FLUX_ERR  SNR  SKEW SKEW_ERR LBDA_OBS PEAK_OBS LBDA_LEFT LBDA_RIGHT FWHM_OBS RCHI2   EQW   EQW_ERR CONT_OBS   CONT  CONT_ERR
+	--------- --------- --------- ------- ----- ------- ------- -------- ------- ----- --------- ------ -------- -------- ----- ---- -------- -------- -------- --------- ---------- -------- ------ ------ ------- -------- ------- --------
+	forbidden   NEV3427   3426.85     Neᴠ 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  70.31     0.08   496.73  0.00   --       --  4863.48     0.02   4861.63    4865.33     3.70 255.49  -0.00    0.61   574.57  815.27    30.12
+	forbidden   OII3727   3727.09    None 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  62.02  4340.83   426.08 10.19   --       --  5289.59  1078.09   5287.70    5291.48     3.78 255.49  -5.19    0.53   589.73  836.78    41.88
+	forbidden   OII3729   3729.88   [Oɪɪ] 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  61.95  6065.89   435.24 13.94   --       --  5293.55  1506.17   5291.66    5295.44     3.78 255.49  -7.20    0.55   593.92  842.73    42.22
+	   balmer       H11   3771.70     H11 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  60.94   196.53   395.95  0.50   --       --  5352.77    48.84   5350.88    5354.66     3.78 249.37  -0.20    0.41   678.39  962.58    46.23
+	   balmer       H10   3798.98     H10 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  60.29   323.31   384.21  0.84   --       --  5391.49    80.15   5389.59    5393.38     3.79 249.37  -0.33    0.39   700.12  993.41    41.11
+	   balmer        H9   3836.47      H9 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  59.43   573.32   380.70  1.51   --       --  5444.70   141.67   5442.79    5446.60     3.80 249.37  -0.54    0.36   744.95 1057.03    40.19
+	forbidden NEIII3870   3870.16 [Neɪɪɪ] 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  58.67   401.94   386.22  1.04   --       --  5492.64    98.57   5490.73    5494.56     3.83 255.49  -0.38    0.36   752.97 1068.41    38.28
+	forbidden   HEI3890   3889.73    None 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  58.24  1343.18   392.77  3.42   --       --  5520.42   328.79   5518.50    5522.33     3.84 255.49  -1.23    0.37   771.42 1094.59    63.25
+	   balmer        H8   3890.15      H8 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  58.23  1302.18   386.56  3.37   --       --  5520.88   320.20   5518.97    5522.79     3.82 249.37  -1.19    0.36   770.81 1093.72    63.27
+	forbidden NEIII3967   3968.91    None 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  56.55   759.29   386.03  1.97   --       --  5632.79   184.45   5630.86    5634.72     3.87 255.49  -0.67    0.34   802.90 1139.25    59.16
+	   balmer  HEPSILON   3971.20      Hε 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  56.51  1107.87   378.29  2.93   --       --  5635.90   270.33   5633.98    5637.83     3.85 249.37  -0.97    0.34   805.59 1143.07    59.02
+	   balmer    HDELTA   4102.89      Hδ 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  53.91  2051.52   379.23  5.41   --       --  5822.80   493.96   5820.85    5824.75     3.90 249.37  -1.75    0.33   825.06 1170.69    35.49
+	   balmer    HGAMMA   4341.68      Hγ 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  49.79  3648.03   348.88 10.46   --       --  6161.69   855.57   6159.68    6163.69     4.01 249.37  -3.28    0.32   784.02 1112.46    36.08
+	forbidden  OIII4364   4364.44    None 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  49.43    27.45   346.28  0.08   --       --  6194.14     6.39   6192.12    6196.16     4.04 255.49  -0.02    0.31   798.74 1133.35    36.72
+	   balmer     HBETA   4862.68      Hβ 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  42.92  8568.01   415.39 20.63   --       --  6901.09  1883.80   6898.95    6903.22     4.27 249.37  -7.86    0.40   768.17 1089.98    30.89
+	forbidden  OIII4960   4960.30    None 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  41.90   654.24   265.55  2.46   --       --  7039.80   141.19   7037.62    7041.98     4.35 255.49  -0.59    0.24   778.55 1104.70    23.15
+	forbidden  OIII5008   5008.24  [Oɪɪɪ] 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  41.43  2215.83   272.60  8.13   --       --  7107.84   475.12   7105.65    7110.03     4.38 255.49  -2.03    0.25   770.43 1093.18    24.17
+	forbidden   HEI5877   5877.25    None 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  35.41   907.92   459.28  1.98   --       --  8341.16   172.50   8338.69    8343.63     4.94 255.49  -0.88    0.45   723.61 1026.75    48.67
+	forbidden    OI6302   6302.05    [Oɪ] 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  33.85   723.60   953.43  0.76   --       --  8944.05   129.45   8941.42    8946.67     5.25 255.49  -0.75    1.00   679.34  963.93    81.74
+	forbidden   NII6550   6549.85    None 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  33.26  4502.11   691.86  6.51   --       --  9295.73   777.70   9293.01    9298.45     5.44 255.49  -4.61    0.74   688.85  977.43    65.37
+	   balmer    HALPHA   6564.61      Hα 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  33.23 23689.35  2927.65  8.09   --       --  9316.45  4110.00   9313.75    9319.16     5.42 249.37 -24.06    3.27   693.90  984.59   114.60
+	forbidden   NII6585   6585.28    None 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  33.19 11604.35  1017.52 11.40   --       --  9346.02  1994.57   9343.28    9348.75     5.47 255.49 -11.65    1.45   701.99  996.06   292.68
+
+For the detail of all columns consult the `pyplatefit.fit_spec` informations. 
+
+.. _doublet:
+
+Emission lines doublet
+++++++++++++++++++++++
+
+Lines doublet are always fitted together. For some doublet, namely [OII] and [CIII], 
+it is possible to constrain the line ratio in a given interval. This is done with
+the option ``use_line_ratios`` in `pyplatefit.fit_spec`. The line ratios have some
+default values (0.6-1.2 for CIII and 1.0-2.0 for OII), which can be overriden 
+in the ``linepars`` argument optional dictionary. See an example below:
+
+.. code::
+
+    ratio = [("OII3727", "OII3729", 1.0, 1.5)]
+    res = fit_spec(sp, z, use_line_ratios=True, linepars={'line_ratios':ratio})
+
+Note that imposing constrain on line ratios can sometimes prevent lmfit LSQ fitting
+to report errors. If a good estimate of SNR is important, it is probably better not 
+to activate this option. Alternatively using the ``emcee`` option is possible. See 
+section :ref:`faint`.
 
 
-When error estimation is important, it is recommended to use the option ``emcee=True``.
-After a first least-square fit a second minimisation is performed using Bayesian 
-sampling of the posterior distribution with the EEMC 
-routine of ``lmfit``. This will give a better estimate of errors, but note that it is
-computationally expensive.
+.. _resonant:
+
+Resonant emission lines
+++++++++++++++++++++++++
+
+Resonant emission lines can have a different velocity offset from non-resonant lines
+and need to be fitted individually (or by doublet). The list of resonant lines 
+is defined in :ref:`emlines`.
+
+When fitting a resonant line, the family name is the name of the line in uppercase, or
+the name of the first line in the case of a doublet.
+
+.. code::
+
+   from mpdaf.obj import Spectrum
+   sp = Spectrum('test_data/udf10_00056.fits')
+   z = 1.30604
+   res = sp.fit_lines(z)
+   res['ztable'].pprint_all()
+
+::
+
+	[DEBUG] Performing continuum and line fitting
+	[DEBUG] Getting lines from get_emlines...
+	[DEBUG] 17.2 % of the spectrum is used for fitting.
+	[DEBUG] Found 2 non resonnant line families to fit
+	[DEBUG] Performing fitting of family balmer
+	[DEBUG] LSQ Fitting of 5 lines
+	[DEBUG] added 5 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 41 iterations, redChi2 = 13.448
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Performing fitting of family forbidden
+	[DEBUG] LSQ Fitting of 8 lines
+	[DEBUG] added 8 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 137 iterations, redChi2 = 1.854
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Found 2 resonnant line families to fit
+	[DEBUG] Performing fitting of family cii2326
+	[DEBUG] LSQ Fitting of ['CII2326']
+	[DEBUG] added 1 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 61 iterations, redChi2 = 13.558
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Performing fitting of family mgii2796
+	[DEBUG] LSQ Fitting of ['MGII2796', 'MGII2803']
+	[DEBUG] added 2 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 27 iterations, redChi2 = 12.644
+	[DEBUG] Saving results to tablines and ztab
+
+	  FAMILY   VEL   VEL_ERR    Z     Z_ERR    Z_INIT VDISP  VDISP_ERR SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED NFEV RCHI2
+	--------- ------ ------- ------- -------- ------- ------ --------- ------ ------ -------------- --- ---------- ---- -----
+	   balmer  41.75   50.85 1.30618 1.70e-04 1.30604 100.67     51.24   1.61   2.51             --   5          0   41 13.45
+	forbidden  78.95    1.32 1.30630 4.40e-06 1.30604  41.17      1.61  44.90  30.02          42.02   8          4  137  1.85
+	  cii2326 229.87  603.73 1.30681 2.01e-03 1.30604 299.97    495.62   0.58   0.58             --   1          0   61 13.56
+	 mgii2796 109.40   14.19 1.30640 4.73e-05 1.30604  50.59     19.29   5.38   5.09           5.38   2          1   27 12.64   
+
+Note that the resonant lines will be fitted with all other lines when the option 
+``fit_all`` is activated.
+   
+
+.. _lya:
+
+Lyman alpha emission line 
++++++++++++++++++++++++++
+
+The lyman alpha line is a resonant line with an asymetric shape. It is then always
+fitted independently (even when the option ``fit_all`` is activated). While other lines
+are modelled as Gaussian, we use the skew normal distribution describe
+eg in `wikipedia <https://en.wikipedia.org/wiki/Skew_normal_distribution>`_.
+The skewness parameter used in the model is named SKEW in the ``lines`` table.
 
 .. code::
 
    sp = Spectrum('test_data/udf10_00053.fits')
    z = 4.77666
-   res = fit_spec(sp, z, emcee=True)
+   res = fit_spec(sp, z, fit_all=True)
+   res['ztable'].pprint_all()
+   
+::
+
+	[DEBUG] Performing continuum and line fitting
+	[DEBUG] Getting lines from get_emlines...
+	[DEBUG] 6.8 % of the spectrum is used for fitting.
+	[DEBUG] LSQ Fitting of Lya
+	[DEBUG] Computed Lya init velocity offset: 82.15
+	[DEBUG] added 1 asymetric gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 49 iterations, redChi2 = 2.976
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Performing fitting of all expect Lya lines together
+	[DEBUG] LSQ Fitting of 4 lines
+	[DEBUG] added 4 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 71 iterations, redChi2 = 274.976
+	[DEBUG] Saving results to tablines and ztab
+
+	 FAMILY  VEL   VEL_ERR    Z     Z_ERR    Z_INIT VDISP  VDISP_ERR SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED NFEV RCHI2
+	------- ------ ------- ------- -------- ------- ------ --------- ------ ------ -------------- --- ---------- ---- ------
+	lyalpha  86.40    1.32 4.77695 4.39e-06 4.77666 284.52      3.25 119.36 119.36         119.36   1          1   49   2.98
+		all -22.28 1081.43 4.77659 3.61e-03 4.77666 211.46   1114.39   0.20   0.12             --   4          0   71 274.98
+
+
+.. code::
+
+   fig,ax = plt.subplots(1,1) 
+   res['line_spec'].plot(ax=ax)
+   res['line_fit'].plot(ax=ax, color='r')
+   ax.set_xlim(7000,7060);
+   plt.show()
+   
+.. image:: images/high_fig2.png
+
+.. code::
+
+	tab = res['lines']
+	tab.add_index('LINE')
+	tab.loc['LYALPHA']
+	tab.loc['LYALPHA'][['SKEW','SKEW_ERR']]
+	
+::
+
+	  SKEW  SKEW_ERR
+	float64 float64
+	------- --------
+	   7.25     0.37
+
+
+In this highly asymmetric case the skewness parameter reach 7.25.
+
+   
+.. _faint:
+
+Working with faint emission lines
++++++++++++++++++++++++++++++++++
+
+Faint emission lines can be challenging for least-square fitting. Even if the line flux are 
+constrain to be positive, the solution returned by lmfit may nit be very accurate
+and the errors will probably be largely underestimated. 
+
+In this case it is recommended to use the option ``emcee=True``.
+After a first least-square fit a second minimisation is performed using Bayesian 
+sampling of the posterior distribution with the EMCEE 
+routine of ``lmfit``. This will give a better estimate of errors, but note that it is
+computationally expensive.
+
+.. code::
+
+   sp = Spectrum('test_data/udf10_00723.fits')
+   z = 3.18817
+   res = fit_spec(sp, z)
+   res['ztable'].pprint_all()
+   res['lines'][['FAMILY','LINE','FLUX','FLUX_ERR','SNR']].pprint_all()
    
    
 ::
 
-  [DEBUG] First iteration: Continuum and Line fit without line family selection except for lyman-alpha
-  [DEBUG] Getting lines from get_emlines...
-  [DEBUG] 6.8 % of the spectrum is used for fitting.
-  [DEBUG] 4 all lines to fit
-  [DEBUG] Lyman alpha asymetric line fit
-  [DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
-  [DEBUG] Fit succeeded. after 108 iterations, redChi2 = 2.960
-  [DEBUG] Error estimation using EMCEE with nsteps: 1000 nwalkers: 30 burn: 20
-  [DEBUG] End EMCEE after 30000 iterations, redChi2 = 2.953
-  [DEBUG] Second iteration: Line fit for each line family
-  [DEBUG] Getting lines from get_emlines...
-  [DEBUG] 6.8 % of the spectrum is used for fitting.
-  [DEBUG] No balmer lines to fit
-  [DEBUG] 4 forbidden lines to fit
-  [DEBUG] No resonnant lines to fit
-  [DEBUG] Lyman alpha asymetric line fit
-  [DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
-  [DEBUG] Fit succeeded. after 129 iterations, redChi2 = 2.974
-  [DEBUG] Error estimation using EMCEE with nsteps: 1000 nwalkers: 30 burn: 20
-  [DEBUG] End EMCEE after 30000 iterations, redChi2 = 2.958
+	[DEBUG] Performing continuum and line fitting
+	[DEBUG] Getting lines from get_emlines...
+	[DEBUG] 10.0 % of the spectrum is used for fitting.
+	[DEBUG] LSQ Fitting of Lya
+	[DEBUG] Computed Lya init velocity offset: 72.80
+	[DEBUG] added 1 asymetric gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 54 iterations, redChi2 = 0.324
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Found 1 non resonnant line families to fit
+	[DEBUG] Performing fitting of family forbidden
+	[DEBUG] LSQ Fitting of 9 lines
+	[DEBUG] added 9 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Too many function calls (max set to 1000)!  Use: minimize(func, params, ..., maxfev=NNN)or set leastsq_kws['maxfev']  to increase this maximum. Could not estimate error-bars. after 1006 iterations, redChi2 = 0.394
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Found 0 resonnant line families to fit
+	
+	  FAMILY   VEL   VEL_ERR    Z     Z_ERR    Z_INIT VDISP  VDISP_ERR SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED NFEV RCHI2
+	--------- ------ ------- ------- -------- ------- ------ --------- ------ ------ -------------- --- ---------- ---- -----
+	  lyalpha  37.03   22.52 3.18829 7.51e-05 3.18817 263.94     50.87   7.13   7.13           7.13   1          1   54  0.32
+	forbidden -27.48      -- 3.18808       -- 3.18817 120.20        --     --     --             --  --         -- 1006  0.39
+	
+	  FAMILY    LINE    FLUX  FLUX_ERR SNR
+	--------- -------- ------ -------- ----
+	  lyalpha  LYALPHA 117.54    16.48 7.13
+	forbidden  NeV1238  15.54       --   --
+	forbidden  NeV1243   0.00       --   --
+	forbidden  CIV1548   0.00       --   --
+	forbidden  CIV1551  12.19       --   --
+	forbidden HEII1640   0.01       --   --
+	forbidden OIII1660  10.74       --   --
+	forbidden OIII1666   2.09       --   --
+	forbidden CIII1907  20.23       --   --
+	forbidden CIII1909   9.59       --   --	
    	
-   	
-Note that it is possible to change the default parameters using the ``linepars`` dictionary.
-See ``Linefit`` class documentation.
+In this case, the lyman alpha line was successfully fitted, but not the faint forbidden 
+lines, resulting in the absence of information of the SNR. If we now use the 
+``emcee`` option, we obtain:
+ 
+.. code::
 
+   res = fit_spec(sp, z, emcee=True)
+   res['ztable'].pprint_all()
+   res['lines'][['FAMILY','LINE','FLUX','FLUX_ERR','SNR']].pprint_all()
+   
+   
+:: 
+ 
+	[DEBUG] Performing continuum and line fitting
+	[DEBUG] Getting lines from get_emlines...
+	[DEBUG] 10.0 % of the spectrum is used for fitting.
+	[DEBUG] LSQ Fitting of Lya
+	[DEBUG] Computed Lya init velocity offset: 72.80
+	[DEBUG] added 1 asymetric gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 54 iterations, redChi2 = 0.324
+	[DEBUG] Error estimation using EMCEE with nsteps: 1000 nwalkers: 12 burn: 20
+	[DEBUG] End EMCEE after 12000 iterations, redChi2 = 0.325
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Found 1 non resonnant line families to fit
+	[DEBUG] Performing fitting of family forbidden
+	[DEBUG] LSQ Fitting of 9 lines
+	[DEBUG] added 9 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Too many function calls (max set to 1000)!  Use: minimize(func, params, ..., maxfev=NNN)or set leastsq_kws['maxfev']  to increase this maximum. Could not estimate error-bars. after 1006 iterations, redChi2 = 0.394
+	[DEBUG] Error estimation using EMCEE with nsteps: 1000 nwalkers: 34 burn: 20
+	[DEBUG] End EMCEE after 34000 iterations, redChi2 = 0.393
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Found 0 resonnant line families to fit
+
+	  FAMILY   VEL   VEL_ERR    Z     Z_ERR    Z_INIT VDISP  VDISP_ERR SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED  NFEV RCHI2
+	--------- ------ ------- ------- -------- ------- ------ --------- ------ ------ -------------- --- ---------- ----- -----
+	  lyalpha  86.40   61.11 3.18846 2.04e-04 3.18817 265.37     92.75   4.16   4.16           4.16   1          1 12000  0.32
+	forbidden -28.27  104.34 3.18808 3.48e-04 3.18817 214.21     84.76   1.17   2.31             --   9          0 34000  0.39 
+ 
+	  FAMILY    LINE    FLUX  FLUX_ERR SNR
+	--------- -------- ------ -------- ----
+	  lyalpha  LYALPHA 117.27    28.21 4.16
+	forbidden  NeV1238  26.81    27.95 0.96
+	forbidden  NeV1243   0.00     0.00 0.52
+	forbidden  CIV1548   0.00     0.00 0.33
+	forbidden  CIV1551  16.15    15.98 1.01
+	forbidden HEII1640   0.02     0.04 0.38
+	forbidden OIII1660  17.62    16.12 1.09
+	forbidden OIII1666   5.89     8.69 0.68
+	forbidden CIII1907  21.59    18.47 1.17
+	forbidden CIII1909  15.24    17.08 0.89
+
+
+We now have a good estimate of the SNR for all faint lines. Note also that the previous
+estimate of the SNR with LSQ has reduced from 7.13 to the more realistic value of 4.16.
+
+.. _contfit:
+
+Continuum fit
++++++++++++++
+
+The continuum fit assume that the input redshift is good enough. If this is not the
+case, the continuum fit will not be accurate, which will then impact the emission 
+line fit after continuum subtraction. In this case there is an option ``ziter`` 
+which force a second continuum fit once the redshift has been refined by the
+first iteration.
+
+.. code::
+
+	sp = Spectrum('test_data/udf10_00002.fits')
+	z = 0.418
+	res = fit_spec(sp, z, ziter=True)
+	
+::
+
+	[DEBUG] Performing continuum and line fitting
+	[DEBUG] Performing a first quick fit to refine the input redshift
+	[DEBUG] Getting lines from get_emlines...
+	[DEBUG] 21.3 % of the spectrum is used for fitting.
+	[DEBUG] Performing fitting of all expect Lya lines together
+	[DEBUG] LSQ Fitting of 22 lines
+	[DEBUG] added 22 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 562 iterations, redChi2 = 55.762
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Computed velocity offset 280.7 km/s
+	[DEBUG] Getting lines from get_emlines...
+	[DEBUG] 21.2 % of the spectrum is used for fitting.
+	[DEBUG] Found 2 non resonnant line families to fit
+	[DEBUG] Performing fitting of family balmer
+	[DEBUG] LSQ Fitting of 9 lines
+	[DEBUG] added 9 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 85 iterations, redChi2 = 249.531
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Performing fitting of family forbidden
+	[DEBUG] LSQ Fitting of 13 lines
+	[DEBUG] added 13 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 148 iterations, redChi2 = 256.458
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Found 0 resonnant line families to fit
+	
+The first fit found a velocity offset of 280 km/s, which will result in a better
+continuum fit.
 
 .. _advanced:
 
@@ -191,9 +494,6 @@ Advanced usage
 While the basic usage will be convenient for most application, it is sometimes useful
 to use directly the ``Platefit`` python class. We give a few examples below.
 
-
-Step by step process
---------------------
 .. code::
 
    from pyplatefit import Platefit
@@ -233,13 +533,22 @@ The line fitting can now be done on the continuum subtracted spectrum.
    
 ::
 
-  [DEBUG] Getting lines from get_emlines...
-  [DEBUG] 21.3 % of the spectrum is used for fitting.
-  [DEBUG] 9 balmer lines to fit
-  [DEBUG] 13 forbidden lines to fit
-  [DEBUG] No resonnant lines to fit
-  [DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
-  [DEBUG] Fit succeeded. after 277 iterations, redChi2 = 19.285 
+	[DEBUG] Getting lines from get_emlines...
+	[DEBUG] 21.3 % of the spectrum is used for fitting.
+	[DEBUG] Found 2 non resonnant line families to fit
+	[DEBUG] Performing fitting of family balmer
+	[DEBUG] LSQ Fitting of 9 lines
+	[DEBUG] added 9 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 85 iterations, redChi2 = 249.367
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Performing fitting of family forbidden
+	[DEBUG] LSQ Fitting of 13 lines
+	[DEBUG] added 13 gaussian to the fit
+	[DEBUG] Leastsq fitting with ftol: 1e-06 xtol: 1e-04 maxfev: 1000
+	[DEBUG] Fit succeeded. after 148 iterations, redChi2 = 255.486
+	[DEBUG] Saving results to tablines and ztab
+	[DEBUG] Found 0 resonnant line families to fit
 
 A detailed fit report can be obtained as follows:
   
@@ -249,93 +558,56 @@ A detailed fit report can be obtained as follows:
     
 ::
 
-  [INFO] Line Fit (LSQ) Status: 2 Fit succeeded. Niter: 277
-  [INFO] Line Fit RedChi2: 19.29 Bic: 2463.97
-  [INFO]   FAMILY   VEL  ERR_VEL    Z     Z_ERR    Z_INIT VDISP VDISP_ERR SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED
-  --------- ----- ------- ------- -------- ------- ----- --------- ------ ------ -------------- --- ----------
-     balmer 82.67    1.08 0.41920 3.59e-06 0.41892 65.85      1.19  74.19  90.85          90.83   9          7
-  forbidden 92.19    1.47 0.41923 4.90e-06 0.41892 66.45      1.67  50.76  85.31          85.24  13          9
-  [[Fit Statistics]]
-    # fitting method   = leastsq
-    # function evals   = 277
-    # data points      = 783
-    # variables        = 26
-    chi-square         = 14599.0340
-    reduced chi-square = 19.2853817
-    Akaike info crit   = 2342.72753
-    Bayesian info crit = 2463.96898
-  [[Variables]]
-    dv_balmer:             82.6691559 +/- 1.07630711 (1.30%) (init = 0)
-    vdisp_balmer:          65.8497465 +/- 1.18767974 (1.80%) (init = 50)
-    H11_gauss_l0:          3771.7 (fixed)
-    H11_gauss_flux:        195.261847 +/- 110.000096 (56.33%) (init = 342.9288)
-    H10_gauss_l0:          3798.98 (fixed)
-    H10_gauss_flux:        321.778291 +/- 106.743772 (33.17%) (init = 343.229)
-    H9_gauss_l0:           3836.47 (fixed)
-    H9_gauss_flux:         571.587896 +/- 105.764058 (18.50%) (init = 487.2758)
-    H8_gauss_l0:           3890.15 (fixed)
-    H8_gauss_flux:         1.60118526 +/- 827.407903 (51674.71%) (init = 1106.904)
-    HEPSILON_gauss_l0:     3971.2 (fixed)
-    HEPSILON_gauss_flux:   961.129029 +/- 115.487400 (12.02%) (init = 944.1861)
-    HDELTA_gauss_l0:       4102.89 (fixed)
-    HDELTA_gauss_flux:     2047.79851 +/- 105.351858 (5.14%) (init = 1652.118)
-    HGAMMA_gauss_l0:       4341.68 (fixed)
-    HGAMMA_gauss_flux:     3641.52927 +/- 96.8861542 (2.66%) (init = 2994.66)
-    HBETA_gauss_l0:        4862.68 (fixed)
-    HBETA_gauss_flux:      8573.85524 +/- 115.563484 (1.35%) (init = 7094.975)
-    HALPHA_gauss_l0:       6564.61 (fixed)
-    HALPHA_gauss_flux:     23615.1470 +/- 810.960242 (3.43%) (init = 18925.8)
-    dv_forbidden:          92.1947914 +/- 1.46861341 (1.59%) (init = 0)
-    vdisp_forbidden:       66.4497326 +/- 1.66738369 (2.51%) (init = 50)
-    NEV3427_gauss_l0:      3426.85 (fixed)
-    NEV3427_gauss_flux:    1.58386493 +/- 152.583744 (9633.63%) (init = 122.0336)
-    OII3727_gauss_l0:      3727.09 (fixed)
-    OII3727_gauss_flux:    4337.38518 +/- 117.028889 (2.70%) (init = 5589.116)
-    OII3729_gauss_l0:      3729.88 (fixed)
-    OII3729_gauss_flux:    6066.01921 +/- 119.506275 (1.97%) (init = 5589.543)
-    NEIII3870_gauss_l0:    3870.16 (fixed)
-    NEIII3870_gauss_flux:  401.552193 +/- 106.029812 (26.40%) (init = 1106.026)
-    HEI3890_gauss_l0:      3889.73 (fixed)
-    HEI3890_gauss_flux:    1360.20799 +/- 597.311542 (43.91%) (init = 1106.885)
-    NEIII3967_gauss_l0:    3968.91 (fixed)
-    NEIII3967_gauss_flux:  355.551570 +/- 116.469120 (32.76%) (init = 944.0853)
-    OIII4364_gauss_l0:     4364.44 (fixed)
-    OIII4364_gauss_flux:   27.4910860 +/- 95.0586426 (345.78%) (init = 2999.618)
-    OIII4960_gauss_l0:     4960.3 (fixed)
-    OIII4960_gauss_flux:   653.336250 +/- 72.8660750 (11.15%) (init = 518.4111)
-    OIII5008_gauss_l0:     5008.24 (fixed)
-    OIII5008_gauss_flux:   2213.55293 +/- 74.8235022 (3.38%) (init = 1743.79)
-    HEI5877_gauss_l0:      5877.25 (fixed)
-    HEI5877_gauss_flux:    905.255668 +/- 125.924358 (13.91%) (init = 1252.933)
-    OI6302_gauss_l0:       6302.05 (fixed)
-    OI6302_gauss_flux:     713.970089 +/- 261.547427 (36.63%) (init = 922.5347)
-    NII6550_gauss_l0:      6549.85 (fixed)
-    NII6550_gauss_flux:    4498.73520 +/- 189.972748 (4.22%) (init = 18888.22)
-    NII6585_gauss_l0:      6585.28 (fixed)
-    NII6585_gauss_flux:    11595.4885 +/- 279.302239 (2.41%) (init = 18978.6)
-  [[Correlations]] (unreported correlations are < 0.100)
-    C(H8_gauss_flux, HEI3890_gauss_flux)         =  0.984
-    C(HEPSILON_gauss_flux, NEIII3967_gauss_flux) = -0.415
-    C(vdisp_forbidden, NII6585_gauss_flux)       =  0.390
-    C(vdisp_balmer, HBETA_gauss_flux)            =  0.327
-    C(dv_forbidden, OII3727_gauss_flux)          =  0.272
-    C(vdisp_forbidden, OIII5008_gauss_flux)      =  0.271
-    C(OII3727_gauss_flux, OII3729_gauss_flux)    = -0.249
-    C(dv_balmer, HBETA_gauss_flux)               =  0.229
-    C(dv_balmer, HALPHA_gauss_flux)              = -0.226
-    C(vdisp_forbidden, OII3729_gauss_flux)       =  0.226
-    C(vdisp_balmer, HGAMMA_gauss_flux)           =  0.225
-    C(dv_forbidden, OII3729_gauss_flux)          = -0.219
-    C(vdisp_forbidden, NII6550_gauss_flux)       =  0.149
-    C(H8_gauss_flux, dv_forbidden)               =  0.146
-    C(dv_forbidden, HEI3890_gauss_flux)          =  0.144
-    C(OIII5008_gauss_flux, NII6585_gauss_flux)   =  0.106
-    C(vdisp_balmer, HDELTA_gauss_flux)           =  0.105   
+	  FAMILY   VEL  VEL_ERR    Z     Z_ERR    Z_INIT VDISP VDISP_ERR SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED NFEV RCHI2
+	--------- ----- ------- ------- -------- ------- ----- --------- ------ ------ -------------- --- ---------- ---- ------
+	   balmer 82.14    3.86 0.41919 1.29e-05 0.41892 66.11      4.26  20.63  13.28          12.97   9          5   85 249.37
+	forbidden 92.49    5.29 0.41923 1.76e-05 0.41892 66.65      6.07  13.94  16.84          20.69  13          6  148 255.49
+  
+More information can be given by reviewing directly the lmfit information for each family:
+
+.. code::
+
+	res_line['lmfit_forbidden'].params.pretty_print()
+	
+::
+
+	Name                               Value      Min      Max   Stderr     Vary     Expr Brute_Step
+	dv_forbidden                       92.49     -500      500    5.288     True     None     None
+	forbidden_HEI3890_gauss_flux        1343        0      inf    392.8     True     None     None
+	forbidden_HEI3890_gauss_l0          3890     -inf      inf        0    False     None     None
+	forbidden_HEI5877_gauss_flux       907.9        0      inf    459.3     True     None     None
+	forbidden_HEI5877_gauss_l0          5877     -inf      inf        0    False     None     None
+	forbidden_NEIII3870_gauss_flux     401.9        0      inf    386.2     True     None     None
+	forbidden_NEIII3870_gauss_l0        3870     -inf      inf        0    False     None     None
+	forbidden_NEIII3967_gauss_flux     759.3        0      inf      386     True     None     None
+	forbidden_NEIII3967_gauss_l0        3969     -inf      inf        0    False     None     None
+	forbidden_NEV3427_gauss_flux     0.07583        0      inf    496.7     True     None     None
+	forbidden_NEV3427_gauss_l0          3427     -inf      inf        0    False     None     None
+	forbidden_NII6550_gauss_flux        4502        0      inf    691.9     True     None     None
+	forbidden_NII6550_gauss_l0          6550     -inf      inf        0    False     None     None
+	forbidden_NII6585_gauss_flux    1.16e+04        0      inf     1018     True     None     None
+	forbidden_NII6585_gauss_l0          6585     -inf      inf        0    False     None     None
+	forbidden_OI6302_gauss_flux        723.6        0      inf    953.4     True     None     None
+	forbidden_OI6302_gauss_l0           6302     -inf      inf        0    False     None     None
+	forbidden_OII3727_gauss_flux        4341        0      inf    426.1     True     None     None
+	forbidden_OII3727_gauss_l0          3727     -inf      inf        0    False     None     None
+	forbidden_OII3729_gauss_flux        6066        0      inf    435.2     True     None     None
+	forbidden_OII3729_gauss_l0          3730     -inf      inf        0    False     None     None
+	forbidden_OIII4364_gauss_flux      27.45        0      inf    346.3     True     None     None
+	forbidden_OIII4364_gauss_l0         4364     -inf      inf        0    False     None     None
+	forbidden_OIII4960_gauss_flux      654.2        0      inf    265.6     True     None     None
+	forbidden_OIII4960_gauss_l0         4960     -inf      inf        0    False     None     None
+	forbidden_OIII5008_gauss_flux       2216        0      inf    272.6     True     None     None
+	forbidden_OIII5008_gauss_l0         5008     -inf      inf        0    False     None     None
+	vdisp_forbidden                    66.65        5      300     6.07     True     None     None
+
+
     
 The corresponding plot can be displayed with the following command:
 
 .. code::
 
+   fig,ax = plt.subplots(1,1)
    pf.plot_lines(ax, res_line)
    
 .. image:: images/adv_fig2.png  
@@ -344,43 +616,79 @@ To compute the Equivalent Width one can use:
 
 .. code::
    
-   line_table = res_line.linetable
-   pf.comp_eqw(sp, res_cont['line_spec'], z, line_table)
+   pf.comp_eqw(sp, res_cont['line_spec'], z, res_line['lines'])
    
-``line_table`` is now completed with EQW and EQW_ERR columns.
+the table ``lines`` is now completed with EQW and EQW_ERR columns.
 
-Adjusting line ratio constrains for doublet
--------------------------------------------
 
-In this example, we show how to impose line ratio constrain on line doublets.
+.. _emlines:
 
+Master table of emission lines
+++++++++++++++++++++++++++++++
+
+The master line information are taken from the MPDAF routine get_emlines
+see `documentation <https://mpdaf.readthedocs.io/en/latest/api/mpdaf.sdetect.get_emlines.html#mpdaf.sdetect.get_emlines>`_. 
+To review this master list use the following command:
+   
 .. code::
 
-   ratio1 = line_table.loc['OII3729']['FLUX'] / line_table.loc['OII3727']['FLUX']
+   from mpdaf.sdetect import get_emlines
+   tab = get_emlines(table=True)
+   tab.pprint_all()
+
+::
+
+	   LINE   LBDA_OBS LBDA_LOW LBDA_UP TYPE DOUBLET FAMILY  DNAME 
+	--------- -------- -------- ------- ---- ------- ------ -------
+	  LYALPHA  1215.67   1204.0  1226.0   em     0.0      3     Lyα
+	  NeV1238  1238.82      nan     nan   em  1240.8      2    None
+	  NeV1243   1242.8      nan     nan   em  1240.8      2     Nev
+	  CIV1548   1548.2      nan     nan   em  1549.5      2    None
+	  CIV1551  1550.77      nan     nan   em  1549.5      2     Cɪᴠ
+	 HEII1640  1640.42   1630.0  1651.0   em     0.0      2    Heɪɪ
+	 OIII1660  1660.81      nan     nan   em     0.0      2    None
+	 OIII1666  1666.15      nan     nan   em     0.0      2   Oɪɪɪ]
+	 CIII1907  1906.68   1896.0  1920.0   em  1907.7      2    None
+	 CIII1909  1908.73   1898.0  1920.0   em  1907.7      2   Cɪɪɪ]
+	  CII2326  2326.00      nan     nan   em     0.0      3    Cɪɪ]
+	 NEIV2422  2421.83   2411.0  2431.0   em  2423.0      2    None
+	 NEIV2424  2424.42   2414.0  2434.0   em  2423.0      2    Neɪᴠ
+	 MGII2796  2796.35   2786.0  2806.0   em  2800.0      3    None
+	 MGII2803  2803.53   2793.0  2813.0   em  2800.0      3    Mgɪɪ
+	  NEV3427  3426.85   3416.0  3436.0   em     0.0      2     Neᴠ
+	  OII3727  3727.09   3717.0  3737.0   em  3727.5      2    None
+	  OII3729  3729.88   3719.0  3739.0   em  3727.5      2   [Oɪɪ]
+	      H11  3771.70   3760.0  3780.0   em     0.0      1     H11
+	      H10  3798.98   3787.0  3809.0   em     0.0      1     H10
+	       H9  3836.47   3825.0  3845.0   em     0.0      1      H9
+	NEIII3870  3870.16   3859.0  3879.0   em     0.0      2 [Neɪɪɪ]
+	  HEI3890  3889.73   3879.0  3899.0   em     0.0      2    None
+	       H8  3890.15   3879.0  3899.0   em     0.0      1      H8
+	NEIII3967  3968.91   3957.0  3977.0   em     0.0      2    None
+	 HEPSILON   3971.2   3960.0  3980.0   em     0.0      1      Hε
+	   HDELTA  4102.89   4092.0  4111.0   em     0.0      1      Hδ
+	   HGAMMA  4341.68   4330.0  4350.0   em     0.0      1      Hγ
+	 OIII4364  4364.44   4350.0  4378.0   em     0.0      2    None
+	    HBETA  4862.68   4851.0  4871.0   em     0.0      1      Hβ
+	 OIII4960   4960.3   4949.0  4969.0   em     0.0      2    None
+	 OIII5008  5008.24   4997.0  5017.0   em     0.0      2  [Oɪɪɪ]
+	  HEI5877  5877.25   5866.0  5886.0   em     0.0      2    None
+	   OI6302  6302.05   6290.0  6310.0   em     0.0      2    [Oɪ]
+	  NII6550  6549.85   6533.0  6553.0   em     0.0      2    None
+	   HALPHA  6564.61   6553.0  6573.0   em     0.0      1      Hα
+	  NII6585  6585.28   6573.0  6593.0   em     0.0      2    None
+	  SII6718  6718.29   6704.0  6724.0   em     0.0      2    None
+	  SII6733  6732.67   6724.0  6744.0   em     0.0      2   [Sɪɪ]
+	ARIII7138  7137.80   7130.0  7147.0   em     0.0      2 [Arɪɪɪ]
+
+The DOUBLET column indicate the lines are considered as a doublet and must be fitted
+together. The FAMILY column encode the line family:
+
+   - 1 : Balmer lines
+   - 2 : Forbidden lines
+   - 3 : Resonant lines
    
-This gives 1.398 as line ratio. Let's assume that we want to limit this ratio to 1.2.
+The TYPE column encode the line type:
 
-.. code::
-
-   line_ratios = [("OII3727", "OII3729", 1.0, 1.2)]
-   pf = Platefit(linepars=dict(line_ratios=line_ratios))
-   res = pf.fit(sp, z, use_line_ratios=True, emcee=True)
-   line_table = res['linetable']
-   ratio2 = line_table.loc['OII3729']['FLUX'] / line_table.loc['OII3727']['FLUX']
-   
-The fitted line ratio value is now 1.199. Note that we have used the ``emcee`` method
-to get a reliable estimate of the errors and the parameters. We also used the
-``fit`` method of Platefit which does continuum and line fitting in one command.
-
-To check the results, we can use the plot method.
-
-.. code::
-
-   fig,ax = plt.subplots(1,2, sharey=True, sharex=True)
-   res0 = pf.fit(sp, z, use_line_ratios=False, emcee=True)
-   pf.plot(ax[0], res0)
-   pf.plot(ax[1], res)
-   
-.. image:: images/adv_fig3.png  
-
-
+   - em : emission 
+   - is : absorption
