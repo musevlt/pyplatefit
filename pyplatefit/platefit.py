@@ -97,7 +97,13 @@ class Platefit:
             kwargs1['fit_all'] = True
             resline = self.fit_lines(linespec, z, **kwargs1)
             ztable = resline['ztable']
-            row = ztable[ztable['FAMILY']=='all'][0]               
+            if 'all' in ztable['FAMILY']:
+                row = ztable[ztable['FAMILY']=='all'][0]
+            elif 'lyalpha' in ztable['FAMILY']:
+                row = ztable[ztable['FAMILY']=='lyalpha'][0]
+            else:
+                self.logger.error('No line fitting solution found')
+                return None
             vel = row['VEL']
             z = row['Z']
             resfit['iter_z'] = z
