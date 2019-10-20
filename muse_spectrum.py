@@ -31,20 +31,28 @@ vdisp = 80.0
 name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00723.fits'
 z = 3.18817
 
+#name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00056.fits'
+#z = 1.30604
+
 sp = Spectrum(name)
 
-res = fit_spec(sp, z, emcee=False, ziter=False, find_lya_vel_offset=False)
-print(res['res_line'].redchi)
+#res = fit_spec(sp, z, emcee=True, ziter=True)
+#res = fit_spec(sp, z, emcee=True, ziter=False, find_lya_vel_offset=True, use_line_ratios=True)
+res = fit_spec(sp, z, emcee=True)
+res = fit_spec(sp, z, emcee=True, linepars=dict(progress=True))
+res['ztable'].pprint_all()
+
 
 
 #pl = Platefit()
-#res = pl.fit(sp, z, emcee=True, vel_uniq_offset=False, eqw=False)
+#res = pl.fit(sp, z)
 #pl.info(res)
 #fig,ax = plt.subplots(1,1)
-#pl.plot_lines(ax, res['res_line'], start=True)
+#pl.plot_cont(ax, res)
+#pl.plot_lines(ax, res, start=True)
 #plt.show()
 
-#res = fit_spec(sp, z, ziter=False, emcee=False, comp_bic=True, lines=['OII3727','OII3729'], use_line_ratios=True,
+#res = fit_spec(sp, z, emcee=False, comp_bic=True, lines=['OII3727','OII3729'], use_line_ratios=True,
                #linepars=dict(line_ratios=[("OII3727", "OII3729", 0.5, 0.8)])
                #)
 #res = fit_spec(sp, z, ziter=False, lines=['OII3727','OII3729'], use_line_ratios=True, 

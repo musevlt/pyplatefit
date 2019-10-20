@@ -1,14 +1,12 @@
 Changelog
 =========
-v0.3xxx (XX/XX/XXXX)
+v0.3 (19/10/2019)
 --------------------
 New features
 ^^^^^^^^^^^^
-- Complete reorganisation of the code
+- Complete reorganisation and reoptimisation of the code
 - Add documentation and tutorial
 
-Breaking Changes
-^^^^^^^^^^^^^^^^
 
 Bug fixes
 ^^^^^^^^^

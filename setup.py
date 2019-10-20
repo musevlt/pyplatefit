@@ -9,8 +9,8 @@ ext = Extension('pyplatefit.nnls_burst',
                 [os.path.join('pyNNLS', f) for f in nnls_sources])
 
 # Dependencies. Limit version of ppxf for Python 2 users
-install_requires = ['numpy', 'matplotlib', 'astropy', 'scipy',
-                    'lmfit', 'mpdaf']
+install_requires = ['numpy', 'astropy', 'scipy',
+                    'lmfit', 'mpdaf', 'emcee']
 
 setup(
     name='pyplatefit',
