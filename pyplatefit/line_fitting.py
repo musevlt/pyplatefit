@@ -52,6 +52,8 @@ from mpdaf.obj.spectrum import vactoair, airtovac
 import warnings
 warnings.filterwarnings("ignore", message="invalid value encountered in subtract")
 warnings.filterwarnings("ignore", message="invalid value encountered in greater")
+warnings.filterwarnings("ignore", message="Initial state is not linearly independent and it will not allow a full exploration of parameter space")
+warnings.filterwarnings("ignore", message="invalid value encountered in double_scalars")
 
 C = constants.c.to(u.km / u.s).value
 SQRT2PI = np.sqrt(2*np.pi)

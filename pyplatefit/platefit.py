@@ -97,7 +97,13 @@ class Platefit:
             kwargs1['fit_all'] = True
             resline = self.fit_lines(linespec, z, **kwargs1)
             ztable = resline['ztable']
-            row = ztable[ztable['FAMILY']=='all'][0]               
+            if 'all' in ztable['FAMILY']:
+                row = ztable[ztable['FAMILY']=='all'][0]
+            elif 'lyalpha' in ztable['FAMILY']:
+                row = ztable[ztable['FAMILY']=='lyalpha'][0]
+            else:
+                self.logger.error('No line fitting solution found')
+                return None
             vel = row['VEL']
             z = row['Z']
             resfit['iter_z'] = z
@@ -109,9 +115,9 @@ class Platefit:
             vdisp = kwargs.pop('vdisp', 80)
             rescont = self.fit_cont(spec, z, vdisp)
             linespec = rescont['line_spec']
-            resfit['cont_spec'] = rescont.pop('cont_spec')
-            resfit['cont_fit'] = rescont.pop('cont_fit')
-            resfit['line_spec'] = rescont.pop('line_spec')
+            for key in ['cont_spec','cont_fit','line_spec']:
+                if key in rescont.keys():
+                    resfit[key] = rescont.pop(key)
             resfit['dcont'] = rescont
         else:
             resfit['line_spec'] = spec
@@ -129,7 +135,7 @@ class Platefit:
         resfit['line_fit'] = resline.pop('line_fit')
         resfit['line_initfit'] = resline.pop('line_initfit')
         if fitcont:
-            resfit['spec_fit'] = resfit['cont_fit'] + resfit['line_fit']
+            resfit['spec_fit'] = resfit['cont_spec'] + resfit['line_fit']
         else:
             resfit['spec_fit'] = resfit['line_fit']
         resfit['dline'] = resline
