@@ -634,7 +634,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             tabspec['LYA_FIT_EMCEE'] = model(result_lya.params, wave_rest, family_lines, redshift, lsf)
         # save results
         logger.debug('Saving results to tablines and ztab')
-        add_result_to_tables(result_lya, tablines, ztab, redshift, sel_lines, lsf, init_minsnr)  
+        add_result_to_tables(result_lya, tablines, ztab, redshift, sel_lines, lsf, init_minsnr, vac)  
         resfit['lmfit_lyalpha'] = result_lya         
         resfit['lines'] = tablines
         resfit['ztable'] = ztab  
@@ -676,7 +676,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 tabspec['ALL_FIT_EMCEE'] = model(result_all.params, wave_rest, family_lines, redshift, lsf)
             # save results
             logger.debug('Saving results to tablines and ztab')
-            add_result_to_tables(result_all, tablines, ztab, redshift, sel_lines, lsf, init_minsnr)
+            add_result_to_tables(result_all, tablines, ztab, redshift, sel_lines, lsf, init_minsnr, vac)
             resfit['lmfit_all'] = result_all         
             resfit['lines'] = tablines
             resfit['ztable'] = ztab
@@ -725,7 +725,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             tabspec[f'{family.upper()}_FIT_EMCEE'] = model(result.params, wave_rest, family_lines, redshift, lsf)
         # save results
         logger.debug('Saving results to tablines and ztab')
-        add_result_to_tables(result, tablines, ztab, redshift, sel_lines, lsf, init_minsnr)
+        add_result_to_tables(result, tablines, ztab, redshift, sel_lines, lsf, init_minsnr, vac)
         resfit[f'lmfit_{family}'] = result         
         resfit['lines'] = tablines
         resfit['ztable'] = ztab
@@ -772,7 +772,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             tabspec[f'{family.upper()}_FIT_EMCEE'] = model(result.params, wave_rest, family_lines, redshift, lsf)
         # save results
         logger.debug('Saving results to tablines and ztab')
-        add_result_to_tables(result, tablines, ztab, redshift, sel_lines, lsf, init_minsnr)
+        add_result_to_tables(result, tablines, ztab, redshift, sel_lines, lsf, init_minsnr, vac)
         resfit[f'lmfit_{family}'] = result         
         resfit['lines'] = tablines
         resfit['ztable'] = ztab   
@@ -795,7 +795,7 @@ def reorganize_doublets(lines):
     return dlines
     
 
-def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min):
+def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min, vac):
     """ add results to the table, if row exist it is updated"""
     par = result.params
     families = [key.split('_')[1] for key in par.keys() if key.split('_')[0]=='dv']
@@ -817,6 +817,8 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
             l0 = par[f"{family}_{line}_{fun}_l0"].value
             z = zinit+dv/C
             l1 = l0*(1+z)
+            if not vac:
+                l1 = vactoair(l1)
             lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1, 'FLUX':flux, 
                      'DNAME':dname,  'VDISP':vdisp, 
                      'RCHI2':result.redchi, 'Z_INIT':zinit,  
@@ -861,9 +863,14 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 # compute the peak value and convert it to observed frame    
                 lvals['PEAK_OBS'] = np.max(vmodel_rest)/(1+z)
                 # save peak position in observed frame
-                lvals['LBDA_OBS'] = vactoair(l1*(1+z))
-                lvals['LBDA_LEFT'] = vactoair(left_rest*(1+z))
-                lvals['LBDA_RIGHT'] = vactoair(right_rest*(1+z))
+                if vac:
+                    lvals['LBDA_OBS'] = l1*(1+z)
+                    lvals['LBDA_LEFT'] = left_rest*(1+z)
+                    lvals['LBDA_RIGHT'] = right_rest*(1+z)                    
+                else:
+                    lvals['LBDA_OBS'] = vactoair(l1*(1+z))
+                    lvals['LBDA_LEFT'] = vactoair(left_rest*(1+z))
+                    lvals['LBDA_RIGHT'] = vactoair(right_rest*(1+z))
                 lvals['FWHM_OBS'] = lvals['LBDA_RIGHT'] - lvals['LBDA_LEFT']                               
                 
             upsert_ltable(tablines, lvals, family, line)

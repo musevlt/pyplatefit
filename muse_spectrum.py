@@ -28,18 +28,21 @@ vdisp = 80.0
 #name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00002.fits'
 #z = 0.41892
 
-name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00723.fits'
-z = 3.18817
+#name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00723.fits'
+#z = 3.18817
 
 #name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00056.fits'
 #z = 1.30604
+
+name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/UDF10/Final/DR2_udf10_000043.fits'
+z = 1.09989
 
 sp = Spectrum(name)
 
 #res = fit_spec(sp, z, emcee=True, ziter=True)
 #res = fit_spec(sp, z, emcee=True, ziter=False, find_lya_vel_offset=True, use_line_ratios=True)
 res = fit_spec(sp, z, emcee=True)
-res = fit_spec(sp, z, emcee=True, linepars=dict(progress=True))
+#res = fit_spec(sp, z, emcee=True, linepars=dict(progress=True))
 res['ztable'].pprint_all()
 
 
