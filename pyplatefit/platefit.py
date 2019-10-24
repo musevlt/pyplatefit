@@ -4,13 +4,14 @@ from astropy.table import vstack, Column, MaskedColumn
 from joblib import delayed, Parallel
 from mpdaf.obj import Spectrum
 from mpdaf.tools import progressbar
+from matplotlib import transforms
 
 from .cont_fitting import Contfit
 from .eqw import EquivalentWidth
 from .line_fitting import Linefit, plotline
 
 
-__all__ = ('Platefit', 'fit_spec')
+__all__ = ('Platefit', 'fit_spec', 'plot_fit')
 
 
 class Platefit:
@@ -405,6 +406,95 @@ def add_bic_to_ztable(ztab, res):
         if 'lyalpha' in ztab['FAMILY']:
             ksel = ztab['FAMILY'] == 'lyalpha'
             ztab['BIC_LYALPHA'][ksel] = res3['lmfit_lyalpha'].bic   
+            
+            
+def plot_fit(ax, result, line_only=False, line=None, rest_frame=False, start=False,
+             filterspec=0,
+             margin=50, legend=True, iden=True, label=True, minsnr=0, 
+             labelpars={'dl':2.0, 'y':0.95, 'size':10}):
+    """ 
+    perform platefit cont and line fitting on a spectra
+    
+    Parameters
+    ----------
+    
+    """
+    logger = logging.getLogger(__name__)
+    lines = result['lines']
+    if line is not None and line not in lines['LINE']:
+        logger.error('Line %s not found in table', line)
+        return
+    if line_only:
+        # get and truncate spectra
+        spline = result['line_spec']
+        if filterspec > 0:
+            spline = spline.filter(width=filterspec)           
+        splinefit = result['line_fit']
+        if start:
+           spinitfit = result['line_initfit']
+        if line is not None:
+            spline = truncate_spec(spline, line, lines, margin)
+            splinefit = truncate_spec(splinefit, line, lines, margin)
+            if start:
+                spinitfit = truncate_spec(spinitfit, line, lines, margin)
+        # plot spectra
+        rawlabel = f'cont subtracted (filtered {filterspec})' if filterspec > 0 else 'cont subtracted'
+        spline.plot(ax=ax, label=rawlabel, color='k')
+        splinefit.plot(ax=ax, color='r', drawstyle='default', label='fit')
+        if start:
+            spinitfit.plot(ax=ax, color='b', drawstyle='default', label='init fit')         
+    else:
+        # get and truncate spectra
+        spraw = result['spec']
+        if filterspec > 0:
+            spraw = spraw.filter(width=filterspec)          
+        spcont = result['cont_spec']
+        spfit = result['spec_fit']
+        if line is not None:
+            spraw = truncate_spec(spraw, line, lines, margin)
+            spcont = truncate_spec(spcont, line, lines, margin)
+            spfit = truncate_spec(spfit, line, lines, margin)
+        # plot spectra
+        rawlabel = f'data (filtered {filterspec})' if filterspec > 0 else 'data'
+        spraw.plot(ax=ax, color='k', label=rawlabel)
+        spfit.plot(ax=ax, color='r', drawstyle='default', label='fit')
+        spcont.plot(ax=ax, color='b', drawstyle='default', label='cont fit') 
+        
+    # display legend
+    if legend:
+        ax.legend()
+        
+    # display lines
+    if iden:
+        trans = transforms.blended_transform_factory(
+            ax.transData, ax.transAxes)            
+        for cline in lines:               
+            if (cline['DNAME'] == 'None') or (cline['SNR']<minsnr):
+                ax.axvline(cline['LBDA_OBS'], color='red', alpha=0.2)
+            else:
+                ax.axvline(cline['LBDA_OBS'], color='red', alpha=0.4)
+                ax.text(cline['LBDA_OBS']+labelpars['dl'], labelpars['y'], cline['DNAME'], 
+                        dict(fontsize=labelpars['size']), transform=trans)
+
+                
+                
+def truncate_spec(spec, line, lines, margin):
+    row = lines[lines['LINE']==line]
+    if row is None:
+        raise ValueError('line not found')
+    row = row[0]
+    l0 = row['LBDA_OBS']
+    l1 = row['LBDA_LEFT'] - margin
+    l2 = row['LBDA_RIGHT'] + margin
+    sp = spec.subspec(lmin=l1, lmax=l2)
+    return sp
+ 
+            
+        
+    
+    
+    
+    
 
     
     

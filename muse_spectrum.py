@@ -13,7 +13,7 @@ from astropy.table import Table
 
 import matplotlib.pyplot as plt
 from pyplatefit import __version__
-from pyplatefit.platefit import Platefit, fit_spec
+from pyplatefit.platefit import Platefit, fit_spec, plot_fit
 
 import logging
 
@@ -34,25 +34,46 @@ vdisp = 80.0
 #name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00056.fits'
 #z = 1.30604
 
-name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/UDF10/Final/DR2_udf10_000043.fits'
-z = 1.09989
+#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/UDF10/Final/DR2_udf10_000043.fits'
+#z = 1.09989
 
+name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/UDF10/Final/tests/sptest.fits'
 sp = Spectrum(name)
+zinit = 3.17140
+z = 3.17136
 
-#res = fit_spec(sp, z, emcee=True, ziter=True)
+#res = fit_spec(sp, z, emcee=False, lines=['LYALPHA'])
+res1 = fit_spec(sp, z, emcee=True, lines=['LYALPHA'],
+                linepars=dict(delta_vel=100, delta_vdisp=50, delta_gamma=None))
+dv = 160.45
+vdisp = 192.22
+res2 = fit_spec(sp, z=3.17190, emcee=True, lines=['LYALPHA'], 
+                linepars=dict(vel=(dv-100,dv,dv+100), vdisp=(vdisp-50,vdisp,vdisp+50),
+                              vdisp_lya_max=vdisp+50))
+fig,ax = plt.subplots(1,2,figsize=(15,5))
+plot_fit(ax[0], res1, line='LYALPHA', line_only=True, start=True)
+ax[0].set_title('LSQ Fit')
+plot_fit(ax[1], res2, line='LYALPHA', line_only=True, start=True)
+ax[0].set_title('EMCEE Fit')
+#plot_fit(ax, res, filterspec=20)
+plt.show()
+
 #res = fit_spec(sp, z, emcee=True, ziter=False, find_lya_vel_offset=True, use_line_ratios=True)
-res = fit_spec(sp, z, emcee=True)
+#res = fit_spec(sp, z, emcee=True)
 #res = fit_spec(sp, z, emcee=True, linepars=dict(progress=True))
-res['ztable'].pprint_all()
+#res['ztable'].pprint_all()
 
 
 
 #pl = Platefit()
 #res = pl.fit(sp, z)
+#pl.fit(sp, z, emcee=False, lines=['LYALPHA'])
+
+
 #pl.info(res)
 #fig,ax = plt.subplots(1,1)
-#pl.plot_cont(ax, res)
-#pl.plot_lines(ax, res, start=True)
+##pl.plot_cont(ax, res)
+#pl.plot_lines(ax, res, line=)
 #plt.show()
 
 #res = fit_spec(sp, z, emcee=False, comp_bic=True, lines=['OII3727','OII3729'], use_line_ratios=True,
