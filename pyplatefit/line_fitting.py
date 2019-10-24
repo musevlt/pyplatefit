@@ -82,7 +82,9 @@ class Linefit:
     """
     This class implement Emission Line fit
     """
-    def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), vdisp_lya_max=700, gamma_lya=(-1,0,10), 
+    def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), 
+                 vdisp_lya_max=700, gamma_lya=(-1,0,10), 
+                 delta_vel=100, delta_vdisp=50, delta_gamma=0.5,
                  windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0,
                  steps=1000, nwalkers=0, burn=20, seed=None, progress=False,
                  line_ratios = [
@@ -102,6 +104,15 @@ class Linefit:
           Maximum velocity dispersion for the Lya line in km/s (default: 700).
         gamma_lya : tuple of floats
           Minimum, init and maximum values of the skeness parameter for the asymetric gaussain fit (default: -1,0,10).
+        delta_vel : float
+          Maximum excursion of Velocity Offset with respect to the LSQ solution 
+          used for EMCEE fit (default is to keep the same constrains as LSQ)
+        delta_vdisp : float
+          Maximum excursion of Velocity dispersion with respect to the LSQ solution 
+          used for EMCEE fit (default is to keep the same constrains as LSQ)
+        delta_gamma : float
+          Maximum excursion of gamma with respect to the LSQ solution 
+          used for EMCEE fit (default is to keep the same constrains as LSQ)         
         windmax : float 
           maximum half size window in A to find peak values around initial wavelength value (default: 10).
         xtol : float
@@ -150,6 +161,10 @@ class Linefit:
         self.vdisp_lya_max = vdisp_lya_max # maximum lya velocity dispersion km/s, rest frame
         self.gamma = gamma_lya # bounds in lya asymmetry
         
+        self.delta_vel = delta_vel # max excursion in EMCEE fit wrt LSQ solution
+        self.delta_vdisp = delta_vdisp # max excursion in EMCEE fit wrt LSQ solution
+        self.delta_gamma = delta_gamma # max excursion in EMCEE fit wrt LSQ solution
+        
         self.windmax = windmax # maximum half size window to find peak around initial wavelength value
         self.minsnr = minsnr # minium SNR for writing label of emission line in plot
         
@@ -184,7 +199,11 @@ class Linefit:
  
         lsq_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
         mcmc_kws = dict(steps=self.steps, nwalkers=self.nwalkers, burn=self.burn, seed=self.seed, progress=self.progress)
-        fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, gamma=self.gamma, minsnr=self.minsnr)
+        fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, 
+                       gamma=self.gamma, minsnr=self.minsnr,
+                       delta_vel=self.delta_vel, delta_vdisp=self.delta_vdisp, 
+                       delta_gamma=self.delta_gamma
+                       )
         use_line_ratios = kwargs.pop('use_line_ratios', False)
         if use_line_ratios:
             line_ratios = self.line_ratios
@@ -250,13 +269,29 @@ class Linefit:
         
         Parameters
         ----------
-        ax: matplotlib.axes.Axes
-           Axes instance in which to draw the plot
+        ax : matplotlib.axes.Axes
+            Axes instance in which to draw the plot       
+        res : dictionary 
+            results of `fit`           
+        start : boolean
+            plot initial value before fit
+        iden : boolean
+            write line label on plot
+        minsnr : float
+            minimum to write line label 
+        margin : float
+            margin between left and right wavelength as define in lines table
+        start : bool
+            plot iniial values before fit
+        dplot : dictionary
+            parameters to draw line labels
+            
+            - dl: offset in wavelength
+            - y: location in y (0-1)
+            - size: font size
+            
         
-        res: dictionary 
-             results of `fit`
-             
-        start: boolean
+        
         
         """
         plotline(ax, res['line_spec'], res['line_fit'], None, res['line_initfit'], res['lines'], start=start,
@@ -459,6 +494,12 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     init_vdisp_lya_max = fit_lws.get('vdisp_lya_max',VD_MAX_LYA)
     init_gamma_lya = fit_lws.get('gamma_lya',(GAMMA_MIN,GAMMA_INIT,GAMMA_MAX))
     
+    # get default relative bounds with respect to LSQ solution for 2nd EMCEE fit
+    if emcee:
+        init_delta_vel = fit_lws.get('delta_vel',None)
+        init_delta_vdisp = fit_lws.get('delta_vdisp',None)
+        init_delta_gamma = fit_lws.get('delta_gamma',None)
+    
     # get other defaut parameters 
     init_windmax = fit_lws.get('windmax',WINDOW_MAX) # search radius in A for peak around starting wavelength
     init_minsnr = fit_lws.get('minsnr',MIN_SNR) # minimum SNR value for clipping
@@ -626,6 +667,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         tabspec['LYA_FIT_LSQ'] = model(result_lya.params, wave_rest, family_lines, redshift, lsf) 
         # Perform MCMC fit
         if emcee: 
+            update_bounds(result_lya, init_delta_vel, init_delta_vdisp, init_delta_gamma)
             mdict = set_nwakers(mcmc_kws, result_lya)                
             logger.debug('Error estimation using EMCEE with nsteps: %d nwalkers: %d burn: %d',mdict['steps'],mdict['nwalkers'],mdict['burn'])
             result_lya = minner.emcee(params=result_lya.params, is_weighted=True, float_behavior='chi2', **mdict)
@@ -667,7 +709,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             tabspec['ALL_INIT_FIT'] = model(params, wave_rest, family_lines, redshift, lsf)
             tabspec['ALL_FIT_LSQ'] = model(result_all.params, wave_rest, family_lines, redshift, lsf)            
             # Perform MCMC fit
-            if emcee:   
+            if emcee:
+                update_bounds(result_all, init_delta_vel, init_delta_vdisp, init_delta_gamma)
                 mdict = set_nwakers(mcmc_kws, result_all)
                 logger.debug('Error estimation using EMCEE with nsteps: %d nwalkers: %d burn: %d',mdict['steps'],mdict['nwalkers'],mdict['burn'])
                 result_lya = minner.emcee(params=result_all.params, is_weighted=True, float_behavior='chi2', **mdict)
@@ -717,6 +760,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         tabspec[f'{family.upper()}_FIT_LSQ'] = model(result.params, wave_rest, family_lines, redshift, lsf)            
         # Perform MCMC fit
         if emcee: 
+            update_bounds(result, init_delta_vel, init_delta_vdisp, init_delta_gamma)
             mdict = set_nwakers(mcmc_kws, result)
             logger.debug('Error estimation using EMCEE with nsteps: %d nwalkers: %d burn: %d',mdict['steps'],mdict['nwalkers'],mdict['burn'])
             result = minner.emcee(params=result.params, is_weighted=True, float_behavior='chi2', **mdict)
@@ -764,6 +808,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         tabspec[f'{family.upper()}_FIT_LSQ'] = model(result.params, wave_rest, family_lines, redshift, lsf)            
         # Perform MCMC fit
         if emcee: 
+            update_bounds(result, init_delta_vel, init_delta_vdisp, init_delta_gamma)
             mdict = set_nwakers(mcmc_kws, result)
             logger.debug('Error estimation using EMCEE with nsteps: %d nwalkers: %d burn: %d',mdict['steps'],mdict['nwalkers'],mdict['burn'])
             result = minner.emcee(params=result.params, is_weighted=True, float_behavior='chi2', **mdict)
@@ -1104,6 +1149,35 @@ def rest_fwhm_asymgauss(lbda, flux):
     if l2 is None:
         return None 
     return l1,l2
+
+def update_bounds(result, delta_vel, delta_vdisp, delta_gamma):
+    """ update bounds with offset wrt result of current fit
+    """
+    logger = logging.getLogger(__name__)
+    if all(v is None for v in [delta_vel,delta_vdisp,delta_gamma]):
+        return
+    
+    par = result.params
+    families = [key.split('_')[1] for key in par.keys() if key.split('_')[0]=='dv']
+    for family in families: 
+        if delta_vel is not None:
+            dv = par[f"dv_{family}"].value
+            par[f"dv_{family}"].min = dv - delta_vel
+            par[f"dv_{family}"].max = dv + delta_vel
+        if delta_vdisp is not None:
+            vdisp = par[f"vdisp_{family}"].value
+            par[f"vdisp_{family}"].min = vdisp - delta_vdisp
+            par[f"vdisp_{family}"].max = vdisp + delta_vdisp 
+        if delta_gamma is not None:
+            fun = [key.split('_')[2] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')][0]
+            if fun == 'asymgauss':
+                lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
+                for line in lines:
+                    gamma = par[f"{family}_{line}_{fun}_asym"].value
+                    par[f"{family}_{line}_{fun}_asym"].min = gamma - delta_gamma
+                    par[f"{family}_{line}_{fun}_asym"].max = gamma + delta_gamma
+ 
+    logger.debug('Update bounds relative to LSQ fit. delta vel %s vdisp %s gamma %s',delta_vel,delta_vdisp,delta_gamma)    
     
 def mode_skewedgaussian(location, scale, shape):
     """Compute the mode of a skewed Gaussian.
@@ -1225,8 +1299,8 @@ def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=T
             return
         row = table[table['LINE']==line][0]
         l0 = row['LBDA_OBS']
-        l1 = l0 - 3*row['FWHM_OBS'] - margin
-        l2 = l0 + 3*row['FWHM_OBS'] + margin
+        l1 = row['LBDA_LEFT'] - margin
+        l2 = row['LBDA_RIGHT'] + margin
         sp = spec.subspec(lmin=l1, lmax=l2)
         spfit = spec_fit.subspec(lmin=l1, lmax=l2)
         if start:
