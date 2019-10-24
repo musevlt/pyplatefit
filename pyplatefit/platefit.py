@@ -408,16 +408,43 @@ def add_bic_to_ztable(ztab, res):
             ztab['BIC_LYALPHA'][ksel] = res3['lmfit_lyalpha'].bic   
             
             
-def plot_fit(ax, result, line_only=False, line=None, rest_frame=False, start=False,
+def plot_fit(ax, result, line_only=False, line=None, start=False,
              filterspec=0,
              margin=50, legend=True, iden=True, label=True, minsnr=0, 
              labelpars={'dl':2.0, 'y':0.95, 'size':10}):
     """ 
-    perform platefit cont and line fitting on a spectra
+    plot fitting results obtained with `fit_spec`
     
     Parameters
     ----------
-    
+    ax : matplotlib.axes.Axes
+        Axes instance in which to draw the plot       
+    result : dictionary 
+        result of `fit_spec`
+    line_only : bool
+        plot the continuum subtracted spectrum and its fit
+    line : str
+        name of the line to zoom on (if None display all the spectrum)
+    start : bool
+        plot also the initial guess before the fit
+    filterspec : int
+        width in pixel of the box-filter to apply on the input spectrum
+    margin : float
+        size in A to add on each side of the line for the zoom option
+    legend : bool
+        display the legend 
+    iden : bool
+        display the emission lines
+    label : bool
+        display the line name
+    minsnr : float
+        minimum SNR to display the line names
+    labelpars : dictionary
+        parameters used for label display
+        
+          - dl: offset in wavelength
+          - y: location in y (0-1)
+          - size: font size
     """
     logger = logging.getLogger(__name__)
     lines = result['lines']

@@ -16,6 +16,7 @@ Basic usage
    sp = Spectrum('test_data/udf10_00002.fits')
    z = 0.41892
    res = fit_spec(sp, z)
+   
 ::
 
 	[DEBUG] Performing continuum and line fitting
@@ -112,18 +113,19 @@ The next step is to visualize the fit quality.
 .. code::
 
    import matplotlib.pyplot as plt
-   fig,ax = plt.subplots(1,2) 
-   sp.plot(ax=ax[0], color='k')
-   res['cont_spec'].plot(ax=ax[0], color='b')
-   res['spec_fit'].plot(ax=ax[0], color='r')
-   res['line_spec'].plot(ax=ax[1])
-   res['line_fit'].plot(ax=ax[1], color='r')
+   from pyplatefit import plot_fit
+   fig,ax = plt.subplots(1,3, figsize=(15,5))
+   plot_fit(ax[0], res, iden=False)
+   plot_fit(ax[1], res, line='HBETA')
+   plot_fit(ax[2], res, line='HBETA', line_only=True, start=True)
    plt.show()
    
 .. image:: images/high_fig1.png
 
-One can see on the left, the continuum and full spectrum fit and on the right, 
-the line emission fit of the continuum subtracted spectrum.
+One can see on the left, the continuum and full spectrum fit, on the center a zoom
+on the Hbeta line and on the right the line fit performed on the continuum subtracted
+spectrum and the initial solution of the fit (in blue).
+
 
 The individual line information is given in the ``lines`` table. 
    
@@ -692,3 +694,32 @@ The TYPE column encode the line type:
 
    - em : emission 
    - is : absorption
+ 
+
+.. _parameters:
+   
+Line fitting default parameters
++++++++++++++++++++++++++++++++
+
+Most of the parameters can be changed using the ``linepars`` dictionary in 
+`fit_spec` or the `Platefit` class initialisation.
+
+Here is the complete list of parameters:
+
+    - (vel_min, vel, vel_max) : initial value of velocity offset in km/s and bounds
+    - (vdisp_min, vdisp, vdisp_max) : initial value of velocity dispersion in km/s and bounds
+    - vdisp_lya_max : for lya we allow a larger FWHM
+    - (gamma_min, gamma_lya, gamma_max) : initial value and bounds for the skeness parameter of the lyalpha line 
+    - delta_vel : maximum excursion in km/s of velocity offset with respect to the LSQ result when the EMCEE fit is performed 
+    - delta_vdisp : same for velocity dispersion
+    - delta_gamma : same for the gamma skewness parameter
+    - windmax : half size of the window to perform a preliminary search of the lyalpha peak (used when the option find_lya_velocity_offset is activated)
+    - xtol : relative error in the solution for the LSQ fit
+    - ftol : relative error in the sum of square for the LSQ fit
+    - maxfev : maximum allowed of function evaluation (LSQ fit)
+    - steps : number of steps (EMCEE routine)
+    - nwalkers : number of walkers (EMCEE routine), if 0 it is computed as 3 times the number of variables
+    - burn : number of sample to discard (EMCEE routine)
+    - seed : random generation see
+    - progress : display progress bar during EMCEE optimisation
+    - line_ratios : list of line ratios (CIII, OII, MGII) see the section :ref:`doublet`.
