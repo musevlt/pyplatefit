@@ -25,8 +25,8 @@ debug = True
 
 vdisp = 80.0
 
-#name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00002.fits'
-#z = 0.41892
+name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00002.fits'
+z = 0.41892
 
 #name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00723.fits'
 #z = 3.18817
@@ -37,19 +37,15 @@ vdisp = 80.0
 #name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/UDF10/Final/DR2_udf10_000043.fits'
 #z = 1.09989
 
-name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/UDF10/Final/tests/sptest.fits'
-sp = Spectrum(name)
-zinit = 3.17140
-z = 3.17136
+#name = '/Users/rolandbacon/Dropbox/MUSE/GTO/UDF/DR2/UDF10/Final/tests/sptest.fits'
+#zinit = 3.17140
+#z = 3.17136
 
-#res = fit_spec(sp, z, emcee=False, lines=['LYALPHA'])
-res1 = fit_spec(sp, z, emcee=True, lines=['LYALPHA'],
-                linepars=dict(delta_vel=100, delta_vdisp=50, delta_gamma=None))
-dv = 160.45
-vdisp = 192.22
-res2 = fit_spec(sp, z=3.17190, emcee=True, lines=['LYALPHA'], 
-                linepars=dict(vel=(dv-100,dv,dv+100), vdisp=(vdisp-50,vdisp,vdisp+50),
-                              vdisp_lya_max=vdisp+50))
+sp = Spectrum(name)
+res = fit_spec(sp, z)
+#res1 = fit_spec(sp, z, emcee=True, lines=['LYALPHA'],
+#                linepars=dict(delta_vel=100, delta_vdisp=50, delta_gamma=None))
+
 fig,ax = plt.subplots(1,2,figsize=(15,5))
 plot_fit(ax[0], res1, line='LYALPHA', line_only=True, start=True)
 ax[0].set_title('LSQ Fit')

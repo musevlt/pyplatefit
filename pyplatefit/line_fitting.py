@@ -386,15 +386,14 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
       - Z_INIT: The initial redshift 
       - VDISP: The fitted velocity dispersion in km/s (rest frame)
       - VDISP_ERR: The error in fitted velocity dispersion
+      - LINE: the emission line name with maximum SNR
       - SNRMAX: the maximum SNR
       - SNRSUM: the sum of SNR (all lines)
       - SNRSUM_CLIPPED: the sum of SNR (only lines above a MIN SNR (default 3))
       - NL: number of fitted lines
       - NL_CLIPPED: number of lines with SNR>SNR_MIN
       - NFEV: the number of function evaluation
-      - RCHI2: the reduced Chi2 
-    
-    
+      - RCHI2: the reduced Chi2     
   
     Parameters
     ----------
@@ -612,6 +611,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         ztab.add_column(MaskedColumn(name=colname, dtype=np.float, mask=True))
     for colname in colnames:
         ztab[colname].format = '.2f'
+    ztab.add_column(MaskedColumn(name='LINE', dtype='U20', mask=True), index=8)
     for colname in ['NL','NL_CLIPPED', 'NFEV']:
             ztab.add_column(MaskedColumn(name=colname, dtype=np.int, mask=True)) 
     ztab.add_column(MaskedColumn(name='RCHI2', dtype=np.float, mask=True))
@@ -853,6 +853,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
         lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
         flux_vals = []
         err_vals = []
+        line_vals = []
         for line in lines:
             dname = inputlines[inputlines['LINE']==line]['DNAME'][0]
             keys = [key for key in par.keys() if key.split('_')[1]==line]
@@ -875,6 +876,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 lvals['SNR'] = flux/flux_err 
                 flux_vals.append(flux)
                 err_vals.append(flux_err)
+                line_vals.append(line)
             if lsf:
                 lvals['VDINST'] = complsf(l1, kms=True)             
             
@@ -933,7 +935,9 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
             err_vals = np.array(err_vals)
             zvals['SNRSUM'] = np.sum(flux_vals)/np.sqrt(np.sum(err_vals**2))
             snr_vals = flux_vals/err_vals
-            zvals['SNRMAX'] = np.max(snr_vals)
+            kmax = np.argmax(snr_vals)
+            zvals['SNRMAX'] = snr_vals[kmax]
+            zvals['LINE'] = line_vals[kmax]
             ksel = snr_vals > snr_min
             nl_clip = np.sum(ksel)
             if nl_clip > 0:
