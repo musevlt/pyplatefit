@@ -861,11 +861,12 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
             flux = par[f"{family}_{line}_{fun}_flux"].value
             flux_err = par[f"{family}_{line}_{fun}_flux"].stderr
             l0 = par[f"{family}_{line}_{fun}_l0"].value
-            z = zinit+dv/C
-            l1 = l0*(1+z)
+            l1 = l0*(1 + dv/C)
+            l1obs = l1*(1+zinit)
+            z = l1obs/l0 - 1 # compute redshift in vacuum 
             if not vac:
-                l1 = vactoair(l1)
-            lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1, 'FLUX':flux, 
+                l1obs = vactoair(l1obs)
+            lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux, 
                      'DNAME':dname,  'VDISP':vdisp, 
                      'RCHI2':result.redchi, 'Z_INIT':zinit,  
                      }  
@@ -878,12 +879,12 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 err_vals.append(flux_err)
                 line_vals.append(line)
             if lsf:
-                lvals['VDINST'] = complsf(l1, kms=True)             
+                lvals['VDINST'] = complsf(l1obs, kms=True)             
             
             if fun == 'gauss':         
-                sigma = get_sigma(vdisp, l1, z, lsf, restframe=False)
+                sigma = get_sigma(vdisp, l1obs, z, lsf, restframe=False)
                 fwhm = 2.355*sigma
-                lvals.update({'FWHM_OBS':fwhm, 'LBDA_LEFT':l1-0.5*fwhm, 'LBDA_RIGHT':l1+0.5*fwhm, 
+                lvals.update({'FWHM_OBS':fwhm, 'LBDA_LEFT':l1obs-0.5*fwhm, 'LBDA_RIGHT':l1obs+0.5*fwhm, 
                          'PEAK_OBS':flux/(SQRT2PI*sigma), 'VEL':dv, 'Z':z}) 
                 if dv_err is not None:
                     lvals['VEL_ERR'] = dv_err
@@ -894,35 +895,39 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 skew_err = par[f"{family}_{line}_{fun}_asym"].stderr 
                 if skew_err is not None:
                     lvals['SKEW_ERR'] = skew_err
+                # find the line peak loaction in rest frame
                 swave_rest = np.linspace(l0-50,l0+50,1000)
                 vmodel_rest = model_asymgauss(zinit, lsf, l0, flux, skew, vdisp, dv, swave_rest)
                 kmax = np.argmax(vmodel_rest)    
                 l1 = swave_rest[kmax]
                 left_rest,right_rest = rest_fwhm_asymgauss(swave_rest, vmodel_rest)
-                # these position is used for redshift and dv
-                dv = C*(l1-l0)/l0
-                lvals['VEL'] = dv
+                # this position is used for redshift and dv
+                ndv = C*(l1-l0)/l0 # offset in km/s
+                l1obs = l1*(1+zinit)
+                l1left = left_rest*(1+zinit)
+                l1right = right_rest*(1+zinit)
+                z = l1obs/l0 - 1 # compute redshift in vacuum
+                if not vac:
+                    l1obs = vactoair(l1obs)
+                    l1left = vactoair(l1left)
+                    l1right = vactoair(l1right)
+                # save in table
+                lvals['VEL'] = ndv
                 if dv_err is not None:
                     lvals['VEL_ERR'] = dv_err
-                    lvals['Z_ERR'] = dv_err/C                 
-                z = zinit + dv/C
+                    lvals['Z_ERR'] = dv_err/C                                 
                 lvals['Z'] = z  
                 # compute the peak value and convert it to observed frame    
-                lvals['PEAK_OBS'] = np.max(vmodel_rest)/(1+z)
+                lvals['PEAK_OBS'] = np.max(vmodel_rest)/(1+zinit)
                 # save peak position in observed frame
-                if vac:
-                    lvals['LBDA_OBS'] = l1*(1+z)
-                    lvals['LBDA_LEFT'] = left_rest*(1+z)
-                    lvals['LBDA_RIGHT'] = right_rest*(1+z)                    
-                else:
-                    lvals['LBDA_OBS'] = vactoair(l1*(1+z))
-                    lvals['LBDA_LEFT'] = vactoair(left_rest*(1+z))
-                    lvals['LBDA_RIGHT'] = vactoair(right_rest*(1+z))
-                lvals['FWHM_OBS'] = lvals['LBDA_RIGHT'] - lvals['LBDA_LEFT']                               
+                lvals['LBDA_OBS'] = l1obs
+                lvals['LBDA_LEFT'] = l1left
+                lvals['LBDA_RIGHT'] = l1right                    
+                lvals['FWHM_OBS'] = l1right - l1left                               
                 
             upsert_ltable(tablines, lvals, family, line)
 
-        zvals = {'VEL':dv, 'VDISP':vdisp, 'Z':zinit+dv/C,
+        zvals = {'VEL':dv, 'VDISP':vdisp, 'Z':zinit+ndv/C if family=='lyalpha' else zinit+dv/C,
                  'NFEV':result.nfev, 'RCHI2':result.redchi, 'Z_INIT':zinit,
                  } 
         if dv_err is not None:

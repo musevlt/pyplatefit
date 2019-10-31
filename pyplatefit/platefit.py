@@ -23,8 +23,7 @@ class Platefit:
         """Initialise a Platefit object
         
         Parameters
-        ----------
-        
+        ----------     
         contpars: dictionary
           input parameters to be passed to `Contfit` constructor
           
@@ -33,6 +32,7 @@ class Platefit:
           
         eqwpars: dictionary
           input parameters to be passed to `EquivalentWidth` constructor
+          
            
         """
         self.logger = logging.getLogger(__name__)

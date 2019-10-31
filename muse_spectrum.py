@@ -25,8 +25,8 @@ debug = True
 
 vdisp = 80.0
 
-name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00002.fits'
-z = 0.41892
+name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00605.fits'
+zinit = 3.43774
 
 #name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_00723.fits'
 #z = 3.18817
@@ -41,23 +41,28 @@ z = 0.41892
 #zinit = 3.17140
 #z = 3.17136
 
+#z = z + 400/300000.0
+#print(z)
+
 sp = Spectrum(name)
-res = fit_spec(sp, z)
-#res1 = fit_spec(sp, z, emcee=True, lines=['LYALPHA'],
+res = fit_spec(sp, zinit, lines=['CIV1548','CIV1551'])
+#res2 = fit_spec(sp, z)
 #                linepars=dict(delta_vel=100, delta_vdisp=50, delta_gamma=None))
 
-fig,ax = plt.subplots(1,2,figsize=(15,5))
-plot_fit(ax[0], res1, line='LYALPHA', line_only=True, start=True)
-ax[0].set_title('LSQ Fit')
-plot_fit(ax[1], res2, line='LYALPHA', line_only=True, start=True)
-ax[0].set_title('EMCEE Fit')
+fig,ax = plt.subplots(1,1,figsize=(10,5))
+plot_fit(ax, res, line='CIV1548', line_only=True, start=True)
+res['ztable'].pprint_all()
+
+#ax[0].set_title('LSQ Fit')
+#plot_fit(ax[1], res2, line='CIV1548', line_only=True, start=True)
+#ax[1].set_title('EMCEE Fit')
 #plot_fit(ax, res, filterspec=20)
 plt.show()
 
 #res = fit_spec(sp, z, emcee=True, ziter=False, find_lya_vel_offset=True, use_line_ratios=True)
 #res = fit_spec(sp, z, emcee=True)
 #res = fit_spec(sp, z, emcee=True, linepars=dict(progress=True))
-#res['ztable'].pprint_all()
+
 
 
 
