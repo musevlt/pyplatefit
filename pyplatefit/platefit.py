@@ -493,9 +493,12 @@ def plot_fit(ax, result, line_only=False, line=None, start=False,
         
     # display lines
     if iden:
+        lmin,lmax = spraw.get_range()
         trans = transforms.blended_transform_factory(
             ax.transData, ax.transAxes)            
-        for cline in lines:               
+        for cline in lines: 
+            if (cline['LBDA_OBS']<lmin) or (cline['LBDA_OBS']>lmax):
+                continue
             if (cline['DNAME'] == 'None') or (cline['SNR']<minsnr):
                 ax.axvline(cline['LBDA_OBS'], color='red', alpha=0.2)
             else:
