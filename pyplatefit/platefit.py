@@ -493,7 +493,10 @@ def plot_fit(ax, result, line_only=False, line=None, start=False,
         
     # display lines
     if iden:
-        lmin,lmax = spraw.get_range()
+        if line_only:
+            lmin,lmax = spline.get_range()
+        else:
+            lmin,lmax = spraw.get_range()
         trans = transforms.blended_transform_factory(
             ax.transData, ax.transAxes)            
         for cline in lines: 
