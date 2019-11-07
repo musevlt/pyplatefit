@@ -61,7 +61,7 @@ def test_fit_lines(workdir):
     t = res_line['lines']
     r = t[t['LINE']=='OIII5008'][0]
     assert_allclose(r['VEL'],92.48,rtol=1.e-3)
-    assert_allclose(r['Z'],0.41923,rtol=1.e-5)
+    assert_allclose(r['Z'],0.41923,rtol=1.e-3)
     assert_allclose(r['LBDA_OBS'],7105.874,rtol=1.e-2)
     assert_allclose(r['FWHM_OBS'],4.381,rtol=1.e-2)
     assert_allclose(r['FLUX'],2215.83,rtol=1.e-3)
