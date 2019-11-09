@@ -302,7 +302,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        major_lines=False, emcee=False,
                        fit_all=False, lsf=True, trimm_spec=True,
-                       find_lya_vel_offset=True,
+                       find_lya_vel_offset=True, 
                        lsq_kws=None, mcmc_kws=None, fit_lws=None):
     """Fit lines from a set of arrays (wave, data, std) using lmfit.
 
@@ -419,9 +419,15 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         
         - a list of line names as in MPDAF line list;
         - or an astropy table with the information on the lines to fit. The
-          table must contain a LINE column with the name of the line and a LBDA
-          column with the rest-frame, vaccuum wavelength of the lines.  Only the
-          lines that are expected in the spectrum will be fitted. 
+          table must contain the following columns
+        
+          - LINE: the line name
+          - FAMILY: the line family (0-3: 0=abs, 1=Balmer, 2=Forbidden, 3=Resonant)
+          - LBDA_REST: the rest frame wavelength in vacuum (Angstroem)
+          - TYPE: the line type (em/is)
+          - DOUBLET: the central wavelength if this is a multiplet (Angstroem)
+          - VDISP: boolean to fit the velocity dispersion independently
+          - DNAME: the line display name (None if no display)
           
     line_ratios : list of (str, str, float, float) tuples or string
         List on line ratio constraints (line1 name, line2 name, line2/line1
@@ -467,11 +473,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             - {family}_FIT_LSQ: LSQ fit of the given family
             - {family}_FIT_EMCEE: EMCEE fit of the given family
             
-       
-            
  
-        
-
     Raises
     ------
     NoLineError: 
@@ -546,7 +548,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         if not vac:
             lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])        
     else:
-        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA']
+        logger.debug("Getting lines from input table") 
+        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
         if not vac:
             lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])
         lines = lines[
