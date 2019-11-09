@@ -708,8 +708,7 @@ To review this master list use the following command:
       SII6733  6732.67   em    1     0.0      2     0   [Sɪɪ]
     ARIII7138   7137.8   em    0     0.0      2     0 [Arɪɪɪ]
 
-The DOUBLET column indicate the lines are considered as a doublet and must be fitted
-together. The FAMILY column encode the line family:
+The FAMILY column encode the line family:
 
    - 1 : Balmer lines
    - 2 : Forbidden lines
