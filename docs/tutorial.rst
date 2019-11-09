@@ -630,7 +630,7 @@ Master table of emission lines
 
 The master line information are taken from the MPDAF routine get_emlines
 see `documentation <https://mpdaf.readthedocs.io/en/latest/api/mpdaf.sdetect.get_emlines.html#mpdaf.sdetect.get_emlines>`_. 
-To review this master list use the following command:
+As shown later it is also possible to use its own line table. To review this master list use the following command:
    
 .. code::
 
@@ -726,7 +726,18 @@ The DOUBLET column is used to identify multiplet. If non 0, all lines with the s
 The VDISP column is reserved for future use
 
 The DNAME is used for display
+
+It is possible to use its own line list table by providing an astropy table with the following columns:
+
+    - LINE : Line identifier (string)
+    - FAMILY: the line family (0-3: 0=abs, 1=Balmer, 2=Forbidden, 3=Resonant)
+    - LBDA_REST: the rest frame wavelength in vacuum (Angstroem)
+    - TYPE: the line type (em/is)
+    - DOUBLET: the central wavelength if this is a multiplet (Angstroem)
+    - VDISP: boolean to fit the velocity dispersion independantly [currently not used]
+    - DNAME: the line display name (None if no display)
  
+ The parameter ``lines=table`` can then be used in ``fit_spec`` 
 
 .. _parameters:
    
