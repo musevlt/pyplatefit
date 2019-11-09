@@ -177,7 +177,7 @@ def test_fit_resonnant(workdir):
     assert_allclose(r['SNRMAX'],65.53,rtol=1.e-2)
     assert_allclose(r['SNRSUM_CLIPPED'],42.20,rtol=1.e-2)
     assert_allclose(r['RCHI2'],0.889,rtol=1.e-2)
-    assert r['NL'] == 16
+    assert r['NL'] == 19
     assert r['NL_CLIPPED'] == 10
     
     res = fit_spec(sp, z)
@@ -191,6 +191,6 @@ def test_fit_resonnant(workdir):
     assert_allclose(r['VDISP_ERR'],19.29,rtol=1.e-2)
     assert_allclose(r['SNRMAX'],5.38,rtol=1.e-2)
     assert_allclose(r['SNRSUM_CLIPPED'],5.38,rtol=1.e-2)
-    assert_allclose(r['RCHI2'],12.64,rtol=1.e-2)
+    assert_allclose(r['RCHI2'],12.47,rtol=1.e-2)
     assert r['NL'] == 2
     assert r['NL_CLIPPED'] == 1
