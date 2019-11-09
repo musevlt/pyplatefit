@@ -4,6 +4,8 @@ v0.4dev (XX/XX/XX)
 ------------------
 New features
 ^^^^^^^^^^^^
+- add VDISP field in line table for future use (AGN type fitting, not yet implemented)
+- update documentation 
 - add the name of the line with maximum SNR in ztable
 - line_plot function 
 - the bounds for EMCEE fit are reduced and set with respect to the LSQ first fit
