@@ -61,7 +61,7 @@ SQRT2PI = np.sqrt(2*np.pi)
 # Parameters used in the fitting
 VEL_MIN, VEL_INIT, VEL_MAX = -500, 0, 500  # Velocity
 VD_MIN, VD_INIT, VD_MAX = 10, 50, 300  # Velocity dispersion
-VD_MAX_LYA = 700  # Maximum velocity dispersion for Lyman α
+VD_MIN_LYA, VD_INIT_LYA, VD_MAX_LYA = 50,200,700  # Maximum velocity dispersion for Lyman α
 GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -1, 0, 10  # γ parameter for Lyman α
 MIN_SNR = 3.0 # Minimum SNR for clipping
 WINDOW_MAX = 30 # search radius in A for peak around starting wavelength
@@ -83,7 +83,7 @@ class Linefit:
     This class implement Emission Line fit
     """
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), 
-                 vdisp_lya_max=700, gamma_lya=(-1,0,10), 
+                 vdisp_lya=(50,150,700), gamma_lya=(-1,0,10), 
                  delta_vel=100, delta_vdisp=50, delta_gamma=0.5,
                  windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0,
                  steps=1000, nwalkers=0, burn=20, seed=None, progress=False,
@@ -100,8 +100,8 @@ class Linefit:
           Minimum, init and maximum values of velocity offset in km/s (default: -500,0,500).
         vdisp: tuple of floats
           Minimum, init and maximum values of rest frame velocity dispersion in km/s (default: 5,80,300). 
-        vdisp_lya_max : float
-          Maximum velocity dispersion for the Lya line in km/s (default: 700).
+        vdisp_lya : tuple of float
+           Minimum, init and maximum values of Lya rest frame velocity dispersion in km/s (default: 50,150,700).
         gamma_lya : tuple of floats
           Minimum, init and maximum values of the skeness parameter for the asymetric gaussain fit (default: -1,0,10).
         delta_vel : float
@@ -158,8 +158,8 @@ class Linefit:
         
         self.vel = vel # bounds in velocity km/s, rest frame
         self.vdisp = vdisp # bounds in velocity dispersion km/s, rest frame
-        self.vdisp_lya_max = vdisp_lya_max # maximum lya velocity dispersion km/s, rest frame
-        self.gamma = gamma_lya # bounds in lya asymmetry
+        self.vdisp_lya = vdisp_lya # lya specific bounds in velocity dispersion km/s, rest frame
+        self.gamma_lya = gamma_lya # bounds in lya asymmetry
         
         self.delta_vel = delta_vel # max excursion in EMCEE fit wrt LSQ solution
         self.delta_vdisp = delta_vdisp # max excursion in EMCEE fit wrt LSQ solution
@@ -199,8 +199,8 @@ class Linefit:
  
         lsq_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
         mcmc_kws = dict(steps=self.steps, nwalkers=self.nwalkers, burn=self.burn, seed=self.seed, progress=self.progress)
-        fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya_max=self.vdisp_lya_max, 
-                       gamma=self.gamma, minsnr=self.minsnr,
+        fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya=self.vdisp_lya, 
+                       gamma_lya=self.gamma_lya, minsnr=self.minsnr,
                        delta_vel=self.delta_vel, delta_vdisp=self.delta_vdisp, 
                        delta_gamma=self.delta_gamma
                        )
@@ -492,7 +492,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     # get defaut parameters for fit bounds and init values
     init_vel = fit_lws.get('vel',(VEL_MIN,VEL_INIT,VEL_MAX))
     init_vdisp = fit_lws.get('vdisp',(VD_MIN,VD_INIT,VD_MAX))
-    init_vdisp_lya_max = fit_lws.get('vdisp_lya_max',VD_MAX_LYA)
+    init_vdisp_lya = fit_lws.get('vdisp_lya',(VD_MIN_LYA,VD_INIT_LYA,VD_MAX_LYA))
     init_gamma_lya = fit_lws.get('gamma_lya',(GAMMA_MIN,GAMMA_INIT,GAMMA_MAX))
     
     # get default relative bounds with respect to LSQ solution for 2nd EMCEE fit
@@ -649,7 +649,6 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         sel_lines = lines[lines['LINE']=='LYALPHA']
         # Set input parameters
         params = Parameters()
-        init_vdisp_lya = (init_vdisp[0], init_vdisp[1], init_vdisp_lya_max)
         if find_lya_vel_offset:
             voff = get_lya_vel_offset(wave_rest, data_rest, box_filter=3)
             init_vel_lya = (init_vel[0]+voff, voff, init_vel[2]+voff)

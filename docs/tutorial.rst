@@ -61,6 +61,13 @@ for all the lines of the same family. See section :ref:`emlines`. for more detai
 The ``res`` dictionary contains all the fit results. Consult the API documentation
 for the full description at `pyplatefit.fit_lines`.
 
+The astropy tables lines and ztable are indexed respectively by LINE (line name) and FAMILY (line family name).
+For example to access the result of lines for LYALPHA, one can use :
+
+.. code::
+
+   row = res['lines'].loc['LYALPHA']
+
 Let's first display a summary of the fit results by family:
 
 .. code::
@@ -751,7 +758,7 @@ Here is the complete list of parameters:
 
     - (vel_min, vel, vel_max) : initial value of velocity offset in km/s and bounds
     - (vdisp_min, vdisp, vdisp_max) : initial value of velocity dispersion in km/s and bounds
-    - vdisp_lya_max : for lya we allow a larger FWHM
+    - (vdisp_min_lya, vdisp_lya, vdisp_max_lya) : initial value of velocity dispersion for lyaalpha line  in km/s and bounds
     - (gamma_min, gamma_lya, gamma_max) : initial value and bounds for the skeness parameter of the lyalpha line 
     - delta_vel : maximum excursion in km/s of velocity offset with respect to the LSQ result when the EMCEE fit is performed 
     - delta_vdisp : same for velocity dispersion

@@ -45,13 +45,14 @@ zinit = 3.43774
 #print(z)
 
 sp = Spectrum(name)
-res = fit_spec(sp, zinit, lines=['CIV1548','CIV1551'])
+res = fit_spec(sp, zinit)
 #res2 = fit_spec(sp, z)
 #                linepars=dict(delta_vel=100, delta_vdisp=50, delta_gamma=None))
 
 fig,ax = plt.subplots(1,1,figsize=(10,5))
-plot_fit(ax, res, line='CIV1548', line_only=True, start=True)
+plot_fit(ax, res, line='LYALPHA', line_only=True, start=True)
 res['ztable'].pprint_all()
+print(res['lines'].loc['LYALPHA'])
 
 #ax[0].set_title('LSQ Fit')
 #plot_fit(ax[1], res2, line='CIV1548', line_only=True, start=True)

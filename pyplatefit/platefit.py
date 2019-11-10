@@ -131,7 +131,9 @@ class Platefit:
             self.eqw.comp_eqw(spec, linespec, z, resline['lines'])
         
         resfit['lines'] = resline.pop('lines')
+        resfit['lines'].add_index('LINE')
         resfit['ztable'] = resline.pop('ztable')
+        resfit['ztable'].add_index('FAMILY')
         resfit['line_spec'] = resline.pop('line_spec')
         resfit['line_fit'] = resline.pop('line_fit')
         resfit['line_initfit'] = resline.pop('line_initfit')
@@ -310,8 +312,9 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
       If True compute Bayesian Information Criteria for some lines (default False)
     fitcont : bool
       If True fit and subtract the continuum, otherwise perform only line emission fit (default True)
-    lines: list
-       list of MPDAF lines to use in the fit (default None). 
+    lines: list or astropy table
+       the list specify the  MPDAF lines to use in the fit, while the astropy table
+       is a replacement of the MPDAF line list table (see `Linefit.fit_lines` for more info)
     major_lines : bool
        if true, use only major lines as defined in MPDAF line list (default False).
     vdisp : float
