@@ -758,7 +758,7 @@ Here is the complete list of parameters:
 
     - (vel_min, vel, vel_max) : initial value of velocity offset in km/s and bounds
     - (vdisp_min, vdisp, vdisp_max) : initial value of velocity dispersion in km/s and bounds
-    - (vdisp_min_lya, vdisp_lya, vdisp_max_lya) : initial value of velocity dispersion for lyaalpha line  in km/s and bounds
+    - (vdisp_min_lya, vdisp_lya, vdisp_max_lya) : initial value of velocity dispersion for lyalpha line  in km/s and bounds
     - (gamma_min, gamma_lya, gamma_max) : initial value and bounds for the skeness parameter of the lyalpha line 
     - delta_vel : maximum excursion in km/s of velocity offset with respect to the LSQ result when the EMCEE fit is performed 
     - delta_vdisp : same for velocity dispersion

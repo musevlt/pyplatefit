@@ -44,8 +44,11 @@ zinit = 3.43774
 #z = z + 400/300000.0
 #print(z)
 
+name = '/Users/rolandbacon/Dropbox/MUSE/Anna/spec_LAE_stack_platefit.fits'
+zinit = 0
 sp = Spectrum(name)
-res = fit_spec(sp, zinit)
+res = fit_spec(sp, zinit, lsf=False, find_lya_vel_offset=False)
+
 #res2 = fit_spec(sp, z)
 #                linepars=dict(delta_vel=100, delta_vdisp=50, delta_gamma=None))
 

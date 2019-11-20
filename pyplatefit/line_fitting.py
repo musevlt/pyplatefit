@@ -224,7 +224,7 @@ class Linefit:
     
         try:
             unit_data = u.Unit(line_spec.data_header.get("BUNIT", None))
-        except ValueError:
+        except:
             unit_data = None
                    
         res = fit_lines(wave=wave, data=data, std=std, redshift=z,
@@ -980,19 +980,19 @@ def upsert_ltable(tab, vals, family, line):
         tab.add_row(vals)    
     
         
-def add_gaussian_par(params, family_name, name, l0, z, lsf, wind_max, wave, data):
+def add_gaussian_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, wave, data):
     params.add(f"{family_name}_{name}_gauss_l0", value=l0, vary=False)  
     ksel = np.abs(wave-l0) < wind_max
     vmax = data[ksel].max()
-    sigma = get_sigma(0, l0, z, lsf, restframe=True)                  
+    sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
     flux = SQRT2PI*sigma*vmax
     params.add(f"{family_name}_{name}_gauss_flux", value=flux, min=0)
     
-def add_asymgauss_par(params, family_name, name, l0, z, lsf, wind_max, gamma, wave, data):
+def add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, gamma, wave, data):
     params.add(f"{family_name}_{name}_asymgauss_l0", value=l0, vary=False)  
     ksel = np.abs(wave-l0) < wind_max
     vmax = data[ksel].max()
-    sigma = get_sigma(0, l0, z, lsf, restframe=True)                  
+    sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
     flux = SQRT2PI*sigma*vmax
     params.add(f"{family_name}_{name}_asymgauss_flux", value=flux, min=0)
     params.add(f"{family_name}_{name}_asymgauss_asym", value=gamma[1], 
@@ -1019,10 +1019,11 @@ def set_gaussian_fitpars(family_name, params, lines, line_ratios, z, lsf, init_v
     params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
     # we use gaussian parameters
     nc = 0
+    vdisp = init_dv[1]
     for line in lines:      
         name = line['LINE']
         l0 = line['LBDA_REST']
-        add_gaussian_par(params, family_name, name, l0, z, lsf, windmax, wave, data)
+        add_gaussian_par(params, family_name, name, l0, z, vdisp, lsf, windmax, wave, data)
     logger.debug('added %d gaussian to the fit', len(lines))
     if line_ratios is not None:
         # add line ratios bounds
@@ -1040,10 +1041,11 @@ def set_asymgaussian_fitpars(family_name, params, lines, z, lsf, init_vel,
     params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
     # we use asymetric gaussian parameters
     nc = 0
+    vdisp = init_dv[1]
     for line in lines:      
         name = line['LINE']
         l0 = line['LBDA_REST']
-        add_asymgauss_par(params, family_name, name, l0, z, lsf, windmax, init_gamma, wave, data)
+        add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, windmax, init_gamma, wave, data)
     logger.debug('added %d asymetric gaussian to the fit', len(lines))
 
           
