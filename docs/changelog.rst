@@ -15,6 +15,7 @@ New features
 
 Bug fixes
 ^^^^^^^^^
+- set correctly the initial value of velocity dispersion for the fit
 - correct a bug in the estimation of LBDA_OBS for lines other than lyalpha
 - filter emcee warnings
 

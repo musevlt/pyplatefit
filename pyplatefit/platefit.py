@@ -333,8 +333,26 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
       Input parameters to pass to `Contfit` (default {})
     linepars : dictionary
       Input parameters to pass to `Linefit` (default {})
-  
-
+      
+        - vel : (min,init,max), bounds and init value for velocity offset (km/s), default (-500,0,500)
+        - vdisp : (min,init,max), bounds and init value for velocity dispersion (km/s), default (5,50,300)
+        - vdisp_lya : (min,init,max), bounds and init value for lya velocity dispersion (km/s), default (50,150,700)
+        - gamma_lya : (min,init,max), bounds and init value for lya skewness parameter, default (-1,0,10)
+        - delta_vel : float, maximum excursion of Velocity Offset (km/s) with respect to the LSQ solution used for EMCEE fit, default 100
+        - delta_vdisp : float, maximum excursion of Velocity Dispersion Offset (km/s) with respect to the LSQ solution used for EMCEE fit, default 50           
+        - delta_gamma : float, maximum excursion of skewness lya parameter with respect to the LSQ solution used for EMCEE fit, default 0.5  
+        - windmax : float, maximum half size window in A to find peak values around initial wavelength value (default 10)
+        - xtol : float, relative error in the solution for the leastq fitting (default 1.e-4)
+        - ftol : float, relative error in the sum of square for the leastsq fitting (default 1.e-6)
+        - maxfev : int, max number of iterations for the leastsq fitting (default 1000)
+        - steps : int, number of steps for the emcee minimisation (default 1000)
+        - nwalkers : int, number of walkers for the emcee minimisation, if 0 it is computed as the nearest even number to 3*nvariables (default 0)
+        - burn : int, number of first samples to remove from the analysis in emcee (default 20)
+        - seed : None or int, random number seed (default None)
+        - progress : bool, if True display progress bar during EMCEE computation (default False)
+        - minsnr : float, minimum SNR to display line ID in plots (default 3.0)
+        - line_ratios : list of tuples, list of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)] 
+        
     Returns
     -------
     result : dict
@@ -356,6 +374,58 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
           observed frame
         - result['dcont']: return dictionary from fit_cont (see `fit_cont`)
         - result['dline']: returned dictionary from fit_lines (see `fit_lines`)
+        
+    The table of the lines found in the spectrum are given in the table lines. 
+    The columns are:
+    
+      - FAMILY: the line family name (eg balmer)
+      - LINE: The name of the line
+      - LBDA_REST: The rest-frame position of the line in vacuum   
+      - DNAME: The display name for the line (set to None for close doublets)
+      - VEL: The velocity offset in km/s with respect to the initial redshift (rest frame)
+      - VEL_ERR: The error in velocity offset in km/s 
+      - Z: The fitted redshift in vacuum of the line (note for lyman-alpha the line peak is used)
+      - Z_ERR: The error in fitted redshift of the line.
+      - Z_INIT: The initial redshift 
+      - VDISP: The fitted velocity dispersion in km/s (rest frame)
+      - VDISP_ERR: The error in fitted velocity dispersion
+      - VDINST: The instrumental velocity dispersion in km/s
+      - FLUX: Flux in the line. The unit depends on the units of the spectrum.
+      - FLUX_ERR: The fitting uncertainty on the flux value.
+      - SNR: the SNR of the line
+      - SKEW: The skewness parameter of the asymetric line (for Lyman-alpha line only).
+      - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
+      - LBDA_OBS: The fitted position the line peak in the observed frame
+      - PEAK_OBS: The fitted peak of the line in the observed frame
+      - LBDA_LEFT: The wavelength at the left of the peak with 0.5*peak value
+      - LBDA_RIGHT: The wavelength at the rigth of the peak with 0.5*peak value     
+      - FWHM_OBS: The full width at half maximum of the line in the observed frame 
+      - RCHI2: The reduced Chi2 of the fit
+      - EQW: The restframe line equivalent width 
+      - EQW_ERR: The error in EQW
+      - CONT_OBS: The continuum mean value in Observed frame
+      - CONT: the continuum mean value in rest frame
+      - CONT_ERR: the error in rest frame continuum
+    
+    The redshift table is saved in the table ztable
+    The columns are:
+    
+      - FAMILY: the line family name
+      - VEL: the velocity offset with respect to the original z in km/s
+      - VEL_ERR: the error in velocity offset
+      - Z: the fitted redshift (in vacuum)
+      - Z_ERR: the error in redshift
+      - Z_INIT: The initial redshift 
+      - VDISP: The fitted velocity dispersion in km/s (rest frame)
+      - VDISP_ERR: The error in fitted velocity dispersion
+      - LINE: the emission line name with maximum SNR
+      - SNRMAX: the maximum SNR
+      - SNRSUM: the sum of SNR (all lines)
+      - SNRSUM_CLIPPED: the sum of SNR (only lines above a MIN SNR (default 3))
+      - NL: number of fitted lines
+      - NL_CLIPPED: number of lines with SNR>SNR_MIN
+      - NFEV: the number of function evaluation
+      - RCHI2: the reduced Chi2     
 
     """
     logger = logging.getLogger(__name__)
