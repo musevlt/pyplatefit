@@ -326,6 +326,48 @@ The skewness parameter used in the model is named SKEW in the ``lines`` table.
 In this highly asymmetric case the skewness parameter reach 7.25.
 
    
+Double peaked Lyman alpha emission line 
++++++++++++++++++++++++++++++++++++++++
+
+When the lyman alpha line is double peaked one can use the option ``dble_lyafit`` to perform
+the simultaneous fit of the the two lines. The model is the sum of two asymetric gaussian. 
+The input and returned redshift refer to the midpoint of the two lines.
+
+.. code::
+
+   sp = Spectrum('test_data/udf10_00106.fits')
+   z = 3.27554
+   res = fit_spec(sp, z, lines=['LYALPHA'], dble_lyafit=True, find_lya_vel_offset=False)
+   res['lines'].loc['LYALPHA']['LINE','Z','SEP','VEL','VDISP','FLUX','SKEW','LBDA_OBS']
+   
+::
+
+          LINE     Z      SEP     VEL    VDISP    FLUX    SKEW  LBDA_OBS
+         str20  float64 float64 float64 float64 float64 float64 float64 
+        ------- ------- ------- ------- ------- ------- ------- --------
+        LYALPHA 3.27603  515.76   34.15  194.34  680.35   -2.78  5190.42
+        LYALPHA 3.27603  515.76   34.15  307.69 1080.50    4.05  5203.69
+
+The fitting parameters are : 
+
+   - VEL, the rest frame velocity offset in km/s
+   - SEP, the rest frame peak separation in km/s
+   - VDISP, the rest frame velocity dispersion (km/s) of each component
+   - FLUX, the flux of each component
+   - SKEW, the skewness parameter of each component
+
+Note that it is better to deactivate the automatic search of lya peak (``find_lya_vel_offset=False``).
+The fit can be displayed with ``plot_fit``. 
+
+.. code::
+
+   fig,ax = plt.subplots(1,1) 
+   plot_fit(ax, res, line='LYALPHA', line_only=True)
+   plt.show()
+   
+.. image:: images/high_fig3.png
+
+
 .. _faint:
 
 Working with faint emission lines
@@ -760,6 +802,9 @@ Here is the complete list of parameters:
     - (vdisp_min, vdisp, vdisp_max) : initial value of velocity dispersion in km/s and bounds
     - (vdisp_min_lya, vdisp_lya, vdisp_max_lya) : initial value of velocity dispersion for lyalpha line  in km/s and bounds
     - (gamma_min, gamma_lya, gamma_max) : initial value and bounds for the skeness parameter of the lyalpha line 
+    - (gamma_2lya1_min, gamma_2lya1, gamma_2lya1_max) : initial value and bounds for the left lyalpha line skeness parameter (only for double lyman alpha fit)
+    - (gamma_2lya2_min, _2lya2, gamma_2lya2_max) : same for the left lyalpha line
+    - (sep_2lya_min, sep_2lya, sep_2lya_max) : initial value and bounds for the rest frame peak separation (km/s) of the two lyalpha lines (only for double lyalpha fit)
     - delta_vel : maximum excursion in km/s of velocity offset with respect to the LSQ result when the EMCEE fit is performed 
     - delta_vdisp : same for velocity dispersion
     - delta_gamma : same for the gamma skewness parameter

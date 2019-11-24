@@ -51,15 +51,15 @@ name = '/Users/rolandbacon/Dropbox/Soft/python/pyplatefit/tests/test_data/udf10_
 zinit = 3.27554
 
 sp = Spectrum(name)
-res = fit_spec(sp, zinit, lines=['LYALPHA'], emcee=True, dble_lyafit=True, find_lya_vel_offset=False)
+res = fit_spec(sp, zinit, lines=['LYALPHA'], emcee=False, dble_lyafit=True, find_lya_vel_offset=False)
 
 #res2 = fit_spec(sp, z)
 #                linepars=dict(delta_vel=100, delta_vdisp=50, delta_gamma=None))
 
 fig,ax = plt.subplots(1,1,figsize=(10,5))
-plot_fit(ax, res, line='LYALPHA', line_only=True, start=True)
+plot_fit(ax, res, line='LYALPHA', line_only=True)
 res['ztable'].pprint_all()
-print(res['lines'].loc['LYALPHA'])
+res['lines'].loc['LYALPHA'].pprint_all()
 
 #ax[0].set_title('LSQ Fit')
 #plot_fit(ax[1], res2, line='CIV1548', line_only=True, start=True)

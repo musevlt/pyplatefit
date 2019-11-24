@@ -4,6 +4,7 @@ v0.4dev (XX/XX/XX)
 ------------------
 New features
 ^^^^^^^^^^^^
+- add the fit of double lyman-alpha line
 - allow to define separately the bounds and starting value for lya
 - add VDISP field in line table for future use (AGN type fitting, not yet implemented)
 - update documentation 
