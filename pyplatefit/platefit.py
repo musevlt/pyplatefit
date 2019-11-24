@@ -288,7 +288,7 @@ class Platefit:
 
 
 def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, fitcont=True, lines=None, 
-             major_lines=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True,
+             major_lines=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True, dble_lyafit=False,
              lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={}):
     """ 
     perform platefit cont and line fitting on a spectra
@@ -323,6 +323,8 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
        if True, use constrain line ratios in fit (default False)
     find_lya_vel_offset : bool
        if True, perform an initial search for the lya velocity offset
+    dble_lyafit : bool
+        if True, use a double asymetric gaussian model for the lya line fit    
     lsf : bool
        if True, use LSF model to take into account the instrumental LSF (default True).
     eqw : bool
@@ -435,7 +437,7 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
     logger.debug('Performing continuum and line fitting')
     res = pl.fit(spec, z, emcee=emcee, fit_all=fit_all, ziter=ziter, fitcont=fitcont,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,    
-                 lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec)
+                 dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec)
     if comp_bic:
         logger.debug('Adding BIC info to ztable for a subset of lines')
         add_bic_to_ztable(res['ztable'], res)

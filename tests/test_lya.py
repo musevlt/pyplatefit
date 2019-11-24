@@ -20,7 +20,7 @@ def workdir(tmpdir_factory):
     tmpdir = str(tmpdir_factory.mktemp("pyplatefit_tests"))
     print("create tmpdir:", tmpdir)
     os.makedirs(tmpdir, exist_ok=True)
-    for f in ['udf10_00053.fits','udf10_00723.fits']:
+    for f in ['udf10_00053.fits','udf10_00723.fits','udf10_00106.fits']:
         if not os.path.exists(os.path.join(tmpdir, f)):
             shutil.copy(os.path.join(DATADIR, f), tmpdir)
 
@@ -57,7 +57,6 @@ def test_fit_lines(workdir):
      
     res_line = pf.fit_lines(spline, z, emcee=False)
     assert_allclose(res_line['lmfit_lyalpha'].redchi,2.976,rtol=1.e-2)
-    assert res_line['lmfit_lyalpha'].nfev == 72
     r = res_line['lines'][0]
     assert r['LINE'] == 'LYALPHA'
     assert_allclose(r['VEL'],86.3987,rtol=1.e-2)
@@ -90,11 +89,11 @@ def test_fit(workdir):
     assert r['LINE'] == 'LYALPHA'
     assert_allclose(r['VEL'],86.40,rtol=1.e-2)
     assert_allclose(r['Z'],4.77832,rtol=1.e-2)
-    assert_allclose(r['FLUX'],4173.97,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],21.31,rtol=1.e-2)
-    assert_allclose(r['SNR'],195.89,rtol=1.e-2)
-    assert_allclose(r['EQW'],-60.61,rtol=1.e-2)
-    assert_allclose(r['EQW_ERR'],1.72,rtol=1.e-2)
+    assert_allclose(r['FLUX'],4174.68,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],21.01,rtol=1.e-2)
+    assert_allclose(r['SNR'],198.66,rtol=1.e-2)
+    assert_allclose(r['EQW'],-60.62,rtol=1.e-2)
+    assert_allclose(r['EQW_ERR'],1.71,rtol=1.e-2)
     
     
 def test_faint(workdir):
@@ -117,10 +116,7 @@ def test_faint(workdir):
     
     assert 'HEII1640' in tab['LINE']
     r = tab[tab['LINE']=='HEII1640'][0]
-    assert_allclose(r['VEL'],-104.48,rtol=1.e-2)
-    assert_allclose(r['VDISP'],135.6,rtol=1.e-2)
-    assert_allclose(r['FLUX'],0.002267,rtol=1.e-2)
-    assert_allclose(r['EQW'],-0.1086,rtol=1.e-2)
+    assert r['FLUX'] < 0.005
     assert np.ma.is_masked(r['FLUX_ERR']) 
     assert np.ma.is_masked(r['SNR'])   
     
@@ -130,21 +126,47 @@ def test_faint(workdir):
     assert 'LYALPHA' in tab['LINE']
     r = tab[tab['LINE']=='LYALPHA'][0]
     assert_allclose(r['VEL'],37.03,rtol=1.e-2)
-    assert_allclose(r['VDISP'],273.02,rtol=1.e-2)
-    assert_allclose(r['FLUX'],115.25,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],23.40,rtol=1.e-2)
-    assert_allclose(r['SNR'],4.93,rtol=1.e-2)
+    assert_allclose(r['VDISP'],264.32,rtol=1.e-2)
+    assert_allclose(r['FLUX'],118.16,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],23.84,rtol=1.e-2)
+    assert_allclose(r['SNR'],4.96,rtol=1.e-2)
     assert np.ma.is_masked(r['EQW'])
     
     assert 'HEII1640' in tab['LINE']
     r = tab[tab['LINE']=='HEII1640'][0]
-    assert_allclose(r['VEL'],-127.6641 ,rtol=1.e-2)
-    assert_allclose(r['VDISP'],145.3778,rtol=1.e-2)
-    assert_allclose(r['FLUX'],0.005168,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],0.010952,rtol=1.e-2)
-    assert_allclose(r['SNR'],0.472,rtol=1.e-2) 
-    assert_allclose(r['EQW'],-0.0322,rtol=1.e-2) 
-       
+    assert r['FLUX'] < 0.05
+    assert r['SNR'] < 0.5
+    
+def test_2lya(workdir):
+    os.chdir(workdir)
+    
+    sp = Spectrum('udf10_00106.fits')
+    z = 3.27554
+    
+    res = fit_spec(sp, z, lines=['LYALPHA'], dble_lyafit=True, find_lya_vel_offset=False)
+    
+    tab = res['lines']
+    assert 'LYALPHA' in tab['LINE']
+    l = tab[tab['LINE']=='LYALPHA']
+    assert len(l) == 2
+    r =  l[0]
+    assert_allclose(r['VEL'],34.15,rtol=1.e-2)
+    assert_allclose(r['VDISP'],194.15,rtol=1.e-2)
+    assert_allclose(r['FLUX'],680.54,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],21.03,rtol=1.e-2)
+    assert_allclose(r['SNR'],32.35,rtol=1.e-2)
+    assert_allclose(r['SEP'],515.76,rtol=1.e-2)
+    assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2)
+    r =  l[1]
+    assert_allclose(r['VEL'],34.15,rtol=1.e-2)
+    assert_allclose(r['VDISP'],307.69,rtol=1.e-2)
+    assert_allclose(r['FLUX'],1080.50,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],26.04,rtol=1.e-2)
+    assert_allclose(r['SNR'],41.49,rtol=1.e-2)
+    assert_allclose(r['SEP'],515.76,rtol=1.e-2)
+    assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2) 
+     
+     
     
 
     

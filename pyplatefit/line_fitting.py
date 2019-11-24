@@ -84,9 +84,11 @@ class Linefit:
     """
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), 
                  vdisp_lya=(50,150,700), gamma_lya=(-1,0,10), 
-                 delta_vel=100, delta_vdisp=50, delta_gamma=0.5,
+                 delta_vel=20, delta_vdisp=10, delta_gamma=0.1,
                  windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0,
-                 steps=1000, nwalkers=0, burn=20, seed=None, progress=False,
+                 steps=1000, nwalkers=0, burn=100, seed=None, progress=False,
+                 gamma_2lya1 = (-10,-2,0), gamma_2lya2 = (0,2,10),
+                 sep_2lya = (50,200,700),
                  line_ratios = [
                     ("CIII1907", "CIII1909", 0.6, 1.2),
                     ("OII3727", "OII3729", 1.0, 2.0)
@@ -104,6 +106,12 @@ class Linefit:
            Minimum, init and maximum values of Lya rest frame velocity dispersion in km/s (default: 50,150,700).
         gamma_lya : tuple of floats
           Minimum, init and maximum values of the skeness parameter for the asymetric gaussain fit (default: -1,0,10).
+        gamma_2lya1 : tuple of floats
+          Minimum, init and maximum values of the skeness parameter for the left component of the double asymetric gaussain fit (default: -10,-2,0).
+        gamma_2lya2 : tuple of floats
+          Minimum, init and maximum values of the skeness parameter for the right component of the double asymetric gaussain fit (default: 0,2,10).
+        sep_2lya : tuple of floats
+          Minimum, init and maximum values of the peak separation in km/s of the double asymetric gaussain fit (default: 50,200,700) 
         delta_vel : float
           Maximum excursion of Velocity Offset with respect to the LSQ solution 
           used for EMCEE fit (default is to keep the same constrains as LSQ)
@@ -161,6 +169,10 @@ class Linefit:
         self.vdisp_lya = vdisp_lya # lya specific bounds in velocity dispersion km/s, rest frame
         self.gamma_lya = gamma_lya # bounds in lya asymmetry
         
+        self.sep_2lya = sep_2lya
+        self.gamma_2lya1 = gamma_2lya1
+        self.gamma_2lya2 = gamma_2lya2
+        
         self.delta_vel = delta_vel # max excursion in EMCEE fit wrt LSQ solution
         self.delta_vdisp = delta_vdisp # max excursion in EMCEE fit wrt LSQ solution
         self.delta_gamma = delta_gamma # max excursion in EMCEE fit wrt LSQ solution
@@ -202,7 +214,9 @@ class Linefit:
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya=self.vdisp_lya, 
                        gamma_lya=self.gamma_lya, minsnr=self.minsnr,
                        delta_vel=self.delta_vel, delta_vdisp=self.delta_vdisp, 
-                       delta_gamma=self.delta_gamma
+                       delta_gamma=self.delta_gamma,
+                       sep_2lya=self.sep_2lya, 
+                       gamma_2lya1=self.gamma_2lya1, gamma_2lya2=self.gamma_2lya2,
                        )
         use_line_ratios = kwargs.pop('use_line_ratios', False)
         if use_line_ratios:
@@ -302,7 +316,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        major_lines=False, emcee=False,
                        fit_all=False, lsf=True, trimm_spec=True,
-                       find_lya_vel_offset=True, 
+                       find_lya_vel_offset=True, dble_lyafit=False,
                        lsq_kws=None, mcmc_kws=None, fit_lws=None):
     """Fit lines from a set of arrays (wave, data, std) using lmfit.
 
@@ -363,6 +377,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
       - SNR: the SNR of the line
       - SKEW: The skewness parameter of the asymetric line (for Lyman-alpha line only).
       - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
+      - SEP: The fitted lya rest frame peak separation (in km/s) (for the double lyman-alpha fit only)
+      - SEP_ERR: The error in fitted lya rest frame peak separation (in km/s) (for the double lyman-alpha fit only)
       - LBDA_OBS: The fitted position the line peak in the observed frame
       - PEAK_OBS: The fitted peak of the line in the observed frame
       - LBDA_LEFT: The wavelength at the left of the peak with 0.5*peak value
@@ -451,6 +467,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         default : True
     find_lya_vel_offset: boolean, optional
         if True, compute a starting velocity offset for lya on the data
+    dble_lyafit : False
+        if True, use a double asymetric gaussian model for the lya line fit
     lsq_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
     mcmc_kws : dictionary with MCMC parameters (see emcee)
     fit_lws : dictionary with some default and bounds parameters
@@ -494,6 +512,12 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     init_vdisp = fit_lws.get('vdisp',(VD_MIN,VD_INIT,VD_MAX))
     init_vdisp_lya = fit_lws.get('vdisp_lya',(VD_MIN_LYA,VD_INIT_LYA,VD_MAX_LYA))
     init_gamma_lya = fit_lws.get('gamma_lya',(GAMMA_MIN,GAMMA_INIT,GAMMA_MAX))
+    
+    # specific additional parameters for double lya fit
+    if dble_lyafit:     
+        init_gamma_2lya1 = fit_lws.get('gamma_2lya1')
+        init_gamma_2lya2 = fit_lws.get('gamma_2lya2')
+        init_sep_2lya = fit_lws.get('sep_2lya')
     
     # get default relative bounds with respect to LSQ solution for 2nd EMCEE fit
     if emcee:
@@ -601,6 +625,11 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     if lsf:
         tablines.add_column(MaskedColumn(name='VDINST', dtype=np.float, mask=True), index=11)
         colnames.append('VDINST')
+    if dble_lyafit:
+        tablines.add_column(MaskedColumn(name='SEP', dtype=np.float, mask=True), index=11)
+        colnames.append('SEP') 
+        tablines.add_column(MaskedColumn(name='SEP_ERR', dtype=np.float, mask=True), index=12)
+        colnames.append('SEP_ERR')        
     for colname in colnames:
         tablines[colname].format = '.2f'
     tablines['Z'].format = '.5f'
@@ -646,6 +675,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     
     if has_lya:
         logger.debug('LSQ Fitting of Lya')
+        if dble_lyafit:
+            logger.debug('Using double asymetric gaussian model')
         sel_lines = lines[lines['LINE']=='LYALPHA']
         # Set input parameters
         params = Parameters()
@@ -655,10 +686,17 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             logger.debug('Computed Lya init velocity offset: %.2f', voff)
         else:
             init_vel_lya = init_vel
-        set_asymgaussian_fitpars('lyalpha', params, sel_lines,  
-                             redshift, lsf, init_vel_lya, init_vdisp_lya, init_gamma_lya, init_windmax,
-                             wave_rest, data_rest)
-        family_lines = {'lyalpha': {'fun':'asymgauss', 'lines':['LYALPHA']}}
+        if dble_lyafit:
+            set_dbleasymgaussian_fitpars('lyalpha', params, sel_lines,  
+                                 redshift, lsf, init_vel_lya, init_vdisp_lya, 
+                                 init_sep_2lya, init_gamma_2lya1, init_gamma_2lya2, 
+                                 init_windmax, wave_rest, data_rest)
+            family_lines = {'lyalpha': {'fun':'dbleasymgauss', 'lines':['LYALPHA']}}
+        else:
+            set_asymgaussian_fitpars('lyalpha', params, sel_lines,  
+                                     redshift, lsf, init_vel_lya, init_vdisp_lya, init_gamma_lya, init_windmax,
+                                     wave_rest, data_rest)
+            family_lines = {'lyalpha': {'fun':'asymgauss', 'lines':['LYALPHA']}}
         # Perform LSQ fit    
         minner = Minimizer(residuals, params, fcn_args=(wave_rest, data_rest, std_rest, family_lines, redshift, lsf))            
         logger.debug('Leastsq fitting with ftol: %.0e xtol: %.0e maxfev: %d',lsq_kws['ftol'],lsq_kws['xtol'],lsq_kws['maxfev'])
@@ -849,9 +887,6 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
     for family in families: 
         dv = par[f"dv_{family}"].value
         dv_err = par[f"dv_{family}"].stderr
-        vdisp = par[f"vdisp_{family}"].value 
-        vdisp_err = par[f"vdisp_{family}"].stderr 
-    
         lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
         flux_vals = []
         err_vals = []
@@ -860,38 +895,138 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
             dname = inputlines[inputlines['LINE']==line]['DNAME'][0]
             keys = [key for key in par.keys() if key.split('_')[1]==line]
             fun = keys[0].split('_')[2]
-            flux = par[f"{family}_{line}_{fun}_flux"].value
-            flux_err = par[f"{family}_{line}_{fun}_flux"].stderr
-            l0 = par[f"{family}_{line}_{fun}_l0"].value
-            l1 = l0*(1 + dv/C)
-            l1obs = l1*(1+zinit)
-            z = l1obs/l0 - 1 # compute redshift in vacuum 
-            if not vac:
-                l1obs = vactoair(l1obs)
-            lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux, 
-                     'DNAME':dname,  'VDISP':vdisp, 
-                     'RCHI2':result.redchi, 'Z_INIT':zinit,  
-                     }  
-            if vdisp_err is not None:
-                lvals['VDISP_ERR'] = vdisp_err 
-            if flux_err is not None:
-                lvals['FLUX_ERR'] = flux_err 
-                lvals['SNR'] = flux/flux_err 
-                flux_vals.append(flux)
-                err_vals.append(flux_err)
-                line_vals.append(line)
-            if lsf:
-                lvals['VDINST'] = complsf(l1obs, kms=True)             
-            
-            if fun == 'gauss':         
-                sigma = get_sigma(vdisp, l1obs, z, lsf, restframe=False)
-                fwhm = 2.355*sigma
-                lvals.update({'FWHM_OBS':fwhm, 'LBDA_LEFT':l1obs-0.5*fwhm, 'LBDA_RIGHT':l1obs+0.5*fwhm, 
-                         'PEAK_OBS':flux/(SQRT2PI*sigma), 'VEL':dv, 'Z':z}) 
+            if fun == 'dbleasymgauss':
+                ndv = dv
+                vdisp1 = par[f"vdisp1_{family}"].value 
+                vdisp1_err = par[f"vdisp1_{family}"].stderr
+                vdisp2 = par[f"vdisp2_{family}"].value 
+                vdisp2_err = par[f"vdisp2_{family}"].stderr 
+                vdisp = 0.5*(vdisp1 + vdisp2)
+                sep = par[f"{family}_{line}_{fun}_sep"].value
+                sep_err = par[f"{family}_{line}_{fun}_sep"].stderr                
+                flux1 = par[f"{family}_{line}_{fun}_flux1"].value
+                flux1_err = par[f"{family}_{line}_{fun}_flux1"].stderr
+                flux2 = par[f"{family}_{line}_{fun}_flux2"].value
+                flux2_err = par[f"{family}_{line}_{fun}_flux2"].stderr                
+                l0 = par[f"{family}_{line}_{fun}_l0"].value
+                l1 = l0*(1 + dv/C)
+                l1obs = l1*(1+zinit)
+                # the redshift is given at the mid-point of the 2 asymetric gaussian
+                z = l1obs/l0 - 1 # compute redshift in vacuum 
+                lvals1 = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux1, 
+                         'DNAME':dname,  'VDISP':vdisp1, 
+                         'RCHI2':result.redchi, 'Z_INIT':zinit, 
+                         'VEL':dv, 'Z':z, 'SEP':sep
+                         } 
+                lvals2 = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux2, 
+                          'DNAME':dname,  'VDISP':vdisp2, 
+                          'RCHI2':result.redchi, 'Z_INIT':zinit,
+                          'VEL':dv, 'Z':z, 'SEP':sep
+                          } 
+                if sep_err is not None:
+                    lvals1['SEP_ERR'] = sep_err
+                    lvals2['SEP_ERR'] = sep_err
                 if dv_err is not None:
-                    lvals['VEL_ERR'] = dv_err
-                    lvals['Z_ERR'] = dv_err/C                
+                    lvals1['VEL_ERR'] = dv_err
+                    lvals1['Z_ERR'] = dv_err/C 
+                    lvals2['VEL_ERR'] = dv_err
+                    lvals2['Z_ERR'] = dv_err/C                    
+                if vdisp1_err is not None:
+                    lvals1['VDISP_ERR'] = vdisp1_err
+                    lvals2['VDISP_ERR'] = vdisp2_err 
+                vdisp_err = np.sqrt(vdisp1_err**2+vdisp2_err**2)
+                if flux1_err is not None:
+                    lvals1['FLUX_ERR'] = flux1_err 
+                    lvals1['SNR'] = flux1/flux1_err 
+                    lvals2['FLUX_ERR'] = flux2_err 
+                    lvals2['SNR'] = flux2/flux2_err                     
+                    flux_vals.append(flux1+flux2)
+                    err_vals.append(np.sqrt(flux1_err**2+flux2_err**2))
+                    line_vals.append(line)
+                if lsf:
+                    lvals1['VDINST'] = complsf(l1obs, kms=True) 
+                    lvals2['VDINST'] = complsf(l1obs, kms=True)  
+                skew1 = par[f"{family}_{line}_{fun}_asym1"].value
+                lvals1['SKEW'] = skew1
+                skew2 = par[f"{family}_{line}_{fun}_asym2"].value
+                lvals2['SKEW'] = skew2                
+                skew1_err = par[f"{family}_{line}_{fun}_asym1"].stderr 
+                skew2_err = par[f"{family}_{line}_{fun}_asym2"].stderr 
+                if skew1_err is not None:
+                    lvals1['SKEW_ERR'] = skew1_err
+                    lvals2['SKEW_ERR'] = skew2_err                 
+                # find the line peak loaction in rest frame
+                swave_rest = np.linspace(l0-50,l0+50,1000)
+                l1c = l0*(1+(dv-0.5*sep)/C)
+                sigma1 = get_sigma(vdisp1, l1c, z, lsf, restframe=True) 
+                peak1 = flux1/(SQRT2PI*sigma1)
+                vmodel_rest = asymgauss(peak1, l1c, sigma1, skew1, swave_rest)
+                kmax = np.argmax(vmodel_rest)    
+                l1 = swave_rest[kmax]
+                left_rest,right_rest = rest_fwhm_asymgauss(swave_rest, vmodel_rest)
+                l1obs = l1*(1+zinit)
+                l1left = left_rest*(1+zinit)
+                l1right = right_rest*(1+zinit)
+                if not vac:
+                    l1obs = vactoair(l1obs)
+                    l1left = vactoair(l1left)
+                    l1right = vactoair(l1right) 
+                # compute the peak value and convert it to observed frame    
+                lvals1['PEAK_OBS'] = np.max(vmodel_rest)/(1+zinit)
+                # save peak position in observed frame
+                lvals1['LBDA_OBS'] = l1obs
+                lvals1['LBDA_LEFT'] = l1left
+                lvals1['LBDA_RIGHT'] = l1right                    
+                lvals1['FWHM_OBS'] = l1right - l1left
+                # 2nd peak
+                l2c = l0*(1+(dv+0.5*sep)/C)
+                sigma2 = get_sigma(vdisp2, l1c, z, lsf, restframe=True) 
+                peak2 = flux2/(SQRT2PI*sigma1)
+                vmodel_rest = asymgauss(peak2, l2c, sigma2, skew2, swave_rest)                
+                kmax = np.argmax(vmodel_rest)    
+                l1 = swave_rest[kmax]
+                left_rest,right_rest = rest_fwhm_asymgauss(swave_rest, vmodel_rest)
+                l1obs = l1*(1+zinit)
+                l1left = left_rest*(1+zinit)
+                l1right = right_rest*(1+zinit)
+                if not vac:
+                    l1obs = vactoair(l1obs)
+                    l1left = vactoair(l1left)
+                    l1right = vactoair(l1right) 
+                # compute the peak value and convert it to observed frame    
+                lvals2['PEAK_OBS'] = np.max(vmodel_rest)/(1+zinit)
+                # save peak position in observed frame
+                lvals2['LBDA_OBS'] = l1obs
+                lvals2['LBDA_LEFT'] = l1left
+                lvals2['LBDA_RIGHT'] = l1right                    
+                lvals2['FWHM_OBS'] = l1right - l1left                
+                # update line table
+                upsert_ltable(tablines, [lvals1,lvals2], family, line)  
             elif fun == 'asymgauss':
+                vdisp = par[f"vdisp_{family}"].value 
+                vdisp_err = par[f"vdisp_{family}"].stderr
+                flux = par[f"{family}_{line}_{fun}_flux"].value
+                flux_err = par[f"{family}_{line}_{fun}_flux"].stderr
+                l0 = par[f"{family}_{line}_{fun}_l0"].value
+                l1 = l0*(1 + dv/C)
+                l1obs = l1*(1+zinit)
+                z = l1obs/l0 - 1 # compute redshift in vacuum 
+                if not vac:
+                    l1obs = vactoair(l1obs)
+                lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux, 
+                         'DNAME':dname,  'VDISP':vdisp, 
+                         'RCHI2':result.redchi, 'Z_INIT':zinit,  
+                         } 
+                if vdisp_err is not None:
+                    lvals['VDISP_ERR'] = vdisp_err 
+                if flux_err is not None:
+                    lvals['FLUX_ERR'] = flux_err 
+                    lvals['SNR'] = flux/flux_err 
+                    flux_vals.append(flux)
+                    err_vals.append(flux_err)
+                    line_vals.append(line)
+                if lsf:
+                    lvals['VDINST'] = complsf(l1obs, kms=True)       
                 skew = par[f"{family}_{line}_{fun}_asym"].value
                 lvals['SKEW'] = skew
                 skew_err = par[f"{family}_{line}_{fun}_asym"].stderr 
@@ -925,12 +1060,50 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 lvals['LBDA_OBS'] = l1obs
                 lvals['LBDA_LEFT'] = l1left
                 lvals['LBDA_RIGHT'] = l1right                    
-                lvals['FWHM_OBS'] = l1right - l1left                               
-                
-            upsert_ltable(tablines, lvals, family, line)
+                lvals['FWHM_OBS'] = l1right - l1left
+                # update line table
+                upsert_ltable(tablines, [lvals], family, line)
+            elif fun == 'gauss': 
+                ndv = dv
+                vdisp = par[f"vdisp_{family}"].value 
+                vdisp_err = par[f"vdisp_{family}"].stderr
+                flux = par[f"{family}_{line}_{fun}_flux"].value
+                flux_err = par[f"{family}_{line}_{fun}_flux"].stderr
+                l0 = par[f"{family}_{line}_{fun}_l0"].value
+                l1 = l0*(1 + dv/C)
+                l1obs = l1*(1+zinit)
+                z = l1obs/l0 - 1 # compute redshift in vacuum 
+                if not vac:
+                    l1obs = vactoair(l1obs)
+                lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux, 
+                         'DNAME':dname,  'VDISP':vdisp, 
+                         'RCHI2':result.redchi, 'Z_INIT':zinit,  
+                         } 
+                if vdisp_err is not None:
+                    lvals['VDISP_ERR'] = vdisp_err 
+                if flux_err is not None:
+                    lvals['FLUX_ERR'] = flux_err 
+                    lvals['SNR'] = flux/flux_err 
+                    flux_vals.append(flux)
+                    err_vals.append(flux_err)
+                    line_vals.append(line)
+                if lsf:
+                    lvals['VDINST'] = complsf(l1obs, kms=True)
+                sigma = get_sigma(vdisp, l1obs, z, lsf, restframe=False)
+                fwhm = 2.355*sigma
+                lvals.update({'FWHM_OBS':fwhm, 'LBDA_LEFT':l1obs-0.5*fwhm, 'LBDA_RIGHT':l1obs+0.5*fwhm, 
+                         'PEAK_OBS':flux/(SQRT2PI*sigma), 'VEL':dv, 'Z':z}) 
+                if dv_err is not None:
+                    lvals['VEL_ERR'] = dv_err
+                    lvals['Z_ERR'] = dv_err/C 
+                # update line table
+                upsert_ltable(tablines, [lvals], family, line)
+            else:
+                raise ValueError('fun %s unknown'%(fun))
 
-        zvals = {'VEL':dv, 'VDISP':vdisp, 'Z':zinit+ndv/C if family=='lyalpha' else zinit+dv/C,
-                 'NFEV':result.nfev, 'RCHI2':result.redchi, 'Z_INIT':zinit,
+        zvals = {'VEL':dv, 'VDISP':vdisp, 'Z':zinit+ndv/C,
+                 'NFEV':result.nfev, 'RCHI2':result.redchi,
+                 'Z_INIT':zinit,
                  } 
         if dv_err is not None:
             zvals['VEL_ERR'] = dv_err  
@@ -967,17 +1140,21 @@ def upsert_ztable(tab, vals, family):
         vals['FAMILY'] = family
         tab.add_row(vals)
         
-def upsert_ltable(tab, vals, family, line):
+def upsert_ltable(tab, val_list, family, line):
     if (family in tab['FAMILY']) and (line in tab['LINE']):
         # update
         ksel = (tab['FAMILY']==family) & (tab['LINE']==line)
-        for k,v in vals.items():
-            tab[k][ksel] = v
+        if np.sum(ksel) != len(val_list):
+            raise ValueError('upsert_ltable mismatch family and val_list')
+        for k,vals in enumerate(val_list):
+            for k,v in vals.items():
+                tab[k][ksel][k] = v
     else:
         # add line
-        vals['FAMILY'] = family
-        vals['LINE'] = line
-        tab.add_row(vals)    
+        for vals in val_list:
+            vals['FAMILY'] = family
+            vals['LINE'] = line
+            tab.add_row(vals)    
     
         
 def add_gaussian_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, wave, data):
@@ -997,6 +1174,23 @@ def add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, ga
     params.add(f"{family_name}_{name}_asymgauss_flux", value=flux, min=0)
     params.add(f"{family_name}_{name}_asymgauss_asym", value=gamma[1], 
                min=gamma[0], max=gamma[2])
+
+def add_dbleasymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, sep, gamma1, gamma2, wave, data):
+    params.add(f"{family_name}_{name}_dbleasymgauss_l0", value=l0, vary=False)  
+    ksel = np.abs(wave-l0) < wind_max
+    vmax = data[ksel].max()
+    sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
+    flux1 = SQRT2PI*sigma*vmax*0.3
+    flux2 = SQRT2PI*sigma*vmax
+    params.add(f"{family_name}_{name}_dbleasymgauss_sep", value=sep[1],
+               min=sep[0], max=sep[2])
+    params.add(f"{family_name}_{name}_dbleasymgauss_flux1", value=flux1, min=0)
+    params.add(f"{family_name}_{name}_dbleasymgauss_flux2", value=flux2, min=0)
+    params.add(f"{family_name}_{name}_dbleasymgauss_asym1", value=gamma1[1], 
+               min=gamma1[0], max=gamma1[2])
+    params.add(f"{family_name}_{name}_dbleasymgauss_asym2", value=gamma2[1], 
+               min=gamma2[0], max=gamma2[2])
+     
     
 def get_lya_vel_offset(wave, data, box_filter=3):
     l0 = 1215.67
@@ -1045,8 +1239,27 @@ def set_asymgaussian_fitpars(family_name, params, lines, z, lsf, init_vel,
     for line in lines:      
         name = line['LINE']
         l0 = line['LBDA_REST']
-        add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, windmax, init_gamma, wave, data)
+        add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, 
+                          windmax, init_gamma, wave, data)
     logger.debug('added %d asymetric gaussian to the fit', len(lines))
+    
+def set_dbleasymgaussian_fitpars(family_name, params, lines, z, lsf, init_vel, 
+                         init_dv, init_sep, init_gamma1, init_gamma2, 
+                         windmax, wave, data):
+    logger = logging.getLogger(__name__)
+    # add velocity and velocity dispersion fit parameters
+    params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])
+    params.add(f'vdisp1_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
+    params.add(f'vdisp2_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
+    # we use asymetric gaussian parameters
+    nc = 0
+    vdisp = init_dv[1]
+    for line in lines:      
+        name = line['LINE']
+        l0 = line['LBDA_REST']
+        add_dbleasymgauss_par(params, family_name, name, l0, z, vdisp, lsf, windmax, 
+                              init_sep, init_gamma1, init_gamma2, wave, data)
+    logger.debug('added %d double asymetric gaussian to the fit', len(lines))
 
           
     
@@ -1073,20 +1286,34 @@ def get_sigma(vdisp, l0, z, lsf=True, restframe=True):
 
 def model(params, wave, lines, z, lsf=True):
     """ wave is rest frame wavelengths """
+    logger = logging.getLogger(__name__)
     model = 0
-    for name,ldict in lines.items():
-        vdisp = params[f"vdisp_{name}"].value
+    for name,ldict in lines.items():       
         dv = params[f"dv_{name}"].value
         for line in ldict['lines']:
             if ldict['fun']=='gauss':
+                vdisp = params[f"vdisp_{name}"].value
                 flux = params[f"{name}_{line}_gauss_flux"].value
                 l0 = params[f"{name}_{line}_gauss_l0"].value
                 model += model_gauss(z, lsf, l0, flux, vdisp, dv, wave)
             elif ldict['fun']=='asymgauss':
+                vdisp = params[f"vdisp_{name}"].value
                 flux = params[f"{name}_{line}_asymgauss_flux"].value
                 l0 = params[f"{name}_{line}_asymgauss_l0"].value
                 beta = params[f"{name}_{line}_asymgauss_asym"].value  
-                model += model_asymgauss(z, lsf, l0, flux, beta, vdisp, dv, wave)         
+                model += model_asymgauss(z, lsf, l0, flux, beta, vdisp, dv, wave)
+            elif ldict['fun']=='dbleasymgauss':
+                vdisp1 = params[f"vdisp1_{name}"].value
+                vdisp2 = params[f"vdisp2_{name}"].value
+                flux1 = params[f"{name}_{line}_dbleasymgauss_flux1"].value
+                flux2 = params[f"{name}_{line}_dbleasymgauss_flux2"].value
+                l0 = params[f"{name}_{line}_dbleasymgauss_l0"].value
+                beta1 = params[f"{name}_{line}_dbleasymgauss_asym1"].value 
+                beta2 = params[f"{name}_{line}_dbleasymgauss_asym2"].value
+                sep = params[f"{name}_{line}_dbleasymgauss_sep"].value
+                model += model_dbleasymgauss(z, lsf, l0, sep, flux1, flux2, 
+                                             beta1, beta2, vdisp1, vdisp2, 
+                                             dv, wave)             
             else:
                 logger.error('Unknown function %s', fun)
                 raise ValueError
@@ -1097,6 +1324,17 @@ def model_asymgauss(z, lsf, l0, flux, beta, vdisp, dv, wave):
     sigma = get_sigma(vdisp, l1, z, lsf, restframe=True)               
     peak = flux/(SQRT2PI*sigma)
     model = asymgauss(peak, l1, sigma, beta, wave)
+    return model
+
+def model_dbleasymgauss(z, lsf, l0, sep, flux1, flux2, 
+                        beta1, beta2, vdisp1, vdisp2, dv, wave):
+    l1 = l0*(1+(dv-0.5*sep)/C)
+    sigma1 = get_sigma(vdisp1, l1, z, lsf, restframe=True)  
+    l2 = l0*(1+(dv+0.5*sep)/C)
+    sigma2 = get_sigma(vdisp2, l2, z, lsf, restframe=True)
+    peak1 = flux1/(SQRT2PI*sigma1)
+    peak2 = flux2/(SQRT2PI*sigma2)
+    model = dbleasymgauss(peak1, peak2, l1, l2, sigma1, sigma2, beta1, beta2, wave)
     return model
 
 def model_gauss(z, lsf, l0, flux, vdisp, dv, wave):
@@ -1137,6 +1375,12 @@ def gauss(peak, l0, sigma, wave):
     g = peak*np.exp(-(wave-l0)**2/(2*sigma**2))
     return g
 
+def dbleasymgauss(peak1, peak2, l1, l2, sigma1, sigma2, 
+                  gamma1, gamma2, wave):
+    f1 = asymgauss(peak1, l1, sigma1, gamma1, wave)
+    f2 = asymgauss(peak2, l2, sigma2, gamma2, wave)
+    return f1+f2
+
 def asymgauss(peak, l0, sigma, gamma, wave):
     dl = wave - l0
     g = peak*np.exp(-dl**2/(2*sigma**2))
@@ -1173,14 +1417,23 @@ def update_bounds(result, delta_vel, delta_vdisp, delta_gamma):
     par = result.params
     families = [key.split('_')[1] for key in par.keys() if key.split('_')[0]=='dv']
     for family in families: 
+        fun = [key.split('_')[2] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')][0]
         if delta_vel is not None:
             dv = par[f"dv_{family}"].value
             par[f"dv_{family}"].min = dv - delta_vel
             par[f"dv_{family}"].max = dv + delta_vel
         if delta_vdisp is not None:
-            vdisp = par[f"vdisp_{family}"].value
-            par[f"vdisp_{family}"].min = vdisp - delta_vdisp
-            par[f"vdisp_{family}"].max = vdisp + delta_vdisp 
+            if fun == 'asymgauss':
+                vdisp = par[f"vdisp_{family}"].value
+                par[f"vdisp_{family}"].min = vdisp - delta_vdisp
+                par[f"vdisp_{family}"].max = vdisp + delta_vdisp
+            elif fun == 'dbleasymgauss':
+                vdisp1 = par[f"vdisp1_{family}"].value
+                par[f"vdisp1_{family}"].min = vdisp1 - delta_vdisp
+                par[f"vdisp1_{family}"].max = vdisp1 + delta_vdisp
+                vdisp2 = par[f"vdisp2_{family}"].value
+                par[f"vdisp2_{family}"].min = vdisp2 - delta_vdisp
+                par[f"vdisp2_{family}"].max = vdisp2 + delta_vdisp                
         if delta_gamma is not None:
             fun = [key.split('_')[2] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')][0]
             if fun == 'asymgauss':
@@ -1189,6 +1442,15 @@ def update_bounds(result, delta_vel, delta_vdisp, delta_gamma):
                     gamma = par[f"{family}_{line}_{fun}_asym"].value
                     par[f"{family}_{line}_{fun}_asym"].min = gamma - delta_gamma
                     par[f"{family}_{line}_{fun}_asym"].max = gamma + delta_gamma
+            elif fun == 'dbleasymgauss':
+                lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
+                for line in lines:
+                    gamma1 = par[f"{family}_{line}_{fun}_asym1"].value
+                    par[f"{family}_{line}_{fun}_asym1"].min = gamma1 - delta_gamma
+                    par[f"{family}_{line}_{fun}_asym1"].max = gamma1 + delta_gamma  
+                    gamma2 = par[f"{family}_{line}_{fun}_asym2"].value
+                    par[f"{family}_{line}_{fun}_asym2"].min = gamma2 - delta_gamma
+                    par[f"{family}_{line}_{fun}_asym2"].max = gamma2 + delta_gamma                       
  
     logger.debug('Update bounds relative to LSQ fit. delta vel %s vdisp %s gamma %s',delta_vel,delta_vdisp,delta_gamma)    
     

@@ -57,7 +57,6 @@ def test_fit_lines(workdir):
      
     res_line = pf.fit_lines(spline, z, emcee=False)
     assert_allclose(res_line['lmfit_balmer'].redchi,249.37,rtol=1.e-4)
-    assert res_line['lmfit_balmer'].nfev == 85
     t = res_line['lines']
     r = t[t['LINE']=='OIII5008'][0]
     assert_allclose(r['VEL'],92.48,rtol=1.e-3)
@@ -74,7 +73,6 @@ def test_fit_lines(workdir):
     assert_allclose(r['Z'],0.419196,rtol=1.e-5)
     assert r['NL'] == 9
     assert r['NL_CLIPPED'] == 5
-    assert r['NFEV'] == 85
     assert_allclose(r['SNRSUM_CLIPPED'],12.97,rtol=1.e-3)
     
 def test_fit(workdir):
