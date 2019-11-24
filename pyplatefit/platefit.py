@@ -340,9 +340,12 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
         - vdisp : (min,init,max), bounds and init value for velocity dispersion (km/s), default (5,50,300)
         - vdisp_lya : (min,init,max), bounds and init value for lya velocity dispersion (km/s), default (50,150,700)
         - gamma_lya : (min,init,max), bounds and init value for lya skewness parameter, default (-1,0,10)
-        - delta_vel : float, maximum excursion of Velocity Offset (km/s) with respect to the LSQ solution used for EMCEE fit, default 100
-        - delta_vdisp : float, maximum excursion of Velocity Dispersion Offset (km/s) with respect to the LSQ solution used for EMCEE fit, default 50           
-        - delta_gamma : float, maximum excursion of skewness lya parameter with respect to the LSQ solution used for EMCEE fit, default 0.5  
+        - gamma_2lya1 : (min,init,max), bounds and init value for lya left line skewness parameter, default (-10,-2,0)
+        - gamma_2lya2 : (min,init,max), bounds and init value for lya right line skewness parameter, default (0,2,10)
+        - sep_2lya : (min,init,max), bounds and init value for the 2 peak lya line separation (rest frame, km/s), default (80,500,1000)
+        - delta_vel : float, maximum excursion of Velocity Offset (km/s) with respect to the LSQ solution used for EMCEE fit, default 20
+        - delta_vdisp : float, maximum excursion of Velocity Dispersion Offset (km/s) with respect to the LSQ solution used for EMCEE fit, default 10           
+        - delta_gamma : float, maximum excursion of skewness lya parameter with respect to the LSQ solution used for EMCEE fit, default 0.1  
         - windmax : float, maximum half size window in A to find peak values around initial wavelength value (default 10)
         - xtol : float, relative error in the solution for the leastq fitting (default 1.e-4)
         - ftol : float, relative error in the sum of square for the leastsq fitting (default 1.e-6)

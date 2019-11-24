@@ -88,7 +88,7 @@ class Linefit:
                  windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0,
                  steps=1000, nwalkers=0, burn=100, seed=None, progress=False,
                  gamma_2lya1 = (-10,-2,0), gamma_2lya2 = (0,2,10),
-                 sep_2lya = (50,200,700),
+                 sep_2lya = (80,500,1000),
                  line_ratios = [
                     ("CIII1907", "CIII1909", 0.6, 1.2),
                     ("OII3727", "OII3729", 1.0, 2.0)
