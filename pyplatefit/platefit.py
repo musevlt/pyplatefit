@@ -352,7 +352,7 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
         - maxfev : int, max number of iterations for the leastsq fitting (default 1000)
         - steps : int, number of steps for the emcee minimisation (default 1000)
         - nwalkers : int, number of walkers for the emcee minimisation, if 0 it is computed as the nearest even number to 3*nvariables (default 0)
-        - burn : int, number of first samples to remove from the analysis in emcee (default 20)
+        - burn : int, number of first samples to remove from the analysis in emcee (default 100)
         - seed : None or int, random number seed (default None)
         - progress : bool, if True display progress bar during EMCEE computation (default False)
         - minsnr : float, minimum SNR to display line ID in plots (default 3.0)
