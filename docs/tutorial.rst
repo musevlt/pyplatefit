@@ -338,15 +338,17 @@ The input and returned redshift refer to the midpoint of the two lines.
    sp = Spectrum('test_data/udf10_00106.fits')
    z = 3.27554
    res = fit_spec(sp, z, lines=['LYALPHA'], dble_lyafit=True, find_lya_vel_offset=False)
-   res['lines'].loc['LYALPHA']['LINE','Z','SEP','VEL','VDISP','FLUX','SKEW','LBDA_OBS']
+   lines = res['lines']
+   lines = lines[lines['FAMILY']=='lyalpha']
+   lines['LINE','Z','SEP','VEL','VDISP','FLUX','SKEW','LBDA_OBS'].pprint_all()
    
 ::
 
-          LINE     Z      SEP     VEL    VDISP    FLUX    SKEW  LBDA_OBS
-         str20  float64 float64 float64 float64 float64 float64 float64 
-        ------- ------- ------- ------- ------- ------- ------- --------
-        LYALPHA 3.27603  515.76   34.15  194.34  680.35   -2.78  5190.42
-        LYALPHA 3.27603  515.76   34.15  307.69 1080.50    4.05  5203.69
+          LINE      Z      SEP     VEL    VDISP    FLUX    SKEW  LBDA_OBS
+         str20   float64 float64 float64 float64 float64 float64 float64 
+        -------- ------- ------- ------- ------- ------- ------- --------
+        LYALPHA1 3.27603  515.76   34.15  194.34  680.35   -2.78  5190.42
+        LYALPHA2 3.27603  515.76   34.15  307.69 1080.50    4.05  5203.69
 
 The fitting parameters are : 
 
@@ -362,7 +364,7 @@ The fit can be displayed with ``plot_fit``.
 .. code::
 
    fig,ax = plt.subplots(1,1) 
-   plot_fit(ax, res, line='LYALPHA', line_only=True)
+   plot_fit(ax, res, line='LYALPHA1', line_only=True)
    plt.show()
    
 .. image:: images/high_fig3.png
