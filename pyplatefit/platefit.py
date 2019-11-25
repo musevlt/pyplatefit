@@ -400,6 +400,8 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
       - SNR: the SNR of the line
       - SKEW: The skewness parameter of the asymetric line (for Lyman-alpha line only).
       - SKEW_ERR: The uncertainty on the skewness (for Lyman-alpha line only).
+      - SEP: The fitted lya rest frame peak separation (in km/s) (for the double lyman-alpha fit only)
+      - SEP_ERR: The error in fitted lya rest frame peak separation (in km/s) (for the double lyman-alpha fit only)
       - LBDA_OBS: The fitted position the line peak in the observed frame
       - PEAK_OBS: The fitted peak of the line in the observed frame
       - LBDA_LEFT: The wavelength at the left of the peak with 0.5*peak value

@@ -1001,7 +1001,8 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 lvals2['LBDA_RIGHT'] = l1right                    
                 lvals2['FWHM_OBS'] = l1right - l1left                
                 # update line table
-                upsert_ltable(tablines, [lvals1,lvals2], family, line)  
+                upsert_ltable(tablines, lvals1, family, 'LYALPHA1') 
+                upsert_ltable(tablines, lvals2, family, 'LYALPHA2')  
             elif fun == 'asymgauss':
                 vdisp = par[f"vdisp_{family}"].value 
                 vdisp_err = par[f"vdisp_{family}"].stderr
@@ -1062,7 +1063,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 lvals['LBDA_RIGHT'] = l1right                    
                 lvals['FWHM_OBS'] = l1right - l1left
                 # update line table
-                upsert_ltable(tablines, [lvals], family, line)
+                upsert_ltable(tablines, lvals, family, line)
             elif fun == 'gauss': 
                 ndv = dv
                 vdisp = par[f"vdisp_{family}"].value 
@@ -1097,7 +1098,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                     lvals['VEL_ERR'] = dv_err
                     lvals['Z_ERR'] = dv_err/C 
                 # update line table
-                upsert_ltable(tablines, [lvals], family, line)
+                upsert_ltable(tablines, lvals, family, line)
             else:
                 raise ValueError('fun %s unknown'%(fun))
 
@@ -1139,23 +1140,18 @@ def upsert_ztable(tab, vals, family):
         # add line
         vals['FAMILY'] = family
         tab.add_row(vals)
-        
-def upsert_ltable(tab, val_list, family, line):
+
+def upsert_ltable(tab, vals, family, line):
     if (family in tab['FAMILY']) and (line in tab['LINE']):
         # update
         ksel = (tab['FAMILY']==family) & (tab['LINE']==line)
-        if np.sum(ksel) != len(val_list):
-            raise ValueError('upsert_ltable mismatch family and val_list')
-        for k,vals in enumerate(val_list):
-            for k,v in vals.items():
-                tab[k][ksel][k] = v
+        for k,v in vals.items():
+            tab[k][ksel] = v
     else:
         # add line
-        for vals in val_list:
-            vals['FAMILY'] = family
-            vals['LINE'] = line
-            tab.add_row(vals)    
-    
+        vals['FAMILY'] = family
+        vals['LINE'] = line
+        tab.add_row(vals)             
         
 def add_gaussian_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, wave, data):
     params.add(f"{family_name}_{name}_gauss_l0", value=l0, vary=False)  

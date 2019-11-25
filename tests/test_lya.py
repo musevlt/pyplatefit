@@ -146,10 +146,8 @@ def test_2lya(workdir):
     res = fit_spec(sp, z, lines=['LYALPHA'], dble_lyafit=True, find_lya_vel_offset=False)
     
     tab = res['lines']
-    assert 'LYALPHA' in tab['LINE']
-    l = tab[tab['LINE']=='LYALPHA']
-    assert len(l) == 2
-    r =  l[0]
+    assert 'LYALPHA1' in tab['LINE']
+    r = tab[tab['LINE']=='LYALPHA1']
     assert_allclose(r['VEL'],34.15,rtol=1.e-2)
     assert_allclose(r['VDISP'],194.15,rtol=1.e-2)
     assert_allclose(r['FLUX'],680.54,rtol=1.e-2)
@@ -157,7 +155,8 @@ def test_2lya(workdir):
     assert_allclose(r['SNR'],32.35,rtol=1.e-2)
     assert_allclose(r['SEP'],515.76,rtol=1.e-2)
     assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2)
-    r =  l[1]
+    assert 'LYALPHA2' in tab['LINE']
+    r = tab[tab['LINE']=='LYALPHA2']
     assert_allclose(r['VEL'],34.15,rtol=1.e-2)
     assert_allclose(r['VDISP'],307.69,rtol=1.e-2)
     assert_allclose(r['FLUX'],1080.50,rtol=1.e-2)

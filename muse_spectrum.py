@@ -57,9 +57,10 @@ res = fit_spec(sp, zinit, lines=['LYALPHA'], emcee=False, dble_lyafit=True, find
 #                linepars=dict(delta_vel=100, delta_vdisp=50, delta_gamma=None))
 
 fig,ax = plt.subplots(1,1,figsize=(10,5))
-plot_fit(ax, res, line='LYALPHA', line_only=True)
+plot_fit(ax, res, line='LYALPHA1', line_only=True)
 res['ztable'].pprint_all()
-res['lines'].loc['LYALPHA'].pprint_all()
+print(res['lines'].loc['LYALPHA1'])
+print(res['lines'].loc['LYALPHA2'])
 
 #ax[0].set_title('LSQ Fit')
 #plot_fit(ax[1], res2, line='CIV1548', line_only=True, start=True)
