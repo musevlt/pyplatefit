@@ -1419,17 +1419,17 @@ def update_bounds(result, delta_vel, delta_vdisp, delta_gamma):
             par[f"dv_{family}"].min = dv - delta_vel
             par[f"dv_{family}"].max = dv + delta_vel
         if delta_vdisp is not None:
-            if fun == 'asymgauss':
-                vdisp = par[f"vdisp_{family}"].value
-                par[f"vdisp_{family}"].min = vdisp - delta_vdisp
-                par[f"vdisp_{family}"].max = vdisp + delta_vdisp
-            elif fun == 'dbleasymgauss':
+            if fun == 'dbleasymgauss':
                 vdisp1 = par[f"vdisp1_{family}"].value
                 par[f"vdisp1_{family}"].min = vdisp1 - delta_vdisp
                 par[f"vdisp1_{family}"].max = vdisp1 + delta_vdisp
                 vdisp2 = par[f"vdisp2_{family}"].value
                 par[f"vdisp2_{family}"].min = vdisp2 - delta_vdisp
-                par[f"vdisp2_{family}"].max = vdisp2 + delta_vdisp                
+                par[f"vdisp2_{family}"].max = vdisp2 + delta_vdisp  
+            else:
+                vdisp = par[f"vdisp_{family}"].value
+                par[f"vdisp_{family}"].min = vdisp - delta_vdisp
+                par[f"vdisp_{family}"].max = vdisp + delta_vdisp            
         if delta_gamma is not None:
             fun = [key.split('_')[2] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')][0]
             if fun == 'asymgauss':
