@@ -90,10 +90,10 @@ def test_fit(workdir):
     assert_allclose(r['VEL'],86.40,rtol=1.e-2)
     assert_allclose(r['Z'],4.77832,rtol=1.e-2)
     assert_allclose(r['FLUX'],4174.68,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],21.01,rtol=1.e-2)
-    assert_allclose(r['SNR'],198.66,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],19.28,rtol=1.e-2)
+    assert_allclose(r['SNR'],216.44,rtol=1.e-2)
     assert_allclose(r['EQW'],-60.62,rtol=1.e-2)
-    assert_allclose(r['EQW_ERR'],1.71,rtol=1.e-2)
+    assert_allclose(r['EQW_ERR'],1.68,rtol=1.e-2)
     
     
 def test_faint(workdir):
@@ -127,15 +127,16 @@ def test_faint(workdir):
     r = tab[tab['LINE']=='LYALPHA'][0]
     assert_allclose(r['VEL'],37.03,rtol=1.e-2)
     assert_allclose(r['VDISP'],264.32,rtol=1.e-2)
-    assert_allclose(r['FLUX'],118.16,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],23.84,rtol=1.e-2)
-    assert_allclose(r['SNR'],4.96,rtol=1.e-2)
+    assert_allclose(r['FLUX'],113.23,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],21.42,rtol=1.e-2)
+    assert_allclose(r['SNR'],5.28,rtol=1.e-2)
     assert np.ma.is_masked(r['EQW'])
     
     assert 'HEII1640' in tab['LINE']
     r = tab[tab['LINE']=='HEII1640'][0]
     assert r['FLUX'] < 0.05
-    assert r['SNR'] < 0.5
+    
+    
     
 def test_2lya(workdir):
     os.chdir(workdir)
