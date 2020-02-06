@@ -536,9 +536,12 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     
     # mask all points that have a std == 0
     mask = std <= 0
+    excluded_lbrange = None
     if np.sum(mask) > 0:
         logger.debug('Masked %d points with std <= 0', np.sum(mask))
-        wave_rest, data_rest, std_rest = wave_rest[~mask], data_rest[~mask], std_rest[~mask]    
+        wave_rest, data_rest, std_rest = wave_rest[~mask], data_rest[~mask], std_rest[~mask] 
+        excluded_lbrange = [wave[mask].min(),wave[mask].max()]
+        wave, data, std = wave[~mask], data[~mask], std[~mask]
 
     # Unit of the computed flux.
     if unit_wave is not None and unit_data is not None:
@@ -559,7 +562,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         logger.debug("Getting lines from get_emlines...") 
         sel = 1 if major_lines else None
         lines = get_emlines(z=redshift, vac=True, sel=sel, margin=MARGIN_EMLINES,
-                            lbrange=[wave.min(), wave.max()],
+                            lbrange=[wave.min(), wave.max()], 
+                            exlbrange=excluded_lbrange,
                             ltype="em", table=True, restframe=True)
         lines.rename_column("LBDA_OBS", "LBDA_REST")
         if lines_to_fit is not None:
@@ -1154,16 +1158,18 @@ def upsert_ltable(tab, vals, family, line):
         tab.add_row(vals)             
         
 def add_gaussian_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, wave, data):
-    params.add(f"{family_name}_{name}_gauss_l0", value=l0, vary=False)  
     ksel = np.abs(wave-l0) < wind_max
+    #if np.sum(ksel) == 0: return # test for the AO wavelength empty region 
+    params.add(f"{family_name}_{name}_gauss_l0", value=l0, vary=False)  
     vmax = data[ksel].max()
     sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
     flux = SQRT2PI*sigma*vmax
     params.add(f"{family_name}_{name}_gauss_flux", value=flux, min=0)
     
-def add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, gamma, wave, data):
-    params.add(f"{family_name}_{name}_asymgauss_l0", value=l0, vary=False)  
+def add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, gamma, wave, data):   
     ksel = np.abs(wave-l0) < wind_max
+    #if np.sum(ksel) == 0: return # test for the AO wavelength empty region 
+    params.add(f"{family_name}_{name}_asymgauss_l0", value=l0, vary=False) 
     vmax = data[ksel].max()
     sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
     flux = SQRT2PI*sigma*vmax
@@ -1171,9 +1177,10 @@ def add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, ga
     params.add(f"{family_name}_{name}_asymgauss_asym", value=gamma[1], 
                min=gamma[0], max=gamma[2])
 
-def add_dbleasymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, sep, gamma1, gamma2, wave, data):
-    params.add(f"{family_name}_{name}_dbleasymgauss_l0", value=l0, vary=False)  
+def add_dbleasymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, sep, gamma1, gamma2, wave, data):     
     ksel = np.abs(wave-l0) < wind_max
+    #if np.sum(ksel) == 0: return # test for the AO wavelength empty region
+    params.add(f"{family_name}_{name}_dbleasymgauss_l0", value=l0, vary=False)
     vmax = data[ksel].max()
     sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
     flux1 = SQRT2PI*sigma*vmax*0.3
