@@ -17,6 +17,8 @@ New features
 
 Bug fixes
 ^^^^^^^^^
+- correct bugs when using AO spectra with masked Na wavelength range 
+- correct a bug in BIC computation for lyalpha
 - set correctly the initial value of velocity dispersion for the fit
 - correct a bug in the estimation of LBDA_OBS for lines other than lyalpha
 - filter emcee warnings

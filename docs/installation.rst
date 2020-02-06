@@ -16,6 +16,10 @@ The following dependencies are required:
 - lmfit, the main fitting module
 - emcee, the MCMC module
 
+.. warning::
+
+   To use pyplatefit with AO spectra, you need mpdaf version > 3.4
+
 
     
     
