@@ -481,7 +481,7 @@ def add_bic_to_ztable(ztab, res):
                 ztab['BIC_CIII'][ksel] = res3['lmfit_forbidden'].bic        
     if 'LYALPHA' in lines['LINE']:
         linelist = ['LYALPHA']
-        z = lines[lines['LINE']=='CIII1907']['Z'][0]
+        z = lines[lines['LINE']=='LYALPHA']['Z'][0]
         res3 = pl.fit_lines(res['line_spec'], z, emcee=False, lines=linelist)        
         if 'lyalpha' in ztab['FAMILY']:
             ksel = ztab['FAMILY'] == 'lyalpha'
