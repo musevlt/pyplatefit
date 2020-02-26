@@ -2,6 +2,6 @@ include README.md
 include pyproject.toml
 
 graft pyNNLS
-graft pyPLATEFIT
+graft pyplatefit
 
 global-exclude *.py[cod] __pycache__ *.so .git
