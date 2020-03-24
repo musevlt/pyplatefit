@@ -2,6 +2,7 @@ from .version import __version__
 from .platefit import Platefit, fit_spec, plot_fit
 from .cont_fitting import Contfit
 from .line_fitting import Linefit, fit_lines
+from .linelist import get_lines
 from .eqw import EquivalentWidth
 
 
