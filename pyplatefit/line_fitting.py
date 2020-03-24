@@ -46,7 +46,7 @@ from scipy.signal import argrelmin
 from logging import getLogger
 from matplotlib import transforms
 
-from mpdaf.sdetect.linelist import get_emlines
+from .linelist import get_lines
 from mpdaf.obj.spectrum import vactoair, airtovac
 
 import warnings
@@ -330,7 +330,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     All lines are assumed to be gaussian except for lyman-alpha where an
     asymetric gaussian model is used.
 
-    All the emission lines known by `mpdaf.sdetect.linelist.get_emlines` are
+    All the emission lines known by `linelist.get_lines` are
     searched for, unless a list of line names or a table of lines is provided
     with the `lines` parameter. If `trim_spectrum` is set to true (default),
     the fit is done keeping only the parts of the spectrum around the expected
@@ -559,15 +559,14 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         lines_to_fit = None
 
     if lines is None:
-        logger.debug("Getting lines from get_emlines...") 
-        sel = 1 if major_lines else None
-        lines = get_emlines(z=redshift, vac=True, sel=sel, margin=MARGIN_EMLINES,
+        logger.debug("Getting lines from get_lines...") 
+        main = True if major_lines else None
+        lines = get_lines(z=redshift, vac=True, main=main, margin=MARGIN_EMLINES,
                             lbrange=[wave.min(), wave.max()], 
                             exlbrange=excluded_lbrange,
-                            ltype="em", table=True, restframe=True)
-        lines.rename_column("LBDA_OBS", "LBDA_REST")
+                            emiline=True, restframe=True)
         if lines_to_fit is not None:
-            lines = lines[np.in1d(lines['LINE'], lines_to_fit)]
+            lines = lines[np.in1d(lines['LINE'].tolist(), lines_to_fit)]
             if len(lines) < len(lines_to_fit):
                 logger.debug(
                     "Some lines are not on the spectrum coverage: %s.",
@@ -780,13 +779,13 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     lines = lines[lines['LINE'] != 'LYALPHA']
     
     # fitting of families with non resonnant lines
-    families = set(lines['FAMILY'])-set([3])
+    non_resonant_lines = lines[~lines['RESONANT']]
+    families = set(non_resonant_lines['FAMILY'])
     logger.debug('Found %d non resonnant line families to fit', len(families))
     
-    for id_family in families:
-        family = family_names[id_family]
+    for family in families:
         logger.debug('Performing fitting of family %s', family)
-        sel_lines = lines[lines['FAMILY']==id_family]
+        sel_lines = non_resonant_lines[non_resonant_lines['FAMILY']==family]
         logger.debug('LSQ Fitting of %d lines', len(sel_lines))
         # Set input parameters
         params = Parameters()
@@ -825,8 +824,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         resfit['table_spec'] = tabspec 
         
     # fitting of families with resonnant lines (except lya, already fitted)
-    lines = lines[lines['FAMILY']==3]
-    dlines = reorganize_doublets(lines)    
+    resonant_lines = lines[lines['RESONANT']]
+    dlines = reorganize_doublets(resonant_lines)    
     logger.debug('Found %d resonnant line families to fit', len(dlines)) 
     for clines in dlines:
         family = clines[0].lower()
