@@ -4,10 +4,10 @@ v0.4dev (XX/XX/XX)
 ------------------
 New features
 ^^^^^^^^^^^^
+- replace the mpdaf linelist module by a specific one in pyplatefit
 - add the fit of double lyman-alpha line
 - allow the use of its own lines table
 - allow to define separately the bounds and starting value for lya
-- add VDISP field in line table for future use (AGN type fitting, not yet implemented)
 - update documentation 
 - add the name of the line with maximum SNR in ztable
 - line_plot function 
