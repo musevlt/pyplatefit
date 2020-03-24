@@ -1,10 +1,15 @@
 Changelog
 =========
-v0.4dev (XX/XX/XX)
+v0.5dev (XX/XX/XX)
 ------------------
 New features
 ^^^^^^^^^^^^
 - replace the mpdaf linelist module by a specific one in pyplatefit
+
+v0.4 (24/03/2020)
+-----------------
+New features
+^^^^^^^^^^^^
 - add the fit of double lyman-alpha line
 - allow the use of its own lines table
 - allow to define separately the bounds and starting value for lya
