@@ -1,7 +1,7 @@
 Changelog
 =========
-v0.4dev (XX/XX/XX)
-------------------
+v0.4 (24/03/2020)
+-----------------
 New features
 ^^^^^^^^^^^^
 - add the fit of double lyman-alpha line
