@@ -55,19 +55,17 @@ def test_fit_lines(workdir):
     spline = res_cont['line_spec']
     assert spline.shape == (3681,)
      
-    res_line = pf.fit_lines(spline, z, emcee=False)
-    assert_allclose(res_line['lmfit_lyalpha'].redchi,2.976,rtol=1.e-2)
+    res_line = pf.fit_lines(spline, z)
+    assert_allclose(res_line['lmfit_lya'].redchi,2.976,rtol=1.e-2)
     r = res_line['lines'][0]
     assert r['LINE'] == 'LYALPHA'
-    assert_allclose(r['VEL'],86.3987,rtol=1.e-2)
-    assert_allclose(r['Z'],4.77691,rtol=1.e-3)
-    assert_allclose(r['FLUX'],4172.96,rtol=1.e-2)
-    assert_allclose(r['SKEW'],7.247,rtol=1.e-2)
-    assert_allclose(r['LBDA_OBS'],7022.95,rtol=1.e-2)
-    assert_allclose(r['FWHM_OBS'],8.351,rtol=1.e-2)
-    assert_allclose(r['RCHI2'],2.976,rtol=1.e-2)
+    assert_allclose(r['VEL'],86.40,rtol=1.e-2)
+    assert_allclose(r['Z'],4.77832,rtol=1.e-3)
+    assert_allclose(r['FLUX'],4173.19,rtol=1.e-2)
+    assert_allclose(r['SKEW'],7.25,rtol=1.e-2)
+    assert_allclose(r['LBDA_OBS'],7022.60,rtol=1.e-2)
+    assert_allclose(r['FWHM_OBS'],8.35,rtol=1.e-2)
     assert_allclose(r['FLUX_ERR'],34.96,rtol=1.e-2)
-    assert_allclose(r['SKEW_ERR'],0.374,rtol=1.e-2)
     assert_allclose(r['SNR'],119.36,rtol=1.e-2)
    
     
@@ -82,18 +80,18 @@ def test_fit(workdir):
     sp = Spectrum('udf10_00053.fits')
     z = 4.77666
     
-    pf = Platefit(linepars=dict(seed=1)) 
-    res = pf.fit(sp, z, emcee=True, major_lines=True)
+    pf = Platefit(linepars=dict(seed=1, showprogress=False)) 
+    res = pf.fit(sp, z, bootstrap=True, major_lines=True)
     
     r = res['lines'][0]
     assert r['LINE'] == 'LYALPHA'
     assert_allclose(r['VEL'],86.40,rtol=1.e-2)
     assert_allclose(r['Z'],4.77832,rtol=1.e-2)
-    assert_allclose(r['FLUX'],4174.68,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],21.01,rtol=1.e-2)
-    assert_allclose(r['SNR'],198.65,rtol=1.e-2)
-    assert_allclose(r['EQW'],-60.62,rtol=1.e-2)
-    assert_allclose(r['EQW_ERR'],1.71,rtol=1.e-2)
+    assert_allclose(r['FLUX'],4176.66,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],21.58,rtol=1.e-2)
+    assert_allclose(r['SNR'],193.51,rtol=1.e-2)
+    assert_allclose(r['EQW'],-60.65,rtol=1.e-2)
+    assert_allclose(r['EQW_ERR'],1.72,rtol=1.e-2)
     
     
 def test_faint(workdir):
@@ -120,21 +118,23 @@ def test_faint(workdir):
     assert np.ma.is_masked(r['FLUX_ERR']) 
     assert np.ma.is_masked(r['SNR'])   
     
-    res = fit_spec(sp, z, emcee=True, linepars={'seed':1})
+    res = fit_spec(sp, z, lines=['LYALPHA','HEII1640'], bootstrap=True, linepars={'seed':1, 'showprogress':False})
     tab = res['lines']
     
     assert 'LYALPHA' in tab['LINE']
     r = tab[tab['LINE']=='LYALPHA'][0]
-    assert_allclose(r['VEL'],37.03,rtol=1.e-2)
-    assert_allclose(r['VDISP'],264.32,rtol=1.e-2)
-    assert_allclose(r['FLUX'],118.15,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],23.84,rtol=1.e-2)
-    assert_allclose(r['SNR'],4.95,rtol=1.e-2)
+    assert_allclose(r['VEL'],160.45,rtol=1.e-2)
+    assert_allclose(r['VDISP'],194.31,rtol=1.e-2)
+    assert_allclose(r['FLUX'],118.97,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],24.28,rtol=1.e-2)
+    assert_allclose(r['SNR'],4.90,rtol=1.e-2)
+    assert_allclose(r['RCHI2'],1.61,rtol=1.e-2)
     assert np.ma.is_masked(r['EQW'])
     
     assert 'HEII1640' in tab['LINE']
     r = tab[tab['LINE']=='HEII1640'][0]
-    assert r['FLUX'] < 0.05
+    assert_allclose(r['FLUX'],9.64,rtol=1.e-2)
+    assert_allclose(r['SNR'],0.69,rtol=1.e-2)
     
     
     
@@ -144,7 +144,7 @@ def test_2lya(workdir):
     sp = Spectrum('udf10_00106.fits')
     z = 3.27554
     
-    res = fit_spec(sp, z, lines=['LYALPHA'], dble_lyafit=True, find_lya_vel_offset=False)
+    res = fit_spec(sp, z, lines=['LYALPHA'], dble_lyafit=True)
     
     tab = res['lines']
     assert 'LYALPHA1' in tab['LINE']

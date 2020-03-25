@@ -55,7 +55,7 @@ def test_fit_lines(workdir):
     spline = res_cont['line_spec']
     assert spline.shape == (3681,)
      
-    res_line = pf.fit_lines(spline, z, emcee=False)
+    res_line = pf.fit_lines(spline, z)
     assert_allclose(res_line['lmfit_balmer'].redchi,249.37,rtol=1.e-4)
     t = res_line['lines']
     r = t[t['LINE']=='OIII5008'][0]
@@ -82,7 +82,7 @@ def test_fit(workdir):
     z = 0.41892
     
     pf = Platefit() 
-    res = pf.fit(sp, z, emcee=False, lines=['HBETA'])
+    res = pf.fit(sp, z, lines=['HBETA'])
     
     r = res['lines'][0]
     assert r['LINE'] == 'HBETA'
@@ -124,7 +124,7 @@ def test_fit_nocont(workdir):
     spline = sp - cont
     
     pf = Platefit() 
-    res = pf.fit(spline, z, emcee=False, lines=['HBETA'], fitcont=False)
+    res = pf.fit(spline, z, lines=['HBETA'], fitcont=False)
     
     r = res['lines'][0]
     assert r['LINE'] == 'HBETA'
@@ -192,3 +192,27 @@ def test_fit_resonnant(workdir):
     assert_allclose(r['RCHI2'],12.47,rtol=1.e-2)
     assert r['NL'] == 2
     assert r['NL_CLIPPED'] == 1
+    
+def test_fit_bootstrap(workdir):
+    os.chdir(workdir)
+    sp = Spectrum('udf10_00002.fits')
+    z = 0.41892    
+    res = fit_spec(sp, z, lines=['HBETA'], bootstrap=True,
+                   linepars=dict(showprogress=False, seed=1))
+    ztab = res['ztable']
+    r = ztab[0]
+    assert_allclose(r['RCHI2'],14.75,rtol=1.e-2)
+    lines = res['lines']
+    r = lines[0]
+    assert_allclose(r['RCHI2'],47.89,rtol=1.e-2)
+    assert_allclose(r['SNR'],326.63,rtol=1.e-2)
+    
+    res = fit_spec(sp, z, lines=['HBETA'], bootstrap=False)
+    ztab = res['ztable']
+    r = ztab[0]
+    assert_allclose(r['RCHI2'],13.22,rtol=1.e-2)
+    lines = res['lines']
+    r = lines[0]
+    assert np.ma.is_masked(r['RCHI2'])
+    assert_allclose(r['SNR'],85.55,rtol=1.e-2)    
+    

@@ -287,7 +287,7 @@ class Platefit:
 
 
 
-def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, fitcont=True, lines=None, 
+def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, comp_bic=False, fitcont=True, lines=None, 
              major_lines=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True, dble_lyafit=False,
              lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={}):
     """ 
@@ -301,9 +301,8 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
       redshift (in vacuum)
     fit_all : bool
       If True, fit all lines except Lya together with the same velocity and velocity dispersion (default False)
-    emcee : bool
-      if True perform a second fit using EMCEE to derive improved errors
-      (note cpu intensive), default False.
+    bootstrap : bool
+      if True use bootsrap to estimate errors, default False.
     ziter : bool
       if True, a first emission line fit is performed to refine the redshift before a new continuum subtraction
       and a complete line fit is performed (to save computation time, eemce option is disactivated for the first fit),
@@ -322,7 +321,7 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
     use_line_ratios : bool
        if True, use constrain line ratios in fit (default False)
     find_lya_vel_offset : bool
-       if True, perform an initial search for the lya velocity offset
+       if True, perform an initial search for the lya velocity offset [deactivated for dble lya fit]
     dble_lyafit : bool
         if True, use a double asymetric gaussian model for the lya line fit    
     lsf : bool
@@ -440,7 +439,7 @@ def fit_spec(spec, z, fit_all=False, emcee=False, ziter=False, comp_bic=False, f
         spec = Spectrum(spec)    
     pl = Platefit(contpars=contpars, linepars=linepars)
     logger.debug('Performing continuum and line fitting')
-    res = pl.fit(spec, z, emcee=emcee, fit_all=fit_all, ziter=ziter, fitcont=fitcont,
+    res = pl.fit(spec, z, bootstrap=bootstrap, fit_all=fit_all, ziter=ziter, fitcont=fitcont,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,    
                  dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec)
     if comp_bic:
