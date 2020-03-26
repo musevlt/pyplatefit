@@ -94,7 +94,7 @@ class Platefit:
             linespec = rescont['line_spec'] 
             # set parameters to speed the fit
             kwargs1 = kwargs.copy()
-            kwargs1['emcee'] = False
+            kwargs1['bootstrap'] = False
             kwargs1['fit_all'] = True
             resline = self.fit_lines(linespec, z, **kwargs1)
             ztable = resline['ztable']
@@ -287,7 +287,7 @@ class Platefit:
 
 
 
-def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, comp_bic=False, fitcont=True, lines=None, 
+def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True, lines=None, 
              major_lines=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True, dble_lyafit=False,
              lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={}):
     """ 
@@ -307,8 +307,6 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, comp_bic=Fals
       if True, a first emission line fit is performed to refine the redshift before a new continuum subtraction
       and a complete line fit is performed (to save computation time, eemce option is disactivated for the first fit),
       default false
-    comp_bic : bool
-      If True compute Bayesian Information Criteria for some lines (default False)
     fitcont : bool
       If True fit and subtract the continuum, otherwise perform only line emission fit (default True)
     lines: list or astropy table
@@ -342,18 +340,14 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, comp_bic=Fals
         - gamma_2lya1 : (min,init,max), bounds and init value for lya left line skewness parameter, default (-10,-2,0)
         - gamma_2lya2 : (min,init,max), bounds and init value for lya right line skewness parameter, default (0,2,10)
         - sep_2lya : (min,init,max), bounds and init value for the 2 peak lya line separation (rest frame, km/s), default (80,500,1000)
-        - delta_vel : float, maximum excursion of Velocity Offset (km/s) with respect to the LSQ solution used for EMCEE fit, default 20
-        - delta_vdisp : float, maximum excursion of Velocity Dispersion Offset (km/s) with respect to the LSQ solution used for EMCEE fit, default 10           
-        - delta_gamma : float, maximum excursion of skewness lya parameter with respect to the LSQ solution used for EMCEE fit, default 0.1  
         - windmax : float, maximum half size window in A to find peak values around initial wavelength value (default 10)
         - xtol : float, relative error in the solution for the leastq fitting (default 1.e-4)
         - ftol : float, relative error in the sum of square for the leastsq fitting (default 1.e-6)
         - maxfev : int, max number of iterations for the leastsq fitting (default 1000)
-        - steps : int, number of steps for the emcee minimisation (default 1000)
-        - nwalkers : int, number of walkers for the emcee minimisation, if 0 it is computed as the nearest even number to 3*nvariables (default 0)
-        - burn : int, number of first samples to remove from the analysis in emcee (default 100)
-        - seed : None or int, random number seed (default None)
-        - progress : bool, if True display progress bar during EMCEE computation (default False)
+        - nbootstrap : int, number of sample in bootstrap (default 100)
+        - seed : None or int, random number seed in bootstrap (default None)
+        - showprogress : bool, if True display progress bar during bootstrap (default True)
+        - chi2_relsize : float, relative size (wrt to FWHM) of the wavelength window used for CHI2 line estimation (used in bootstrap only), default: 3.0
         - minsnr : float, minimum SNR to display line ID in plots (default 3.0)
         - line_ratios : list of tuples, list of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)] 
         
@@ -406,7 +400,9 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, comp_bic=Fals
       - LBDA_LEFT: The wavelength at the left of the peak with 0.5*peak value
       - LBDA_RIGHT: The wavelength at the rigth of the peak with 0.5*peak value     
       - FWHM_OBS: The full width at half maximum of the line in the observed frame 
-      - RCHI2: The reduced Chi2 of the fit
+      - RCHI2: The reduced Chi2 of the line fit [only available in bootstrap mode]
+      - LBDA_LCHI2: The wavelength at the left of the range used for CHI2 estimation
+      - LBDA_RCHI2: The wavelength at the right of the range used for CHI2 estimation
       - EQW: The restframe line equivalent width 
       - EQW_ERR: The error in EQW
       - CONT_OBS: The continuum mean value in Observed frame
@@ -431,7 +427,7 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, comp_bic=Fals
       - NL: number of fitted lines
       - NL_CLIPPED: number of lines with SNR>SNR_MIN
       - NFEV: the number of function evaluation
-      - RCHI2: the reduced Chi2     
+      - RCHI2: the reduced Chi2 of the family lines fit        
 
     """
     logger = logging.getLogger(__name__)
@@ -442,51 +438,8 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, comp_bic=Fals
     res = pl.fit(spec, z, bootstrap=bootstrap, fit_all=fit_all, ziter=ziter, fitcont=fitcont,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,    
                  dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec)
-    if comp_bic:
-        logger.debug('Adding BIC info to ztable for a subset of lines')
-        add_bic_to_ztable(res['ztable'], res)
     return res   
-        
-        
-def add_bic_to_ztable(ztab, res):
-    """ add BICinfo to ztable """  
-    pl = Platefit()
-    for name in ['BIC_LYALPHA','BIC_OII','BIC_CIII']:
-        ztab.add_column(MaskedColumn(name=name, dtype=float, length=len(ztab), mask=True))
-        ztab[name].format = '.2f'
-    lines = res['lines']
-    # compute bic for individual lines (lya,oii,ciii)
-    if 'OII3727' in lines['LINE']:
-        linelist = ['OII3727','OII3729']
-        z = lines[lines['LINE']=='OII3727']['Z'][0]
-        res3 = pl.fit_lines(res['line_spec'], z, emcee=False, lines=linelist)
-        if 'forbidden' in ztab['FAMILY']:
-            ksel = ztab['FAMILY'] == 'forbidden'
-            ztab['BIC_OII'][ksel] = res3['lmfit_forbidden'].bic
-        else:
-            if 'all' in ztab['FAMILY']:
-                ksel = ztab['FAMILY'] == 'all'
-                ztab['BIC_OII'][ksel] = res3['lmfit_forbidden'].bic
-    if 'CIII1907' in lines['LINE']:
-        linelist = ['CIII1907','CIII1909']
-        z = lines[lines['LINE']=='CIII1907']['Z'][0]
-        res3 = pl.fit_lines(res['line_spec'], z, emcee=False, lines=linelist)
-        if 'forbidden' in ztab['FAMILY']:
-            ksel = ztab['FAMILY'] == 'forbidden'
-            ztab['BIC_CIII'][ksel] = res3['lmfit_forbidden'].bic
-        else:
-            if 'all' in ztab['FAMILY']:
-                ksel = ztab['FAMILY'] == 'all'
-                ztab['BIC_CIII'][ksel] = res3['lmfit_forbidden'].bic        
-    if 'LYALPHA' in lines['LINE']:
-        linelist = ['LYALPHA']
-        z = lines[lines['LINE']=='LYALPHA']['Z'][0]
-        res3 = pl.fit_lines(res['line_spec'], z, emcee=False, lines=linelist)        
-        if 'lyalpha' in ztab['FAMILY']:
-            ksel = ztab['FAMILY'] == 'lyalpha'
-            ztab['BIC_LYALPHA'][ksel] = res3['lmfit_lyalpha'].bic   
-            
-            
+                                       
 def plot_fit(ax, result, line_only=False, line=None, start=False,
              filterspec=0,
              margin=50, legend=True, iden=True, label=True, minsnr=0, 

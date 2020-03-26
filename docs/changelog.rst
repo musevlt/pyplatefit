@@ -4,7 +4,17 @@ v0.5dev (XX/XX/XX)
 ------------------
 New features
 ^^^^^^^^^^^^
+- compute reduced chi2 for individual lines (in bootstrap)
+- replace the emcee method with bootstrap
 - replace the mpdaf linelist module by a specific one in pyplatefit
+
+Breaking Changes
+^^^^^^^^^^^^^^^^
+- Option comp_bic has been supressed in fit_spec
+
+Bug fixes
+^^^^^^^^^
+
 
 v0.4 (24/03/2020)
 -----------------
