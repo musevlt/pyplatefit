@@ -733,8 +733,8 @@ def init_res(pdata):
     tablines = Table()
     colnames = ['LBDA_REST','VEL','VEL_ERR','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR',
                     'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS',
-                    'PEAK_OBS','LBDA_LEFT','LBDA_RIGHT','FWHM_OBS', 'RCHI2', 
-                    'LBDA_LCHI2', 'LBDA_RCHI2'] 
+                    'PEAK_OBS','LBDA_LEFT','LBDA_RIGHT','FWHM_OBS', 'NSTD', 
+                    'LBDA_LNSTD', 'LBDA_RNSTD'] 
     for colname in colnames:
         tablines.add_column(MaskedColumn(name=colname, dtype=np.float, mask=True))
     tablines.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True), index=0)
@@ -753,6 +753,7 @@ def init_res(pdata):
     tablines['Z'].format = '.5f'
     tablines['Z_INIT'].format = '.5f'
     tablines['Z_ERR'].format = '.2e'
+    tablines['NSTD'].format = '.5f'
     #set ztable for global results by family 
     ztab = Table()
     ztab.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True))
@@ -901,13 +902,15 @@ def add_line_rchi2_to_table(reslsq, pdata, sel_lines, tablines, npar):
         wave = pdata['wave_obs']
         mask = (wave>=l1) & (wave<=l2)
         bestfit = reslsq.bestfit[mask]
-        std_models = reslsq.std_models[mask]
+        #std_models = reslsq.std_models[mask]
         data = pdata['data_rest'][mask]
-        nfree = len(data) - npar
-        rchi2 = np.sum((data-bestfit)**2/std_models**2)/nfree
-        tablines['RCHI2'][lmask] = rchi2
-        tablines['LBDA_LCHI2'][lmask] = l1
-        tablines['LBDA_RCHI2'][lmask] = l2
+        #nfree = len(data) - npar
+        #rchi2 = np.sum((data-bestfit)**2/std_models**2)/nfree
+        norm = np.sum(bestfit)
+        nstd = np.std((data-bestfit)/norm)
+        tablines['NSTD'][lmask] = nstd
+        tablines['LBDA_LNSTD'][lmask] = l1
+        tablines['LBDA_RNSTD'][lmask] = l2
         
 
 def reorganize_doublets(lines):
