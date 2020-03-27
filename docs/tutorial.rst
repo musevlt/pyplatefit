@@ -119,8 +119,8 @@ fit all lines simultaneously.
 	[DEBUG] Saving all results to tablines and ztab
 	
 	FAMILY  VEL  VEL_ERR    Z     Z_ERR    Z_INIT VDISP VDISP_ERR  LINE SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED NFEV RCHI2
-    ------ ----- ------- ------- -------- ------- ----- --------- ----- ------ ------ -------------- --- ---------- ---- -----
-    all    85.87    0.88 0.41921 2.92e-06 0.41892 66.00      0.98 HBETA  75.42  62.12          69.13  22         16  284 19.92
+	------ ----- ------- ------- -------- ------- ----- --------- ----- ------ ------ -------------- --- ---------- ---- -----
+	all    85.87    0.88 0.41921 2.92e-06 0.41892 66.00      0.98 HBETA  75.42  62.12          69.13  22         16  284 19.92
 
 The next step is to visualize the fit quality.
 
@@ -151,31 +151,30 @@ will write the following:
 
 ::
 
-	FAMILY         LINE LBDA_REST   DNAME   VEL VEL_ERR       Z    Z_ERR  Z_INIT VDISP VDISP_ERR VDINST     FLUX FLUX_ERR  SNR  SKEW SKEW_ERR LBDA_OBS PEAK_OBS LBDA_LEFT LBDA_RIGHT FWHM_OBS RCHI2 LBDA_LCHI2 LBDA_RCHI2  EQW   EQW_ERR CONT_OBS   CONT  CONT_ERR
-	--------- --------- --------- ------- ----- ------- ------- -------- ------- ----- --------- ------ -------- -------- ----- ---- -------- -------- -------- --------- ---------- -------- ----- ---------- ---------- ------ ------- -------- ------- --------
-	forbidden   NEV3427   3426.85     Neᴠ 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  70.33     0.87   456.34  0.00   --       --  4862.57     0.22   4860.72    4864.42     3.70    --         --         --  -0.00    0.56   574.57  815.27    30.12
-	forbidden   OII3727   3727.09    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  62.04  4340.81   426.08 10.19   --       --  5288.60  1078.17   5286.71    5290.49     3.78    --         --         --  -5.19    0.53   589.73  836.78    41.88
-	forbidden   OII3729   3729.88   [Oɪɪ] 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  61.97  6065.86   435.24 13.94   --       --  5292.56  1506.28   5290.67    5294.45     3.78    --         --         --  -7.20    0.55   593.92  842.73    42.22
-	balmer          H11   3771.70     H11 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  60.96   196.54   395.93  0.50   --       --  5351.72    48.84   5349.83    5353.61     3.78    --         --         --  -0.20    0.41   678.39  962.58    46.23
-	balmer          H10   3798.98     H10 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  60.31   323.33   384.19  0.84   --       --  5390.43    80.16   5388.53    5392.32     3.79    --         --         --  -0.33    0.39   700.12  993.41    41.11
-	balmer           H9   3836.47      H9 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  59.45   573.34   380.68  1.51   --       --  5443.62   141.68   5441.72    5445.52     3.80    --         --         --  -0.54    0.36   744.95 1057.03    40.19
-	forbidden NEIII3870   3870.16 [Neɪɪɪ] 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  58.68   401.93   386.22  1.04   --       --  5491.61    98.58   5489.70    5493.53     3.83    --         --         --  -0.38    0.36   752.97 1068.41    38.28
-	forbidden   HEI3890   3889.73    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  58.25  1343.16   392.77  3.42   --       --  5519.38   328.82   5517.46    5521.30     3.84    --         --         --  -1.23    0.37   771.42 1094.59    63.25
-	balmer           H8   3890.15      H8 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  58.25  1302.20   386.54  3.37   --       --  5519.79   320.22   5517.88    5521.70     3.82    --         --         --  -1.19    0.36   770.81 1093.72    63.27
-	forbidden NEIII3967   3968.91    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  56.57   759.26   386.02  1.97   --       --  5631.74   184.46   5629.80    5633.67     3.87    --         --         --  -0.67    0.34   802.90 1139.25    59.16
-	balmer     HEPSILON   3971.20      Hε 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  56.52  1107.89   378.27  2.93   --       --  5634.79   270.35   5632.87    5636.72     3.85    --         --         --  -0.97    0.34   805.59 1143.07    59.02
-	balmer       HDELTA   4102.89      Hδ 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  53.93  2051.54   379.20  5.41   --       --  5821.65   494.00   5819.70    5823.60     3.90    --         --         --  -1.75    0.33   825.06 1170.69    35.49
-	balmer       HGAMMA   4341.68      Hγ 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  49.80  3648.07   348.86 10.46   --       --  6160.48   855.65   6158.47    6162.48     4.01    --         --         --  -3.28    0.32   784.02 1112.46    36.08
-	forbidden  OIII4364   4364.44    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  49.44    27.45   346.28  0.08   --       --  6192.99     6.39   6190.97    6195.00     4.04    --         --         --  -0.02    0.31   798.74 1133.35    36.72
-	balmer        HBETA   4862.68      Hβ 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  42.93  8568.15   415.37 20.63   --       --  6899.74  1884.03   6897.60    6901.87     4.27    --         --         --  -7.86    0.40   768.17 1089.98    30.89
-	forbidden  OIII4960   4960.30    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  41.91   654.23   265.55  2.46   --       --  7038.50   141.21   7036.32    7040.67     4.35    --         --         --  -0.59    0.24   778.55 1104.70    23.15
-	forbidden  OIII5008   5008.24  [Oɪɪɪ] 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  41.44  2215.79   272.59  8.13   --       --  7106.52   475.18   7104.33    7108.71     4.38    --         --         --  -2.03    0.25   770.43 1093.18    24.17
-	forbidden   HEI5877   5877.25    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  35.41   907.89   459.27  1.98   --       --  8339.62   172.53   8337.15    8342.09     4.94    --         --         --  -0.88    0.45   723.61 1026.75    48.67
-	forbidden    OI6302   6302.05    [Oɪ] 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  33.85   723.63   953.43  0.76   --       --  8942.40   129.48   8939.78    8945.03     5.25    --         --         --  -0.75    1.00   679.34  963.93    81.74
-	forbidden   NII6550   6549.85    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  33.26  4502.07   691.86  6.51   --       --  9294.02   777.85   9291.30    9296.74     5.44    --         --         --  -4.61    0.74   688.85  977.43    65.37
-	balmer       HALPHA   6564.61      Hα 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  33.23 23688.21  2927.80  8.09   --       --  9314.65  4110.46   9311.94    9317.35     5.41    --         --         -- -24.06    3.27   693.90  984.59   114.60
-	forbidden   NII6585   6585.28    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  33.19 11604.18  1017.50 11.40   --       --  9344.30  1994.93   9341.57    9347.03     5.46    --         --         -- -11.65    1.45   701.99  996.06   292.68
-
+	FAMILY     LINE   LBDA_REST  DNAME   VEL  VEL_ERR    Z     Z_ERR    Z_INIT VDISP VDISP_ERR VDINST   FLUX   FLUX_ERR  SNR  SKEW SKEW_ERR LBDA_OBS PEAK_OBS LBDA_LEFT LBDA_RIGHT FWHM_OBS   NSTD   LBDA_LNSTD LBDA_RNSTD  EQW   EQW_ERR CONT_OBS   CONT  CONT_ERR
+	--------- --------- --------- ------- ----- ------- ------- -------- ------- ----- --------- ------ -------- -------- ----- ---- -------- -------- -------- --------- ---------- -------- -------- ---------- ---------- ------ ------- -------- ------- --------
+	forbidden   NEV3427   3426.85     Neᴠ 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  70.33     0.87   456.34  0.00   --       --  4862.57     0.22   4860.72    4864.42     3.70 14.30678    4857.02    4868.12  -0.00    0.56   574.57  815.27    30.12
+	forbidden   OII3727   3727.09    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  62.04  4340.81   426.08 10.19   --       --  5288.60  1078.17   5286.71    5290.49     3.78  0.00364    5282.93    5298.23  -5.19    0.53   589.73  836.78    41.88
+	forbidden   OII3729   3729.88   [Oɪɪ] 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  61.97  6065.86   435.24 13.94   --       --  5292.56  1506.28   5290.67    5294.45     3.78  0.00364    5282.93    5298.23  -7.20    0.55   593.92  842.73    42.22
+	balmer          H11   3771.70     H11 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  60.96   196.54   395.93  0.50   --       --  5351.72    48.84   5349.83    5353.61     3.78  0.23170    5346.05    5357.39  -0.20    0.41   678.39  962.58    46.23
+	balmer          H10   3798.98     H10 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  60.31   323.33   384.19  0.84   --       --  5390.43    80.16   5388.53    5392.32     3.79  0.17918    5384.74    5396.11  -0.33    0.39   700.12  993.41    41.11
+	balmer           H9   3836.47      H9 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  59.45   573.34   380.68  1.51   --       --  5443.62   141.68   5441.72    5445.52     3.80  0.10170    5437.92    5449.32  -0.54    0.36   744.95 1057.03    40.19
+	forbidden NEIII3870   3870.16 [Neɪɪɪ] 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  58.68   401.93   386.22  1.04   --       --  5491.61    98.58   5489.70    5493.53     3.83  0.02853    5485.87    5497.36  -0.38    0.36   752.97 1068.41    38.28
+	forbidden   HEI3890   3889.73    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  58.25  1343.16   392.77  3.42   --       --  5519.38   328.82   5517.46    5521.30     3.84  0.04386    5513.63    5525.14  -1.23    0.37   771.42 1094.59    63.25
+	balmer           H8   3890.15      H8 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  58.25  1302.20   386.54  3.37   --       --  5519.79   320.22   5517.88    5521.70     3.82  0.05386    5514.06    5525.52  -1.19    0.36   770.81 1093.72    63.27
+	forbidden NEIII3967   3968.91    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  56.57   759.26   386.02  1.97   --       --  5631.74   184.46   5629.80    5633.67     3.87  0.15429    5625.94    5637.54  -0.67    0.34   802.90 1139.25    59.16
+	balmer     HEPSILON   3971.20      Hε 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  56.52  1107.89   378.27  2.93   --       --  5634.79   270.35   5632.87    5636.72     3.85  0.05588    5629.02    5640.57  -0.97    0.34   805.59 1143.07    59.02
+	balmer       HDELTA   4102.89      Hδ 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  53.93  2051.54   379.20  5.41   --       --  5821.65   494.00   5819.70    5823.60     3.90  0.03066    5815.80    5827.50  -1.75    0.33   825.06 1170.69    35.49
+	balmer       HGAMMA   4341.68      Hγ 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  49.80  3648.07   348.86 10.46   --       --  6160.48   855.65   6158.47    6162.48     4.01  0.01422    6154.47    6166.49  -3.28    0.32   784.02 1112.46    36.08
+	forbidden  OIII4364   4364.44    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  49.44    27.45   346.28  0.08   --       --  6192.99     6.39   6190.97    6195.00     4.04  0.52845    6186.93    6199.04  -0.02    0.31   798.74 1133.35    36.72
+	balmer        HBETA   4862.68      Hβ 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  42.93  8568.15   415.37 20.63   --       --  6899.74  1884.03   6897.60    6901.87     4.27  0.00653    6893.33    6906.15  -7.86    0.40   768.17 1089.98    30.89
+	forbidden  OIII4960   4960.30    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  41.91   654.23   265.55  2.46   --       --  7038.50   141.21   7036.32    7040.67     4.35  0.02871    7031.97    7045.02  -0.59    0.24   778.55 1104.70    23.15
+	forbidden  OIII5008   5008.24  [Oɪɪɪ] 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  41.44  2215.79   272.59  8.13   --       --  7106.52   475.18   7104.33    7108.71     4.38  0.00771    7099.95    7113.09  -2.03    0.25   770.43 1093.18    24.17
+	forbidden   HEI5877   5877.25    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  35.41   907.89   459.27  1.98   --       --  8339.62   172.53   8337.15    8342.09     4.94  0.05133    8332.21    8347.04  -0.88    0.45   723.61 1026.75    48.67
+	forbidden    OI6302   6302.05    [Oɪ] 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  33.85   723.63   953.43  0.76   --       --  8942.40   129.48   8939.78    8945.03     5.25  0.05663    8934.53    8950.28  -0.75    1.00   679.34  963.93    81.74
+	forbidden   NII6550   6549.85    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  33.26  4502.07   691.86  6.51   --       --  9294.02   777.85   9291.30    9296.74     5.44  0.00748    9285.87    9302.18  -4.61    0.74   688.85  977.43    65.37
+	balmer       HALPHA   6564.61      Hα 82.14    3.86 0.41931 1.29e-05 0.41892 66.11      4.26  33.23 23688.21  2927.80  8.09   --       --  9314.65  4110.46   9311.94    9317.35     5.41  0.06106    9306.52    9322.77 -24.06    3.27   693.90  984.59   114.60
+	forbidden   NII6585   6585.28    None 92.48    5.29 0.41936 1.76e-05 0.41892 66.64      6.07  33.19 11604.18  1017.50 11.40   --       --  9344.30  1994.93   9341.57    9347.03     5.46  0.01627    9336.10    9352.49 -11.65    1.45   701.99  996.06   292.68	
 
 For the detail of all columns consult the `pyplatefit.fit_spec` informations. 
 
@@ -305,7 +304,7 @@ The skewness parameter used in the model is named SKEW in the ``lines`` table.
 	FAMILY  VEL   VEL_ERR    Z     Z_ERR    Z_INIT VDISP  VDISP_ERR   LINE  SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED NFEV RCHI2
 	------- ------ ------- ------- -------- ------- ------ --------- ------- ------ ------ -------------- --- ---------- ---- ------
 	lyalpha  -8.04    1.32 4.77695 4.39e-06 4.77666 284.52      3.25 LYALPHA 119.36 119.36         119.36   1          1   91   2.98
-		all -23.48 1075.67 4.77658 3.59e-03 4.77666 211.13   1107.13 CIV1551   0.20   0.24             --   4          0   65 274.98
+	    all -23.48 1075.67 4.77658 3.59e-03 4.77666 211.13   1107.13 CIV1551   0.20   0.24             --   4          0   65 274.98
 
 .. code::
 
@@ -514,6 +513,26 @@ lines, resulting in the absence of information of the SNR. If we now use the
 
 We now have a good estimate of the SNR for all faint lines. Note also that the previous
 estimate of the SNR with LSQ has reduced from 7.13 to the more realistic value of 3.65.
+
+.. _fit_accuracy:
+
+Fit accuracy
+++++++++++++
+
+To judge the fit accuracy pyplatefit provide two indicators:
+
+	The reduced chi square value for the simultaneous fit of all lines for each family. This value is
+	given by the lmfit least square routine. When the ``bootstrap`` option is activated, a more precise value
+	is computed using the statistics of the residuals. A value close to 1 indicate a good fit, higher value bad fit,
+	and near 0 value, noise overfitting.
+
+
+	To assess the goodness of the fit for each individual lines, the parameter ``NSTD`` is returned in the lines table.
+	``NSTD`` is the standard deviation of the residuals after normalisation of the flux by the total model flux. Computation
+	is performed in a window centered on the line peak with a width relative to the FWHM of the line. The window wavelengths
+	limits are saved in the table as ``LBDA_LNSTD`` and ``LBDA_RNSTD``. The smaller NSTD, the better. Typical good line fit
+	have NSTD below 0.01.
+
 
 .. _contfit:
 
@@ -763,27 +782,27 @@ As shown later it is also possible to use its own line table. To review this mas
 	  MGI2853       ism   2852.97     0.0 False False  True    False     Mgɪ  
 	  NEV3427 forbidden   3426.85     0.0 False  True False    False     Neᴠ  
 	  OII3727 forbidden   3727.09  3727.5  True  True False    False    None  
-	  OII3729 forbidden   3729.88  3727.5  True  True False    False   [Oɪɪ]  
-		  H11    balmer    3771.7     0.0 False  True  True    False     H11  
-		  H10    balmer   3798.98     0.0 False  True  True    False     H10  
-		   H9    balmer   3836.47     0.0 False  True  True    False      H9  
+	  OII3729 forbidden   3729.88  3727.5  True  True False    False   [Oɪɪ]
+	      H11    balmer    3771.7     0.0 False  True  True    False     H11  
+	      H10    balmer   3798.98     0.0 False  True  True    False     H10  
+	       H9    balmer   3836.47     0.0 False  True  True    False      H9  
 	NEIII3870 forbidden   3870.16     0.0  True  True False    False [Neɪɪɪ]  
-		  CAK       ism   3933.66     0.0 False False  True    False    None  
-		  CAH       ism   3968.45     0.0 False False  True    False    CaHK  
+	      CAK       ism   3933.66     0.0 False False  True    False    None  
+	      CAH       ism   3968.45     0.0 False False  True    False    CaHK  
 	  HEI3890 forbidden   3889.73     0.0 False  True False    False    None  
-		   H8    balmer   3890.15     0.0 False  True  True    False      H8  
+	       H8    balmer   3890.15     0.0 False  True  True    False      H8  
 	NEIII3967 forbidden   3968.91     0.0 False  True False    False    None  
 	 HEPSILON    balmer    3971.2     0.0 False  True  True    False      Hε  
 	   HDELTA    balmer   4102.89     0.0  True  True  True    False      Hδ  
-		  CAG       ism   4304.57     0.0 False False  True    False   Gband  
+	      CAG       ism   4304.57     0.0 False False  True    False   Gband  
 	   HGAMMA    balmer   4341.68     0.0  True  True  True    False      Hγ  
 	 OIII4364 forbidden   4364.44     0.0 False  True False    False    None  
-		HBETA    balmer   4862.68     0.0  True  True  True    False      Hβ  
+	    HBETA    balmer   4862.68     0.0  True  True  True    False      Hβ  
 	 OIII4960 forbidden    4960.3     0.0  True  True False    False    None  
 	 OIII5008 forbidden   5008.24     0.0  True  True False    False  [Oɪɪɪ]  
-	 	  MGB       ism   5175.44     0.0 False False  True    False     Mgb  
+	      MGB       ism   5175.44     0.0 False False  True    False     Mgb  
 	  HEI5877 forbidden   5877.25     0.0 False  True False    False    None  
-		  NAD       ism   5891.94     0.0 False False  True    False     NaD  
+	      NAD       ism   5891.94     0.0 False False  True    False     NaD  
 	   OI6302 forbidden   6302.05     0.0 False  True False    False    [Oɪ]  
 	  NII6550 forbidden   6549.85     0.0 False  True False    False    None  
 	   HALPHA    balmer   6564.61     0.0  True  True  True    False      Hα  
@@ -814,19 +833,21 @@ Most of the parameters can be changed using the ``linepars`` dictionary in
 
 Here is the complete list of parameters:
 
-    - (vel_min, vel, vel_max) : initial value of velocity offset in km/s and bounds
-    - (vdisp_min, vdisp, vdisp_max) : initial value of velocity dispersion in km/s and bounds
-    - (vdisp_min_lya, vdisp_lya, vdisp_max_lya) : initial value of velocity dispersion for lyalpha line  in km/s and bounds
-    - (gamma_min, gamma_lya, gamma_max) : initial value and bounds for the skeness parameter of the lyalpha line 
-    - (gamma_2lya1_min, gamma_2lya1, gamma_2lya1_max) : initial value and bounds for the left lyalpha line skeness parameter (only for double lyman alpha fit)
-    - (gamma_2lya2_min, _2lya2, gamma_2lya2_max) : same for the left lyalpha line
-    - (sep_2lya_min, sep_2lya, sep_2lya_max) : initial value and bounds for the rest frame peak separation (km/s) of the two lyalpha lines (only for double lyalpha fit)
-    - windmax : half size of the window to perform a preliminary search of the lyalpha peak (used when the option find_lya_velocity_offset is activated)
-    - xtol : relative error in the solution for the LSQ fit
-    - ftol : relative error in the sum of square for the LSQ fit
-    - maxfev : maximum allowed of function evaluation (LSQ fit)
-    - nbootstrap : int, number of sample in bootstrap (default 100)
+    - vel : (min,init,max), bounds and init value for velocity offset (km/s), default (-500,0,500)
+    - vdisp : (min,init,max), bounds and init value for velocity dispersion (km/s), default (5,50,300)
+    - vdisp_lya : (min,init,max), bounds and init value for lya velocity dispersion (km/s), default (50,150,700)
+    - gamma_lya : (min,init,max), bounds and init value for lya skewness parameter, default (-1,0,10)
+    - gamma_2lya1 : (min,init,max), bounds and init value for lya left line skewness parameter, default (-10,-2,0)
+    - gamma_2lya2 : (min,init,max), bounds and init value for lya right line skewness parameter, default (0,2,10)
+    - sep_2lya : (min,init,max), bounds and init value for the 2 peak lya line separation (rest frame, km/s), default (80,500,1000)
+    - windmax : float, maximum half size window in A to find peak values around initial wavelength value (default 10)
+    - xtol : float, relative error in the solution for the leastq fitting (default 1.e-4)
+    - ftol : float, relative error in the sum of square for the leastsq fitting (default 1.e-6)
+    - maxfev : int, max number of iterations by parameter for the leastsq fitting (default 50)
+    - nbootstrap : int, number of sample in bootstrap (default 200)
     - seed : None or int, random number seed in bootstrap (default None)
     - showprogress : bool, if True display progress bar during bootstrap (default True)
-    - chi2_relsize : float, relative size (wrt to FWHM) of the wavelength window used for CHI2 line estimation (used in bootstrap only), default: 3.0
-    - line_ratios : list of line ratios (CIII, OII, MGII) see the section :ref:`doublet`.
+    - nstd_relsize : float, relative size (wrt to FWHM) of the wavelength window used for NSTD line estimation, default: 3.0
+    - minsnr : float, minimum SNR to display line ID in plots (default 3.0)
+    - line_ratios : list of tuples, list of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)] 
+ 	

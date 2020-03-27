@@ -343,8 +343,8 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
         - windmax : float, maximum half size window in A to find peak values around initial wavelength value (default 10)
         - xtol : float, relative error in the solution for the leastq fitting (default 1.e-4)
         - ftol : float, relative error in the sum of square for the leastsq fitting (default 1.e-6)
-        - maxfev : int, max number of iterations for the leastsq fitting (default 1000)
-        - nbootstrap : int, number of sample in bootstrap (default 100)
+        - maxfev : int, max number of iterations by parameter for the leastsq fitting (default 50)
+        - nbootstrap : int, number of sample in bootstrap (default 200)
         - seed : None or int, random number seed in bootstrap (default None)
         - showprogress : bool, if True display progress bar during bootstrap (default True)
         - chi2_relsize : float, relative size (wrt to FWHM) of the wavelength window used for CHI2 line estimation (used in bootstrap only), default: 3.0
@@ -400,9 +400,9 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
       - LBDA_LEFT: The wavelength at the left of the peak with 0.5*peak value
       - LBDA_RIGHT: The wavelength at the rigth of the peak with 0.5*peak value     
       - FWHM_OBS: The full width at half maximum of the line in the observed frame 
-      - RCHI2: The reduced Chi2 of the line fit [only available in bootstrap mode]
-      - LBDA_LCHI2: The wavelength at the left of the range used for CHI2 estimation
-      - LBDA_RCHI2: The wavelength at the right of the range used for CHI2 estimation
+      - NSTD: The normalized standard deviation of the line fit 
+      - LBDA_LNSTD: The wavelength at the left of the range used for NSTD estimation
+      - LBDA_RNSTD: The wavelength at the right of the range used for NSTD estimation
       - EQW: The restframe line equivalent width 
       - EQW_ERR: The error in EQW
       - CONT_OBS: The continuum mean value in Observed frame

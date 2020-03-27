@@ -90,7 +90,7 @@ class Linefit:
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), 
                  vdisp_lya=(50,150,700), gamma_lya=(-1,0,10), 
                  windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=50, minsnr=3.0,
-                 nbootstrap=100, seed=None, showprogress=True, nstd_relsize=3.0,
+                 nbootstrap=200, seed=None, showprogress=True, nstd_relsize=3.0,
                  gamma_2lya1 = (-10,-2,0), gamma_2lya2 = (0,2,10),
                  sep_2lya = (80,500,1000),
                  line_ratios = [
@@ -130,7 +130,7 @@ class Linefit:
           number of walkers for the emcee minimisation,
           if 0, it is computed as the nearest even number to 3*nvariables (default: 0).
         nbootstrap : int
-          number of bootstrap iterations (default: 100).
+          number of bootstrap iterations (default: 200).
         seed : None or int
           Random number seed (default: None)
         minsnr : float
@@ -371,9 +371,9 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
       - LBDA_LEFT: The wavelength at the left of the peak with 0.5*peak value
       - LBDA_RIGHT: The wavelength at the rigth of the peak with 0.5*peak value     
       - FWHM_OBS: The full width at half maximum of the line in the observed frame 
-      - RCHI2: The reduced Chi2 of the line fit [only available in bootstrap mode]
-      - LBDA_LCHI2: The wavelength at the left of the range used for CHI2 estimation
-      - LBDA_RCHI2: The wavelength at the right of the range used for CHI2 estimation
+      - NSTD: The normalized standard deviation of the line fit 
+      - LBDA_LNSTD: The wavelength at the left of the range used for NSTD estimation
+      - LBDA_RNSTD: The wavelength at the right of the range used for NSTD estimation
       - EQW: The restframe line equivalent width 
       - EQW_ERR: The error in EQW
       - CONT_OBS: The continuum mean value in Observed frame
