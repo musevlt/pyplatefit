@@ -69,7 +69,8 @@ GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -1, 0, 10  # γ parameter for Lyman α
 MIN_SNR = 3.0 # Minimum SNR for clipping
 WINDOW_MAX = 30 # search radius in A for peak around starting wavelength
 MARGIN_EMLINES = 0 # margin in pixel for emission line selection wrt to the spectrum edge
-
+NSTD_RELSIZE = 3.0 # window size relative to FWHM for computation of NSTD
+MAXFEV = 100 # maximum iteration by parameter for leastsq
 
 family_names = ['Abs','balmer','forbidden','resonnant']
 
@@ -88,8 +89,8 @@ class Linefit:
     """
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), 
                  vdisp_lya=(50,150,700), gamma_lya=(-1,0,10), 
-                 windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=1000, minsnr=3.0,
-                 nbootstrap=100, seed=None, showprogress=True, chi2_relsize=3.0,
+                 windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=50, minsnr=3.0,
+                 nbootstrap=100, seed=None, showprogress=True, nstd_relsize=3.0,
                  gamma_2lya1 = (-10,-2,0), gamma_2lya2 = (0,2,10),
                  sep_2lya = (80,500,1000),
                  line_ratios = [
@@ -122,7 +123,7 @@ class Linefit:
         ftol : float
           relative error in the sum of square for the leastsq fitting (default: 1.e-6).
         maxfev : int
-          max number of iterations for the leastsq fitting (default: 1000).
+          max number of iterations by parameter for the leastsq fitting (default: 50).
         steps : int
           number of steps for the emcee minimisation (default: 1000).
         nwalkers : int
@@ -146,14 +147,14 @@ class Linefit:
              
         self.logger = getLogger(__name__)
         
-        self.maxfev = maxfev # nb max of iterations (leastsq)
+        self.maxfev = maxfev # nb max of iterations by parameter (leastsq)
         self.xtol = xtol # relative error in the solution (leastq)
         self.ftol = ftol # relative error in the sum of square (leastsq)
         
         self.nbootstrap = nbootstrap # number of bootstrap iterations
         self.seed = seed # seed for bootstrap
         self.showprogress = showprogress # if True show progressbar
-        self.chi2_relsize = chi2_relsize # relative size with respct to FWHM for line chi2 estimate
+        self.nstd_relsize = nstd_relsize # relative size with respct to FWHM for line NSTD estimate
         
         self.vel = vel # bounds in velocity km/s, rest frame
         self.vdisp = vdisp # bounds in velocity dispersion km/s, rest frame
@@ -196,13 +197,14 @@ class Linefit:
 
         """
  
-        lsq_kws = dict(maxfev=self.maxfev, xtol=self.xtol, ftol=self.ftol)
+        lsq_kws = dict(xtol=self.xtol, ftol=self.ftol)
         boot_kws = dict(nbootstrap=self.nbootstrap, seed=self.seed, 
-                        showprogress=self.showprogress, chi2_relsize=self.chi2_relsize)
+                        showprogress=self.showprogress, )
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya=self.vdisp_lya, 
                        gamma_lya=self.gamma_lya, minsnr=self.minsnr,
-                       sep_2lya=self.sep_2lya, 
+                       nstd_relsize=self.nstd_relsize, sep_2lya=self.sep_2lya, 
                        gamma_2lya1=self.gamma_2lya1, gamma_2lya2=self.gamma_2lya2,
+                       maxfev=self.maxfev 
                        )
         use_line_ratios = kwargs.pop('use_line_ratios', False)
         if use_line_ratios:
@@ -499,7 +501,6 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         nbootstrap = boot_kws['nbootstrap']
         seed_val = boot_kws['seed']
         showprogress = boot_kws['showprogress']
-        chi2_relsize = boot_kws['chi2_relsize']
         logger.debug('Running boostrap with %d iterations', nbootstrap)
         sample_res = [] 
         if seed_val is not None:
@@ -511,7 +512,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             generate_sample_data(pdata, cdata)
             cres = lsq_fit(cdata, lsq_kws, verbose=False)
             sample_res.append(cres)
-        reslsq = compute_bootstrap_stat(pdata, sample_res, chi2_relsize)
+        reslsq = compute_bootstrap_stat(pdata, sample_res)
     else:
         reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
         
@@ -627,6 +628,8 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
     # get other defaut parameters 
     init_windmax = fit_lws.get('windmax',WINDOW_MAX) # search radius in A for peak around starting wavelength
     init_minsnr = fit_lws.get('minsnr',MIN_SNR) # minimum SNR value for clipping
+    nstd_relsize = fit_lws.get('nstd_relsize',NSTD_RELSIZE) # window size relative to FWHM for comutation of NSTD
+    pmaxfev = fit_lws.get('maxfev',MAXFEV) # maximum number of iteration by parameter
     
     wave_rest = pdata['wave_rest']
     data_rest = pdata['data_rest']
@@ -636,6 +639,7 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
     pdata['lsf'] = lsf
     pdata['dble_lyafit'] = dble_lyafit
     pdata['init_minsnr'] = init_minsnr
+    pdata['nstd_relsize'] = nstd_relsize
     
     has_lya = 'LYALPHA' in lines['LINE']
     
@@ -658,13 +662,15 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                                  init_sep_2lya, init_gamma_2lya1, init_gamma_2lya2, 
                                  init_windmax, wave_rest, data_rest)
             family_lines = {'lyalpha': {'fun':'dbleasymgauss', 'lines':['LYALPHA']}}
+            maxfev = pmaxfev*7
         else:
             set_asymgaussian_fitpars('lyalpha', params, sel_lines,  
                                      redshift, lsf, init_vel_lya, init_vdisp_lya, init_gamma_lya, init_windmax,
                                      wave_rest, data_rest)
             family_lines = {'lyalpha': {'fun':'asymgauss', 'lines':['LYALPHA']}}
+            maxfev = pmaxfev*3
         pdata['par_lya'] = dict(params=params, sel_lines=sel_lines, 
-                                family_lines=family_lines)
+                                family_lines=family_lines, maxfev=maxfev)
         
     if fit_all:
         logger.debug('Init fit all lines together expect Lya')
@@ -679,8 +685,10 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                                  redshift, lsf, init_vel, init_vdisp, init_windmax,
                                  wave_rest, data_rest) 
             family_lines = {'all': {'fun':'gauss', 'lines':sel_lines['LINE']}}
+            maxfev = pmaxfev*(2+len(sel_lines))
             pdata['par_all'] = dict(params=params, sel_lines=sel_lines,
-                                family_lines=family_lines)
+                                family_lines=family_lines, maxfev=maxfev)
+            
         return
     
     # fitting of families with non resonnant lines
@@ -697,9 +705,10 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
         set_gaussian_fitpars(family, params, sel_lines, line_ratios, 
                              redshift, lsf, init_vel, init_vdisp, init_windmax,
                              wave_rest, data_rest)
-        family_lines = {family: {'fun':'gauss', 'lines':sel_lines['LINE']}}  
+        family_lines = {family: {'fun':'gauss', 'lines':sel_lines['LINE']}} 
+        maxfev = pmaxfev*(2+len(sel_lines))
         pdata[f'par_{family}'] = dict(params=params, sel_lines=sel_lines,
-                            family_lines=family_lines)        
+                            family_lines=family_lines, maxfev=maxfev)        
         
         
     # fitting of families with resonnant lines (except lya, already fitted)
@@ -720,8 +729,9 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                              redshift, lsf, init_vel, init_vdisp, init_windmax,
                              wave_rest, data_rest)
         family_lines = {family: {'fun':'gauss', 'lines':sel_lines['LINE']}}
+        maxfev = pmaxfev*(2+len(sel_lines))
         pdata[f'par_{family}'] = dict(params=params, sel_lines=sel_lines,
-                            family_lines=family_lines)      
+                            family_lines=family_lines, maxfev=maxfev)      
 
     
 def init_res(pdata):
@@ -795,13 +805,18 @@ def lsq_fit(pdata, lsq_kws, verbose=True):
         args =  (pdata['wave_rest'], pdata['data_rest'], pdata['std_rest'],  
                  pdata[par]['family_lines'], pdata['redshift'], pdata['lsf'])
         minner = Minimizer(residuals, pdata[par]['params'], fcn_args=args) 
+        lsq_kws['maxfev'] = pdata[par]['maxfev']
         if verbose:
             logger.debug('Leastsq fitting with ftol: %.0e xtol: %.0e maxfev: %d',lsq_kws['ftol'],lsq_kws['xtol'],lsq_kws['maxfev'])
         result = minner.minimize(**lsq_kws)
         if verbose:
             logger.debug('%s after %d iterations, redChi2 = %.3f',result.message,
                          result.nfev,result.redchi)
-        reslsq[f'{par[4:]}'] = result   
+            bestfit = model(result.params, pdata['wave_rest'], 
+                            pdata[par]['family_lines'], pdata['redshift'], pdata['lsf']) 
+            result.bestfit = bestfit        
+        reslsq[f'{par[4:]}'] = result 
+        
         
     return reslsq
 
@@ -829,10 +844,6 @@ def save_fit_res(result, pdata, reslsq):
         family_lines = pdata[parname]['family_lines'] 
         sel_lines = pdata[parname]['sel_lines']
         init_params = pdata[parname]['params']
-        if key == 'lya':
-            nparline = 5 if pdata['dble_lyafit'] else 2
-        else:
-            nparline = 1
         
         tabspec[f'{key.upper()}_INIT_FIT'] = model(init_params, wave_rest, family_lines, redshift, lsf)
         tabspec[f'{key.upper()}_FIT_LSQ'] = model(reslsq[key].params, wave_rest, family_lines, redshift, lsf) 
@@ -840,9 +851,7 @@ def save_fit_res(result, pdata, reslsq):
         tabspec['INIT_FIT'] = tabspec['INIT_FIT'] + tabspec[f'{key.upper()}_INIT_FIT']
         
         add_result_to_tables(reslsq[key], tablines, ztab, redshift, sel_lines, lsf, init_minsnr, vac)       
-        if hasattr(reslsq[key], 'std_models'): 
-            # compute rchi2 for the indivual lines (only available with bootstrap)
-            add_line_rchi2_to_table(reslsq[key], pdata, sel_lines, tablines, nparline)
+        add_line_stat_to_table(reslsq[key], pdata, sel_lines, tablines)
             
         resfit[f'lmfit_{key}'] = reslsq[key] 
         
@@ -856,14 +865,13 @@ def generate_sample_data(pdata, cdata):
     
     cdata['data_rest'] = normal(pdata['data_rest'], pdata['std_rest'])
     
-def compute_bootstrap_stat(pdata, sample_res, chi2_relsize):
+def compute_bootstrap_stat(pdata, sample_res):
     
     logger = logging.getLogger(__name__)
-    logger.debug('Compute bootstrap statistics')
     resboot = sample_res[0].copy() 
     keys = resboot.keys()
     for key in keys:
-        logger.debug('Stat %s',key)
+        logger.debug('Computing bootstrap statistics for family: %s',key)
         # compute parameters mean & std
         parlist = resboot[key].var_names
         for p in parlist:
@@ -882,35 +890,41 @@ def compute_bootstrap_stat(pdata, sample_res, chi2_relsize):
         resboot[key].bestfit = bestfit
         resboot[key].std_models = std_models
         resboot[key].nfev = np.sum([res[key].nfev for res in sample_res])
-        pdata['chi2_relsize'] = chi2_relsize
            
     return resboot
            
-def add_line_rchi2_to_table(reslsq, pdata, sel_lines, tablines, npar):
-    kfactor = pdata['chi2_relsize']
-    for line in sel_lines['LINE']:
+def add_line_stat_to_table(reslsq, pdata, sel_lines, tablines):
+    kfactor = pdata['nstd_relsize']
+    for row in sel_lines:
+        line = row['LINE']
         if (line=='LYALPHA') and (pdata['dble_lyafit']):
             lmask = (tablines['LINE']=='LYALPHA1') | (tablines['LINE']=='LYALPHA2')
+        elif row['DOUBLET'] > 0:
+            dlines = sel_lines[np.abs(sel_lines['DOUBLET']-row['DOUBLET'])<0.01]['LINE']
+            lmask = np.in1d([str(e) for e in tablines['LINE']],[str(e) for e in dlines])
         else:
             lmask = tablines['LINE']==line
-        row = tablines[lmask][0]
-        l0 = row['LBDA_OBS']
-        l1 = row['LBDA_LEFT']
-        l2 = row['LBDA_RIGHT']
-        l1 = l0 - kfactor*(l0 - l1)
-        l2 = l0 + kfactor*(l2 - l0)
+        selrows = tablines[lmask]
         wave = pdata['wave_obs']
-        mask = (wave>=l1) & (wave<=l2)
+        mask = np.full_like(wave, False, dtype=bool)  # Points to keep
+        left = 1.e20
+        right = 0
+        for selrow in selrows:     
+            l0 = selrow['LBDA_OBS']
+            l1 = selrow['LBDA_LEFT']
+            l2 = selrow['LBDA_RIGHT']
+            l1 = l0 - kfactor*(l0 - l1)
+            l2 = l0 + kfactor*(l2 - l0)
+            mask[(wave>=l1) & (wave<=l2)] = True
+            left = min(l1,left)
+            right = max(l2,right)
         bestfit = reslsq.bestfit[mask]
-        #std_models = reslsq.std_models[mask]
         data = pdata['data_rest'][mask]
-        #nfree = len(data) - npar
-        #rchi2 = np.sum((data-bestfit)**2/std_models**2)/nfree
         norm = np.sum(bestfit)
         nstd = np.std((data-bestfit)/norm)
         tablines['NSTD'][lmask] = nstd
-        tablines['LBDA_LNSTD'][lmask] = l1
-        tablines['LBDA_RNSTD'][lmask] = l2
+        tablines['LBDA_LNSTD'][lmask] = left
+        tablines['LBDA_RNSTD'][lmask] = right
         
 
 def reorganize_doublets(lines):
@@ -1172,6 +1186,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
 
         upsert_ztable(ztab, zvals, family)
         tablines.sort('LBDA_REST')
+        
         
         
 def upsert_ztable(tab, vals, family):
