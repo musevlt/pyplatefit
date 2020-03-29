@@ -201,10 +201,10 @@ def test_fit_bootstrap(workdir):
                    linepars=dict(showprogress=False, seed=1))
     ztab = res['ztable']
     r = ztab[0]
-    assert_allclose(r['RCHI2'],14.75,rtol=1.e-2)
+    assert_allclose(r['RCHI2'],14.40,rtol=1.e-2)
     lines = res['lines']
     r = lines[0]
-    assert_allclose(r['RCHI2'],47.89,rtol=1.e-2)
+    assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
     assert_allclose(r['SNR'],326.63,rtol=1.e-2)
     
     res = fit_spec(sp, z, lines=['HBETA'], bootstrap=False)
@@ -213,6 +213,6 @@ def test_fit_bootstrap(workdir):
     assert_allclose(r['RCHI2'],13.22,rtol=1.e-2)
     lines = res['lines']
     r = lines[0]
-    assert np.ma.is_masked(r['RCHI2'])
+    assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
     assert_allclose(r['SNR'],85.55,rtol=1.e-2)    
     

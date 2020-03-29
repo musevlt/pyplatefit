@@ -399,7 +399,7 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
       - LBDA_LEFT: The wavelength at the left of the peak with 0.5*peak value
       - LBDA_RIGHT: The wavelength at the rigth of the peak with 0.5*peak value     
       - FWHM_OBS: The full width at half maximum of the line in the observed frame 
-      - NSTD: The normalized standard deviation of the line fit 
+      - NSTD: The log10 of the normalized standard deviation of the line fit 
       - LBDA_LNSTD: The wavelength at the left of the range used for NSTD estimation
       - LBDA_RNSTD: The wavelength at the right of the range used for NSTD estimation
       - EQW: The restframe line equivalent width 
