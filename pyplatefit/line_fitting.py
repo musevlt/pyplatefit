@@ -371,7 +371,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
       - LBDA_LEFT: The wavelength at the left of the peak with 0.5*peak value
       - LBDA_RIGHT: The wavelength at the rigth of the peak with 0.5*peak value     
       - FWHM_OBS: The full width at half maximum of the line in the observed frame 
-      - NSTD: The normalized standard deviation of the line fit 
+      - NSTD: The log10 of the normalized standard deviation of the line fit 
       - LBDA_LNSTD: The wavelength at the left of the range used for NSTD estimation
       - LBDA_RNSTD: The wavelength at the right of the range used for NSTD estimation
       - EQW: The restframe line equivalent width 
@@ -763,7 +763,6 @@ def init_res(pdata):
     tablines['Z'].format = '.5f'
     tablines['Z_INIT'].format = '.5f'
     tablines['Z_ERR'].format = '.2e'
-    tablines['NSTD'].format = '.5f'
     #set ztable for global results by family 
     ztab = Table()
     ztab.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True))
@@ -921,7 +920,7 @@ def add_line_stat_to_table(reslsq, pdata, sel_lines, tablines):
         bestfit = reslsq.bestfit[mask]
         data = pdata['data_rest'][mask]
         norm = np.sum(bestfit)
-        nstd = np.std((data-bestfit)/norm)
+        nstd = np.log10(np.std((data-bestfit)/norm))
         tablines['NSTD'][lmask] = nstd
         tablines['LBDA_LNSTD'][lmask] = left
         tablines['LBDA_RNSTD'][lmask] = right
