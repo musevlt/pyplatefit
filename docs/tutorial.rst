@@ -514,6 +514,72 @@ lines, resulting in the absence of information of the SNR. If we now use the
 We now have a good estimate of the SNR for all faint lines. Note also that the previous
 estimate of the SNR with LSQ has reduced from 7.13 to the more realistic value of 3.65.
 
+.. _absorption_lines:
+
+Fitting absorption lines
+++++++++++++++++++++++++
+
+It is also possible to fit absorption lines using the ``fitabs`` option in ``fit_spec``.
+The fit is performed on the input spectrum after subtraction of the emission line fit.
+Then a continuum is estimated by fitting a polynome on the spectrum. The continuum subtracted
+spectrum is then used to
+fit absorption lines with simple gaussian models and a common velocity offset and velocity dispersion
+(similar to the forbidden or balmer emission line fit). The result named ``abs`` family is saved in
+the ``lines`` and ``ztable`` tables.
+
+.. code::
+
+   sp = Spectrum('test_data/DR2_01028.fits')
+   z = 1.90578
+   res = fit_spec(sp, z, fitabs=True)
+   res['ztable'].pprint_all()
+   res['lines'][['FAMILY','LINE','FLUX','FLUX_ERR','SNR','EQW']].pprint_all()
+
+
+:: 
+
+      FAMILY   VEL     VEL_ERR      Z     Z_ERR    Z_INIT VDISP   VDISP_ERR    LINE   SNRMAX SNRSUM SNRSUM_CLIPPED  NL NL_CLIPPED NFEV RCHI2
+    --------- ------ ----------- ------- -------- ------- ------ ----------- -------- ------ ------ -------------- --- ---------- ---- -----
+    forbidden  46.19       32.24 1.90594 1.08e-04 1.90578  71.97       31.97  CII2328   2.93   3.84             --  11          0  611  1.48
+     mgii2796  13.97 60165569.71 1.90583 2.01e+02 1.90578  75.00 68127021.34 MGII2796   0.00   0.00             --   2          0   48  1.63
+          abs -21.64        5.63 1.90571 1.88e-05 1.90578 107.76        5.94 MGII2796  12.05  22.98          27.41  11          9   99  0.79
+
+      FAMILY    LINE     FLUX  FLUX_ERR  SNR   EQW 
+    --------- -------- ------- -------- ----- -----
+    forbidden HEII1640   21.85    38.00  0.58 -0.18
+    forbidden OIII1660   23.11    35.11  0.66 -0.19
+    forbidden OIII1666   31.34    34.55  0.91 -0.25
+          abs ALII1671 -234.89    27.51  8.54  1.91
+          abs   AL1854 -130.36    22.27  5.85  1.20
+          abs   AL1862  -50.69    21.59  2.35  0.47
+    forbidden CIII1907   48.56    27.26  1.78 -0.46
+    forbidden CIII1909   42.07    28.17  1.49 -0.40
+    forbidden  CII2324   40.31    19.00  2.12 -0.51
+    forbidden  CII2326   36.47    20.88  1.75 -0.46
+    forbidden  CII2328   77.98    26.62  2.93 -0.99
+    forbidden  CII2329    0.00    24.39  0.00 -0.00
+          abs FEII2344 -149.53    15.62  9.57  1.89
+          abs FEII2374 -152.14    18.33  8.30  1.88
+          abs FEII2383 -140.10    20.85  6.72  1.73
+    forbidden NEIV2422    3.94    17.26  0.23 -0.05
+    forbidden NEIV2424   22.05    19.31  1.14 -0.27
+          abs FEII2587 -203.42    17.03 11.94  2.53
+          abs FEII2600 -209.89    17.91 11.72  2.63
+          abs MGII2796 -235.69    19.55 12.05  2.94
+     mgii2796 MGII2796    0.00    28.64  0.00 -0.00
+          abs MGII2803 -220.21    21.88 10.06  2.78
+     mgii2796 MGII2803    0.00    81.65  0.00 -0.00
+          abs  MGI2853  -81.06    44.57  1.82  1.02
+
+The fit can be display with ``plot_fit`` and the option ``abs_line``.
+
+.. code::
+
+    fig,ax = plt.subplots(1,1,figsize=(15,5))
+    plot_fit(ax, res, abs_line=True, filterspec=3)  
+
+.. image:: images/abs_fig1.png
+
 .. _fit_accuracy:
 
 Fit accuracy

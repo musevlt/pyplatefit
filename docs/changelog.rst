@@ -4,7 +4,8 @@ v0.5dev (XX/XX/XX)
 ------------------
 New features
 ^^^^^^^^^^^^
-- compute reduced chi2 for individual lines (in bootstrap)
+- add absorption line fitting
+- compute line fit quality estimate for individual lines 
 - replace the emcee method with bootstrap
 - replace the mpdaf linelist module by a specific one in pyplatefit
 

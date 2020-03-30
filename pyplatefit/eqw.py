@@ -100,7 +100,7 @@ class EquivalentWidth:
             # compute EQW in rest frame
             spmean_err = stddev/np.sqrt(np.sum(ksel))
             if spmean > 0:
-                eqw = line['FLUX']/spmean
+                eqw = abs(line['FLUX'])/spmean
                 eqw_err = line['FLUX_ERR']/spmean + line['FLUX']*spmean_err/spmean**2
                 if line['FLUX'] > 0:
                     line['EQW'] = -eqw

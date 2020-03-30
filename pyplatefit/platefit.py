@@ -39,8 +39,8 @@ class Platefit:
         self.line = Linefit(**linepars)
         self.eqw = EquivalentWidth(**eqwpars)
 
-    def fit(self, spec, z, ziter=False, fitcont=True, eqw=True, **kwargs):
-        """Perform continuum and emission lines fit on a spectrum
+    def fit(self, spec, z, ziter=False, fitcont=True, fitabs=False, eqw=True, **kwargs):
+        """Perform continuum and emission and absorption lines fit on a spectrum
 
         Parameters
         ----------
@@ -54,6 +54,8 @@ class Platefit:
            default false
         fitcont : bool
            Fit and remove continuum prior to line fitting.
+        fitabs : bool
+           Fit also absorption lines
         eqw : bool
            Compute Equivalent Width
         **kwargs : keyword arguments
@@ -76,7 +78,9 @@ class Platefit:
               observed frame
             - result['line_initfit']: MPDAF spectrum, starting solution for emission line fit in
               observed frame
-            - result['spec_fit']: MPDAF spectrum, fitted line+continuum in
+            - result['poly_cont']: MPDAF spectrum, polynomial continuum estimation
+            - result['abs_fit']: MPDAF spectrum, absorption line fit
+            - result['spec_fit']: MPDAF spectrum, fitted line+continuum (+absorption) in
               observed frame
             - result['dcont']: return dictionary from fit_cont (see `fit_cont`)
             - result['dline']: returned dictionary from fit_lines (see `fit_lines`)
@@ -126,8 +130,23 @@ class Platefit:
         
         resline = self.fit_lines(linespec, z, **kwargs)
         
+        resabs = None
+        if fitabs:
+            self.logger.debug('Fit absorption lines')
+            # remove emission lines
+            linefit = resline['line_fit']
+            spnoline = spec - linefit 
+            # fit continuum 
+            resabs = self.fit_abslines(spnoline, z, **kwargs)
+            # add result in resline dict
+            resline['ztable'] = vstack([resline['ztable'],resabs['ztable']])
+            resline['lines'] = vstack([resline['lines'],resabs['lines']]) 
+            resline['lines'].sort('LBDA_REST')
+       
         if eqw and fitcont:
             self.eqw.comp_eqw(spec, linespec, z, resline['lines'])
+        if eqw and fitabs:
+            self.eqw.comp_eqw(spec, resabs['abs_line'], z, resabs['lines'])
         
         resfit['lines'] = resline.pop('lines')
         resfit['lines'].add_index('LINE')
@@ -141,6 +160,14 @@ class Platefit:
         else:
             resfit['spec_fit'] = resfit['line_fit']
         resfit['dline'] = resline
+        if resabs is not None:
+            resfit['spec_fit'] = resfit['spec_fit'] + resabs['abs_line']
+            resfit['abs_cont'] = resabs['abs_cont']
+            resfit['abs_line'] = resabs['abs_line']
+            resfit['abs_init'] = resabs['abs_init']
+            resfit['abs_fit'] = resabs['abs_fit']
+            resfit['dline']['lmfit_abs'] = resabs['lmfit_abs']
+            resfit['dline']['abs_table_spec'] = resabs['table_spec']
 
         return resfit
 
@@ -210,6 +237,28 @@ class Platefit:
            
         """
         return self.line.fit(line, z, **kwargs)        
+    
+    def fit_abslines(self, spec, z, **kwargs):
+        """  
+        Perform absorption lines fit on a continuum subtracted spectrum 
+    
+        Parameters
+        ----------
+        spec : mpdaf.obj.Spectrum
+            input spectrum 
+        z : float
+            reshift 
+        kwargs : keyword arguments
+           Additional arguments passed to the `fit_lines` function.
+
+       
+        Returns
+        -------
+        res : dictionary
+           See `Linefit.fit`
+           
+        """
+        return self.line.absfit(spec, z, **kwargs)         
         
 
     def info_cont(self, res):
@@ -287,7 +336,7 @@ class Platefit:
 
 
 def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True, lines=None, 
-             major_lines=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True, dble_lyafit=False,
+             major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True, dble_lyafit=False,
              lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={}):
     """ 
     perform platefit cont and line fitting on a spectra
@@ -313,6 +362,8 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
        is a replacement of the MPDAF line list table (see `Linefit.fit_lines` for more info)
     major_lines : bool
        if true, use only major lines as defined in MPDAF line list (default False).
+    fitabs : boll
+       if True, fit also absorption lines after the emission line fit
     vdisp : float
        velocity dispersion in km/s (default 80 km/s).
     use_line_ratios : bool
@@ -332,8 +383,10 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
     linepars : dictionary
       Input parameters to pass to `Linefit` (default {})
       
-        - vel : (min,init,max), bounds and init value for velocity offset (km/s), default (-500,0,500)
-        - vdisp : (min,init,max), bounds and init value for velocity dispersion (km/s), default (5,50,300)
+        - vel : (min,init,max), emi lines, bounds and init value for velocity offset (km/s), default (-500,0,500)
+        - vdisp : (min,init,max), emi lines, bounds and init value for velocity dispersion (km/s), default (5,50,300)
+        - velabs : (min,init,max), abs lines, bounds and init value for velocity offset (km/s), default (-500,0,500)
+        - vdispabs : (min,init,max), abs lines, bounds and init value for velocity dispersion (km/s), default (5,50,300)
         - vdisp_lya : (min,init,max), bounds and init value for lya velocity dispersion (km/s), default (50,150,700)
         - gamma_lya : (min,init,max), bounds and init value for lya skewness parameter, default (-1,0,10)
         - gamma_2lya1 : (min,init,max), bounds and init value for lya left line skewness parameter, default (-10,-2,0)
@@ -436,11 +489,12 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
     logger.debug('Performing continuum and line fitting')
     res = pl.fit(spec, z, bootstrap=bootstrap, fit_all=fit_all, ziter=ziter, fitcont=fitcont,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,    
-                 dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec)
+                 dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec,
+                 fitabs=fitabs)
     return res   
                                        
-def plot_fit(ax, result, line_only=False, line=None, start=False,
-             filterspec=0,
+def plot_fit(ax, result, line_only=False, abs_line=False,
+             line=None, start=False, filterspec=0, 
              margin=50, legend=True, iden=True, label=True, minsnr=0, 
              labelpars={'dl':2.0, 'y':0.95, 'size':10}):
     """ 
@@ -454,6 +508,8 @@ def plot_fit(ax, result, line_only=False, line=None, start=False,
         result of `fit_spec`
     line_only : bool
         plot the continuum subtracted spectrum and its fit
+    abs_line : bool
+        plot the absorption lines and continuum fit
     line : str
         name of the line to zoom on (if None display all the spectrum)
     start : bool
@@ -500,7 +556,23 @@ def plot_fit(ax, result, line_only=False, line=None, start=False,
         spline.plot(ax=ax, label=rawlabel, color='k')
         splinefit.plot(ax=ax, color='r', drawstyle='default', label='fit')
         if start:
-            spinitfit.plot(ax=ax, color='b', drawstyle='default', label='init fit')         
+            spinitfit.plot(ax=ax, color='b', drawstyle='default', label='init fit')
+    elif abs_line:
+        # get and truncate spectra
+        spraw = result['abs_init']
+        if filterspec > 0:
+            spraw = spraw.filter(width=filterspec)          
+        spcont = result['abs_cont']
+        spfit = result['abs_fit']
+        if line is not None:
+            spraw = truncate_spec(spraw, line, lines, margin)
+            spcont = truncate_spec(spcont, line, lines, margin)
+            spfit = truncate_spec(spfit, line, lines, margin)
+        # plot spectra
+        rawlabel = f'data (filtered {filterspec})' if filterspec > 0 else 'data'
+        spraw.plot(ax=ax, color='k', label=rawlabel)
+        spfit.plot(ax=ax, color='r', drawstyle='default', label='fit')
+        spcont.plot(ax=ax, color='b', drawstyle='default', label='cont fit')                 
     else:
         # get and truncate spectra
         spraw = result['spec']
@@ -534,10 +606,13 @@ def plot_fit(ax, result, line_only=False, line=None, start=False,
             if (cline['LBDA_OBS']<lmin) or (cline['LBDA_OBS']>lmax):
                 continue
             if (cline['DNAME'] == 'None') or (cline['SNR']<minsnr):
-                ax.axvline(cline['LBDA_OBS'], color='red', alpha=0.2)
+                color = 'red' if cline['FLUX'] > 0 else 'blue'
+                ax.axvline(cline['LBDA_OBS'], color=color, alpha=0.2)
             else:
-                ax.axvline(cline['LBDA_OBS'], color='red', alpha=0.4)
-                ax.text(cline['LBDA_OBS']+labelpars['dl'], labelpars['y'], cline['DNAME'], 
+                color = 'red' if cline['FLUX'] > 0 else 'blue'
+                y = labelpars['y'] if cline['FLUX'] > 0 else 1-labelpars['y']
+                ax.axvline(cline['LBDA_OBS'], color=color, alpha=0.4)
+                ax.text(cline['LBDA_OBS']+labelpars['dl'], y, cline['DNAME'], 
                         dict(fontsize=labelpars['size']), transform=trans)
 
                 

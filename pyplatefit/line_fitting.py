@@ -39,7 +39,7 @@ from astropy.table import Table
 from astropy.table import MaskedColumn
 from astropy.convolution import convolve, Box1DKernel
 from lmfit.parameter import Parameters
-from lmfit import Minimizer, report_fit
+from lmfit import Minimizer
 import numpy as np
 from scipy.special import erf
 from scipy.signal import argrelmin
@@ -88,6 +88,8 @@ class Linefit:
     This class implement Emission Line fit
     """
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), 
+                 velabs=(-500,0,500), vdispabs=(5,50,300),
+                 polydegabs=12, polyiterabs=3, polywmask=3.0,
                  vdisp_lya=(50,150,700), gamma_lya=(-1,0,10), 
                  windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=50, minsnr=3.0,
                  nbootstrap=200, seed=None, showprogress=True, nstd_relsize=3.0,
@@ -142,8 +144,7 @@ class Linefit:
         ------
         Linefit object
         
-        """
-    
+        """    
              
         self.logger = getLogger(__name__)
         
@@ -156,10 +157,16 @@ class Linefit:
         self.showprogress = showprogress # if True show progressbar
         self.nstd_relsize = nstd_relsize # relative size with respct to FWHM for line NSTD estimate
         
-        self.vel = vel # bounds in velocity km/s, rest frame
-        self.vdisp = vdisp # bounds in velocity dispersion km/s, rest frame
+        self.vel = vel # bounds in velocity km/s for emi lines, rest frame
+        self.vdisp = vdisp # bounds in velocity dispersion km/s for emi lines, rest frame
+        self.velabs = velabs # bounds in velocity km/s for abs lines , rest frame
+        self.vdispabs = vdispabs # bounds in velocity dispersion km/s for abs lines, rest frame        
         self.vdisp_lya = vdisp_lya # lya specific bounds in velocity dispersion km/s, rest frame
         self.gamma_lya = gamma_lya # bounds in lya asymmetry
+        
+        self.polydegabs = polydegabs # polynomial degree for polynomial continuum estimation before absorption line fit
+        self.polyiterabs = polyiterabs # maximum iteration for polynomial continuum estimation before absorption line fit
+        self.polywmask = polywmask # window half size in A to mask around abs line before continuum fit
         
         self.sep_2lya = sep_2lya
         self.gamma_2lya1 = gamma_2lya1
@@ -204,7 +211,7 @@ class Linefit:
                        gamma_lya=self.gamma_lya, minsnr=self.minsnr,
                        nstd_relsize=self.nstd_relsize, sep_2lya=self.sep_2lya, 
                        gamma_2lya1=self.gamma_2lya1, gamma_2lya2=self.gamma_2lya2,
-                       maxfev=self.maxfev 
+                       maxfev=self.maxfev, 
                        )
         use_line_ratios = kwargs.pop('use_line_ratios', False)
         if use_line_ratios:
@@ -250,7 +257,88 @@ class Linefit:
         res['line_fit'] = spfit
         res['line_initfit'] = spinit
                 
-        return res        
+        return res  
+    
+    def absfit(self, spec, z, **kwargs):
+        """
+        perform an absorption line fit on a mpdaf spectrum
+        
+        Parameters
+        ----------
+        line_spec : `mpdaf.obj.Spectrum`
+            input spectrum 
+        z : float
+            initial redshift
+        **kwargs : keyword arguments
+            Additional arguments passed to the `fit_abs` function.
+
+        Returns
+        -------
+        res : dictionary
+           See `fit_lines`,
+           return in addition the following spectrum in the observed frame
+           line_spec initial spectrum,
+           init_linefit spectrum of the starting solution for the line fit,
+           line_fit spectrum of the line fit
+
+        """
+        lsq_kws = dict(xtol=self.xtol, ftol=self.ftol)
+        boot_kws = dict(nbootstrap=self.nbootstrap, seed=self.seed, 
+                        showprogress=self.showprogress, )
+        fit_lws = dict(velabs=self.velabs, vdispabs=self.vdispabs, minsnr=self.minsnr,
+                       nstd_relsize=self.nstd_relsize, 
+                       maxfev=self.maxfev)
+        
+        # remove cont
+        deg = self.polydegabs 
+        maxiter = self.polyiterabs
+        wmask = self.polywmask
+        self.logger.debug('Continuum polynomial fit with degre %d itermax %d wmask %.0f A', deg, maxiter, wmask)
+        spcont = get_cont(spec, z, deg, maxiter, wmask)
+        spabs = spec - spcont
+          
+        wave = spabs.wave.coord(unit=u.angstrom).copy()
+        data = spabs.data   
+        if spabs.var is not None:
+            std = np.sqrt(spabs.var)
+        else:
+            std = None
+    
+        if std is not None:
+            bad_points = std == 0
+            std[bad_points] = np.inf
+    
+        try:
+            unit_data = u.Unit(spabs.data_header.get("BUNIT", None))
+        except:
+            unit_data = None
+        
+        lwargs = kwargs.copy()
+        for key in ['major_lines', 'line_ratios', 'fit_all', 'dble_lyafit',
+                    'find_lya_vel_offset', 'use_line_ratios']:
+            if key in lwargs:
+                lwargs.pop(key)
+        res = fit_abs(wave=wave, data=data, std=std, redshift=z,
+                        unit_wave=u.angstrom, unit_data=unit_data,
+                        lsq_kws=lsq_kws, boot_kws=boot_kws, fit_lws=fit_lws,
+                        **lwargs)          
+        
+        tab = res['table_spec' ]   
+        # convert wave to observed frame and air
+        wave = tab['RESTWL']*(1 + z)
+        wave = vactoair(wave)
+        # add fitted spectra on the observed plane
+        spfit = spec.clone()
+        spfit.data = np.interp(spec.wave.coord(), wave, tab['ABS_FIT_LSQ'])
+        spfit.data = spfit.data / (1 + z)
+
+        res['abs_init'] = spec
+        res['abs_cont'] = spcont  
+        res['abs_line'] = spfit
+        res['abs_fit'] = spfit + spcont
+        
+                
+        return res            
     
     def info(self, res, full_output=False):
         """ Print fit informations 
@@ -993,9 +1081,9 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 vdisp_err = np.sqrt(vdisp1_err**2+vdisp2_err**2)
                 if flux1_err is not None:
                     lvals1['FLUX_ERR'] = flux1_err 
-                    lvals1['SNR'] = flux1/flux1_err 
+                    lvals1['SNR'] = abs(flux1)/flux1_err 
                     lvals2['FLUX_ERR'] = flux2_err 
-                    lvals2['SNR'] = flux2/flux2_err                     
+                    lvals2['SNR'] = abs(flux2)/flux2_err                     
                     flux_vals.append(flux1+flux2)
                     err_vals.append(np.sqrt(flux1_err**2+flux2_err**2))
                     line_vals.append(line)
@@ -1078,7 +1166,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                     lvals['VDISP_ERR'] = vdisp_err 
                 if flux_err is not None:
                     lvals['FLUX_ERR'] = flux_err 
-                    lvals['SNR'] = flux/flux_err 
+                    lvals['SNR'] = abs(flux)/flux_err 
                     flux_vals.append(flux)
                     err_vals.append(flux_err)
                     line_vals.append(line)
@@ -1140,7 +1228,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                     lvals['VDISP_ERR'] = vdisp_err 
                 if flux_err is not None:
                     lvals['FLUX_ERR'] = flux_err 
-                    lvals['SNR'] = flux/flux_err 
+                    lvals['SNR'] = abs(flux)/flux_err 
                     flux_vals.append(flux)
                     err_vals.append(flux_err)
                     line_vals.append(line)
@@ -1169,7 +1257,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
         if vdisp_err is not None:
             zvals['VDISP_ERR'] = vdisp_err            
         if len(flux_vals) > 0:
-            flux_vals = np.array(flux_vals)
+            flux_vals = np.abs(flux_vals)
             err_vals = np.array(err_vals)
             zvals['SNRSUM'] = np.sum(flux_vals)/np.sqrt(np.sum(err_vals**2))
             snr_vals = flux_vals/err_vals
@@ -1211,18 +1299,21 @@ def upsert_ltable(tab, vals, family, line):
         vals['LINE'] = line
         tab.add_row(vals)             
         
-def add_gaussian_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, wave, data):
+def add_gaussian_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, wave, data, absline=False):
     ksel = np.abs(wave-l0) < wind_max
-    #if np.sum(ksel) == 0: return # test for the AO wavelength empty region 
     params.add(f"{family_name}_{name}_gauss_l0", value=l0, vary=False)  
-    vmax = data[ksel].max()
-    sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
-    flux = SQRT2PI*sigma*vmax
-    params.add(f"{family_name}_{name}_gauss_flux", value=flux, min=0)
+    sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                      
+    if absline:
+        vmax = data[ksel].min()
+        flux = SQRT2PI*sigma*vmax        
+        params.add(f"{family_name}_{name}_gauss_flux", value=flux, max=0)
+    else:
+        vmax = data[ksel].max()
+        flux = SQRT2PI*sigma*vmax
+        params.add(f"{family_name}_{name}_gauss_flux", value=flux, min=0)
     
 def add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, gamma, wave, data):   
-    ksel = np.abs(wave-l0) < wind_max
-    #if np.sum(ksel) == 0: return # test for the AO wavelength empty region 
+    ksel = np.abs(wave-l0) < wind_max 
     params.add(f"{family_name}_{name}_asymgauss_l0", value=l0, vary=False) 
     vmax = data[ksel].max()
     sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
@@ -1233,7 +1324,6 @@ def add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, ga
 
 def add_dbleasymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, sep, gamma1, gamma2, wave, data):     
     ksel = np.abs(wave-l0) < wind_max
-    #if np.sum(ksel) == 0: return # test for the AO wavelength empty region
     params.add(f"{family_name}_{name}_dbleasymgauss_l0", value=l0, vary=False)
     vmax = data[ksel].max()
     sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
@@ -1263,7 +1353,8 @@ def get_lya_vel_offset(wave, data, box_filter=3):
     return vel_off
     
 def set_gaussian_fitpars(family_name, params, lines, line_ratios, z, lsf, init_vel, 
-                         init_dv, windmax, wave, data):
+                         init_dv, windmax, wave, data,
+                         absline=False):
     logger = logging.getLogger(__name__)
     # add velocity and velocity dispersion fit parameters
     params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])
@@ -1274,7 +1365,7 @@ def set_gaussian_fitpars(family_name, params, lines, line_ratios, z, lsf, init_v
     for line in lines:      
         name = line['LINE']
         l0 = line['LBDA_REST']
-        add_gaussian_par(params, family_name, name, l0, z, vdisp, lsf, windmax, wave, data)
+        add_gaussian_par(params, family_name, name, l0, z, vdisp, lsf, windmax, wave, data, absline)
     logger.debug('added %d gaussian to the fit', len(lines))
     if line_ratios is not None:
         # add line ratios bounds
@@ -1663,3 +1754,174 @@ def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=T
     if name != '':
         name = os.path.basename(name)
     ax.set_title(f'Emission Lines Fit {name}')  
+    
+    
+def fit_abs(wave, data, std, redshift, *, unit_wave=None,
+            unit_data=None, vac=False, lines=None, bootstrap=False,
+            lsf=True, trimm_spec=True,
+            lsq_kws={}, boot_kws={}, fit_lws={}):    
+    
+    logger = logging.getLogger(__name__)
+    
+    logger.debug('Preparing data for fit')     
+    pdata = prepare_absfit_data(wave, data, std, redshift, vac,
+                             lines, trimm_spec)
+    logger.debug('Initialize fit')
+    init_absfit(pdata, lsf, fit_lws)
+    result = init_res(pdata)
+    
+    if bootstrap:
+        nbootstrap = boot_kws['nbootstrap']
+        seed_val = boot_kws['seed']
+        showprogress = boot_kws['showprogress']
+        logger.debug('Running boostrap with %d iterations', nbootstrap)
+        sample_res = [] 
+        if seed_val is not None:
+            logger.debug('Using seed %d', seed_val)
+            seed(seed_val)
+        cdata = pdata.copy()
+        klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
+        for k in klist:
+            generate_sample_data(pdata, cdata)
+            cres = lsq_fit(cdata, lsq_kws, verbose=False)
+            sample_res.append(cres)
+        reslsq = compute_bootstrap_stat(pdata, sample_res)
+    else:
+        reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
+        
+    resfit = save_fit_res(result, pdata, reslsq)
+    
+    return resfit    
+
+def prepare_absfit_data(wave, data, std, redshift, vac, 
+                     lines, trimm_spec):
+    
+    logger = logging.getLogger(__name__)
+    
+    wave = np.array(wave)
+    data = np.array(data)
+    std = np.array(std) if std is not None else np.ones_like(data)  
+    # convert wavelength in restframe and vacuum, scale flux and std
+    wave_rest = airtovac(wave)/(1+redshift)
+    data_rest = data*(1+redshift)
+    std_rest = std*(1+redshift) 
+    
+    # mask all points that have a std == 0
+    mask = std <= 0
+    excluded_lbrange = None
+    if np.sum(mask) > 0:
+        logger.debug('Masked %d points with std <= 0', np.sum(mask))
+        wave_rest, data_rest, std_rest = wave_rest[~mask], data_rest[~mask], std_rest[~mask] 
+        excluded_lbrange = [wave[mask].min(),wave[mask].max()]
+        wave, data, std = wave[~mask], data[~mask], std[~mask]         
+        
+    # Fitting only some lines from reference library.
+    if type(lines) is list:
+        lines_to_fit = lines
+        lines = None
+    else:
+        lines_to_fit = None    
+    
+    if lines is None:
+        logger.debug("Getting lines from get_lines...") 
+        lines = get_lines(z=redshift, vac=True, margin=0,
+                            lbrange=[wave.min(), wave.max()], 
+                            exlbrange=excluded_lbrange,
+                            absline=True, restframe=True)
+        if lines_to_fit is not None:
+            lines = lines[np.in1d(lines['LINE'].tolist(), lines_to_fit)]
+            if len(lines) < len(lines_to_fit):
+                logger.debug(
+                    "Some lines are not on the spectrum coverage: %s.",
+                    ", ".join(set(lines_to_fit) - set(lines['LINE'])))
+        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
+        if not vac:
+            lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])        
+    else:
+        logger.debug("Getting lines from input table") 
+        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
+        if not vac:
+            lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])
+        lines = lines[
+            (lines['LBDA_EXP'] >= wave.min()) &
+            (lines['LBDA_EXP'] <= wave.max())
+        ]
+
+    # When there is no known line on the spectrum area.
+    if not lines:
+        raise NoLineError("There is no known line on the spectrum "
+                          "coverage.")
+    
+    # Spectrum trimming
+        # The window we keep around each line depend on the minimal and maximal
+        # velocity (responsible for shifting the line), and on the maximal velocity
+        # dispersion (responsible for the spreading of the line). We add a 3σ
+        # margin.
+    if trimm_spec:
+        mask = np.full_like(wave, False, dtype=bool)  # Points to keep
+        for row in lines:
+            line_wave = row["LBDA_REST"]
+            vd_max = VD_MAX
+            wave_min = line_wave * (1 + VEL_MIN / C)
+            wave_min -= 3 * wave_min * vd_max / C
+            wave_max = line_wave * (1 + VEL_MAX / C)
+            wave_max += 3 * wave_max * vd_max / C
+            mask[(wave_rest >= wave_min) & (wave_rest <= wave_max)] = True
+        wave_obs, wave_rest, data_rest, std_rest = wave[mask], wave_rest[mask], data_rest[mask], std_rest[mask]
+        logger.debug("%.1f %% of the spectrum is used for fitting.",
+                     100 * np.sum(mask) / len(mask)) 
+        
+    pdata = dict(wave_obs=wave_obs, wave_rest=wave_rest, data_rest=data_rest, std_rest=std_rest,
+                 lines=lines, redshift=redshift, vac=vac) 
+    
+    return pdata
+
+def init_absfit(pdata, lsf, fit_lws):
+    
+    logger = logging.getLogger(__name__)
+    
+    # get defaut parameters for fit bounds and init values
+    init_velabs = fit_lws.get('velabs', (VEL_MIN,VEL_INIT,VEL_MAX))
+    init_vdispabs = fit_lws.get('vdispabs', (VD_MIN,VD_INIT,VD_MAX))
+    
+    # get other defaut parameters 
+    init_windmax = fit_lws.get('windmax',WINDOW_MAX) # search radius in A for peak around starting wavelength
+    init_minsnr = fit_lws.get('minsnr',MIN_SNR) # minimum SNR value for clipping
+    nstd_relsize = fit_lws.get('nstd_relsize',NSTD_RELSIZE) # window size relative to FWHM for comutation of NSTD
+    pmaxfev = fit_lws.get('maxfev',MAXFEV) # maximum number of iteration by parameter
+
+    
+    wave_rest = pdata['wave_rest']
+    data_rest = pdata['data_rest']
+    lines = pdata['lines']
+    redshift = pdata['redshift']
+    
+    pdata['lsf'] = lsf
+    pdata['init_minsnr'] = init_minsnr
+    pdata['nstd_relsize'] = nstd_relsize
+    pdata['dble_lyafit'] = False
+
+    logger.debug('Init absorption lines fit')
+    logger.debug('Found %d lines to fit', len(lines))
+    # Set input parameters
+    line_ratios = None
+    params = Parameters()
+    set_gaussian_fitpars('abs', params, lines, line_ratios, 
+                         redshift, lsf, init_velabs, init_vdispabs, init_windmax,
+                         wave_rest, data_rest, absline=True) 
+    family_lines = {'abs': {'fun':'gauss', 'lines':lines['LINE']}}
+    maxfev = pmaxfev*(2+len(lines))
+    pdata['par_abs'] = dict(params=params, sel_lines=lines,
+                        family_lines=family_lines, maxfev=maxfev)
+    
+def get_cont(spec, z, deg, maxiter, width):
+    sp = spec.copy()
+    if width > 0:          
+        wave = sp.wave.coord()
+        lines = get_lines(z=z, vac=False, margin=0,
+                            lbrange=[wave.min(), wave.max()], 
+                            absline=True, restframe=False) 
+        for line in lines['LBDA_OBS']:
+            sp.mask_region(lmin=line-width, lmax=line+width)   
+    spcont = sp.poly_spec(deg, maxiter=maxiter)
+    return spcont
