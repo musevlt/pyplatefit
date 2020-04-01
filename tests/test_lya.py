@@ -113,13 +113,13 @@ def test_faint(workdir):
     assert_allclose(r['SNR'],7.13,rtol=1.e-2)
     assert np.ma.is_masked(r['EQW'])
     
-    assert 'HEII1640' in tab['LINE']
-    r = tab[tab['LINE']=='HEII1640'][0]
+    assert 'HeII1640' in tab['LINE']
+    r = tab[tab['LINE']=='HeII1640'][0]
     assert r['FLUX'] < 0.005
     assert np.ma.is_masked(r['FLUX_ERR']) 
     assert np.ma.is_masked(r['SNR'])   
     
-    res = fit_spec(sp, z, lines=['LYALPHA','HEII1640'], bootstrap=True, linepars={'seed':1, 'showprogress':False})
+    res = fit_spec(sp, z, lines=['LYALPHA','HeII1640'], bootstrap=True, linepars={'seed':1, 'showprogress':False})
     tab = res['lines']
     
     assert 'LYALPHA' in tab['LINE']
@@ -132,8 +132,8 @@ def test_faint(workdir):
     assert_allclose(r['NSTD'],-1.26,rtol=1.e-2)
     assert np.ma.is_masked(r['EQW'])
     
-    assert 'HEII1640' in tab['LINE']
-    r = tab[tab['LINE']=='HEII1640'][0]
+    assert 'HeII1640' in tab['LINE']
+    r = tab[tab['LINE']=='HeII1640'][0]
     assert_allclose(r['FLUX'],8.13,rtol=1.e-2)
     assert_allclose(r['SNR'],0.64,rtol=1.e-2)
     assert_allclose(r['NSTD'],-0.216,rtol=1.e-2)

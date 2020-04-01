@@ -399,7 +399,7 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
         - nbootstrap : int, number of sample in bootstrap (default 200)
         - seed : None or int, random number seed in bootstrap (default None)
         - showprogress : bool, if True display progress bar during bootstrap (default True)
-        - chi2_relsize : float, relative size (wrt to FWHM) of the wavelength window used for CHI2 line estimation (used in bootstrap only), default: 3.0
+        - nstd_relsize : float, relative size (wrt to FWHM) of the wavelength window used for CHI2 line estimation (used in bootstrap only), default: 3.0
         - minsnr : float, minimum SNR to display line ID in plots (default 3.0)
         - line_ratios : list of tuples, list of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)] 
         

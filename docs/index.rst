@@ -23,7 +23,8 @@ The final code is developed and maintain by Roland Bacon.
 
 .. note::  
 
-   New: The MCMC method to estimate errors has been replaced by bootstraping.
+   New: The MCMC method to estimate errors has been replaced by bootstraping. 
+   Absorption line fitting. New indicator to estimate line fit goodness.
 
 
    

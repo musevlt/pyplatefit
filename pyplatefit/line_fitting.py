@@ -105,9 +105,13 @@ class Linefit:
         Parameters
         ----------
         vel : tuple of floats
-          Minimum, init and maximum values of velocity offset in km/s (default: -500,0,500).
-        vdisp: tuple of floats
-          Minimum, init and maximum values of rest frame velocity dispersion in km/s (default: 5,80,300). 
+          Minimum, init and maximum values of velocity offset in km/s for emission lines (default: -500,0,500).
+        velabs: tuple of floats
+          Minimum, init and maximum values of rest frame velocity dispersion in km/s for absorption lines (default: 5,80,300). 
+        vdisp : tuple of floats
+          init and maximum values of rest frame velocity dispersion in km/s for emission lines (default: 5,80,300).
+        vdispabs: tuple of floats
+          Minimum, init and maximum values of rest frame velocity dispersion in km/s for absorption lines(default: 5,80,300). 
         vdisp_lya : tuple of float
            Minimum, init and maximum values of Lya rest frame velocity dispersion in km/s (default: 50,150,700).
         gamma_lya : tuple of floats
@@ -125,20 +129,21 @@ class Linefit:
         ftol : float
           relative error in the sum of square for the leastsq fitting (default: 1.e-6).
         maxfev : int
-          max number of iterations by parameter for the leastsq fitting (default: 50).
-        steps : int
-          number of steps for the emcee minimisation (default: 1000).
-        nwalkers : int
-          number of walkers for the emcee minimisation,
-          if 0, it is computed as the nearest even number to 3*nvariables (default: 0).
+          max number of iterations by parameter for the leastsq fitting (default 50)
         nbootstrap : int
-          number of bootstrap iterations (default: 200).
+          number of sample in bootstrap (default 200)
         seed : None or int
-          Random number seed (default: None)
+          random number seed in bootstrap (default None)
+        showprogress : bool
+          if True display progress bar during bootstrap (default True)
+        nstd_relsize : float
+          relative size (wrt to FWHM) of the wavelength window used for NSTD line estimation (used in bootstrap only), default: 3.0
         minsnr : float
-          Minimum SNR to display line ID in plots (default: 3.0).
+          minimum SNR to display line ID in plots (default 3.0)
         line_ratios : list of tuples
-          List of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]      
+          list of line_ratios, defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]           
+         
+          WIP: polydegabs=12, polyiterabs=3, polywmask=3.0,
               
         Return
         ------
