@@ -1,6 +1,7 @@
 import numpy as np
 import os
 from astropy.table import Table
+from matplotlib import transforms
 
 from mpdaf.obj import airtovac, vactoair
 
@@ -113,3 +114,20 @@ def get_lines(iden=None,
 
 def get_line_table():
     return Table.read(os.path.join(CURDIR, reftable))
+
+def show_lines(ax, lines, dl=2, y=0.95, fontsize=10):
+    trans = transforms.blended_transform_factory(
+        ax.transData, ax.transAxes)              
+    l1,l2,y1,y2 = ax.axis()
+    for line in lines:
+        l0 = line['LBDA_OBS']
+        if (l0<l1) or (l0>l2):
+            continue
+        alpha = 0.8 if line['MAIN'] else 0.6
+        color = 'r' if line['EMI'] else 'g'
+        ax.axvline(l0, color=color, alpha=alpha)
+        if line['DNAME'] != 'None':
+            ax.text(line['LBDA_OBS']+dl, y, line['DNAME'], 
+                    fontsize=fontsize, transform=trans)            
+            
+        
