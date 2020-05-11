@@ -1203,6 +1203,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                     l1right = vactoair(l1right)
                 # save in table
                 lvals['VEL'] = ndv
+                dv = ndv
                 if dv_err is not None:
                     lvals['VEL_ERR'] = dv_err
                     z_err = dv_err*(1+zinit)/C
