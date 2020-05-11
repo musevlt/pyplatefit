@@ -1077,9 +1077,12 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                     lvals2['SEP_ERR'] = sep_err
                 if dv_err is not None:
                     lvals1['VEL_ERR'] = dv_err
-                    lvals1['Z_ERR'] = (1+zinit)*dv_err/C 
+                    z_err = (1+zinit)*dv_err/C 
+                    lvals1['Z_ERR'] = z_err
                     lvals2['VEL_ERR'] = dv_err
-                    lvals2['Z_ERR'] = (1+zinit)*dv_err/C                    
+                    lvals2['Z_ERR'] = z_err 
+                else:
+                    z_err = None                
                 if vdisp1_err is not None:
                     lvals1['VDISP_ERR'] = vdisp1_err
                     lvals2['VDISP_ERR'] = vdisp2_err 
@@ -1202,7 +1205,10 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 lvals['VEL'] = ndv
                 if dv_err is not None:
                     lvals['VEL_ERR'] = dv_err
-                    lvals['Z_ERR'] = dv_err*(1+zinit)/C                               
+                    z_err = dv_err*(1+zinit)/C
+                    lvals['Z_ERR'] = z_err 
+                else:
+                    z_err = None
                 lvals['Z'] = z  
                 # compute the peak value and convert it to observed frame    
                 lvals['PEAK_OBS'] = np.max(vmodel_rest)/(1+zinit)
@@ -1245,20 +1251,23 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                          'PEAK_OBS':flux/(SQRT2PI*sigma), 'VEL':dv, 'Z':z}) 
                 if dv_err is not None:
                     lvals['VEL_ERR'] = dv_err
-                    lvals['Z_ERR'] = dv_err*(1+zinit)/C 
+                    z_err = dv_err*(1+zinit)/C
+                    lvals['Z_ERR'] = z_err
+                else:
+                    z_err = None
                     
                 # update line table
                 upsert_ltable(tablines, lvals, family, line)
             else:
                 raise ValueError('fun %s unknown'%(fun))
 
-        zvals = {'VEL':dv, 'VDISP':vdisp, 'Z':zinit+ndv/C,
+        zvals = {'VEL':dv, 'VDISP':vdisp, 'Z':z,
                  'NFEV':result.nfev, 'RCHI2':result.redchi,
                  'Z_INIT':zinit,
                  } 
         if dv_err is not None:
             zvals['VEL_ERR'] = dv_err  
-            zvals['Z_ERR'] = dv_err/C
+            zvals['Z_ERR'] = z_err
         if vdisp_err is not None:
             zvals['VDISP_ERR'] = vdisp_err            
         if len(flux_vals) > 0:

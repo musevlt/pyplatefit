@@ -15,6 +15,7 @@ Breaking Changes
 
 Bug fixes
 ^^^^^^^^^
+- correct a bug in redshift value and error reported in ztable
 - correct a bug in redshift error estimation
 
 
