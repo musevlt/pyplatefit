@@ -808,6 +808,7 @@ As shown later it is also possible to use its own line table. To review this mas
    tab.pprint_all()
 
 ::
+
        LINE     FAMILY  LBDA_REST DOUBLET  MAIN  EMI   ABS  RESONANT  DNAME
     --------- --------- --------- ------- ----- ----- ----- -------- -------
       LYALPHA    balmer   1215.67     0.0  True  True  True     True     Lyα

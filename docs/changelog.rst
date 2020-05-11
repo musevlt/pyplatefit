@@ -15,6 +15,7 @@ Breaking Changes
 
 Bug fixes
 ^^^^^^^^^
+- correct a bug in redshift error estimation
 
 
 v0.4 (24/03/2020)

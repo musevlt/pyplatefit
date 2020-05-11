@@ -1077,9 +1077,9 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                     lvals2['SEP_ERR'] = sep_err
                 if dv_err is not None:
                     lvals1['VEL_ERR'] = dv_err
-                    lvals1['Z_ERR'] = dv_err/C 
+                    lvals1['Z_ERR'] = (1+zinit)*dv_err/C 
                     lvals2['VEL_ERR'] = dv_err
-                    lvals2['Z_ERR'] = dv_err/C                    
+                    lvals2['Z_ERR'] = (1+zinit)*dv_err/C                    
                 if vdisp1_err is not None:
                     lvals1['VDISP_ERR'] = vdisp1_err
                     lvals2['VDISP_ERR'] = vdisp2_err 
@@ -1182,7 +1182,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 skew_err = par[f"{family}_{line}_{fun}_asym"].stderr 
                 if skew_err is not None:
                     lvals['SKEW_ERR'] = skew_err
-                # find the line peak loaction in rest frame
+                # find the line peak location in rest frame
                 swave_rest = np.linspace(l0-50,l0+50,1000)
                 vmodel_rest = model_asymgauss(zinit, lsf, l0, flux, skew, vdisp, dv, swave_rest)
                 kmax = np.argmax(vmodel_rest)    
@@ -1202,7 +1202,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 lvals['VEL'] = ndv
                 if dv_err is not None:
                     lvals['VEL_ERR'] = dv_err
-                    lvals['Z_ERR'] = dv_err/C                                 
+                    lvals['Z_ERR'] = dv_err*(1+zinit)/C                               
                 lvals['Z'] = z  
                 # compute the peak value and convert it to observed frame    
                 lvals['PEAK_OBS'] = np.max(vmodel_rest)/(1+zinit)
@@ -1245,7 +1245,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                          'PEAK_OBS':flux/(SQRT2PI*sigma), 'VEL':dv, 'Z':z}) 
                 if dv_err is not None:
                     lvals['VEL_ERR'] = dv_err
-                    lvals['Z_ERR'] = dv_err/C 
+                    lvals['Z_ERR'] = dv_err*(1+zinit)/C 
                     
                 # update line table
                 upsert_ltable(tablines, lvals, family, line)
