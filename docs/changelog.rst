@@ -4,6 +4,7 @@ v0.5dev (XX/XX/XX)
 ------------------
 New features
 ^^^^^^^^^^^^
+- complete the reference line table with some UV emission lines
 - add absorption line fitting
 - compute line fit quality estimate for individual lines 
 - replace the emcee method with bootstrap
