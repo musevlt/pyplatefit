@@ -39,7 +39,7 @@ class Platefit:
         self.line = Linefit(**linepars)
         self.eqw = EquivalentWidth(**eqwpars)
 
-    def fit(self, spec, z, ziter=False, fitcont=True, fitabs=False, eqw=True, **kwargs):
+    def fit(self, spec, z, ziter=False, fitcont=True, fitlines=True, fitabs=False, eqw=True, **kwargs):
         """Perform continuum and emission and absorption lines fit on a spectrum
 
         Parameters
@@ -53,9 +53,11 @@ class Platefit:
            and a complete line fit is performed (to save computation time, eemce option is disactivated for the first fit),
            default false
         fitcont : bool
-           Fit and remove continuum prior to line fitting.
+           Fit and remove continuum prior to (absorption) line fitting.
+        fitlines : bool
+           Fit emission lines
         fitabs : bool
-           Fit also absorption lines
+           Fit absorption lines
         eqw : bool
            Compute Equivalent Width
         **kwargs : keyword arguments
@@ -88,11 +90,12 @@ class Platefit:
         """
         
         resfit = {'spec':spec}
-        
+
+        vdisp = kwargs.pop('vdisp', 80)
+
         if ziter and fitcont:
             self.logger.debug('Performing a first quick fit to refine the input redshift')
             resfit['iter_zinit'] = z
-            vdisp = kwargs.pop('vdisp', 80)
             rescont = self.fit_cont(spec, z, vdisp)
             linespec = rescont['line_spec'] 
             # set parameters to speed the fit
@@ -116,7 +119,7 @@ class Platefit:
             
         
         if fitcont:
-            vdisp = kwargs.pop('vdisp', 80)
+            self.logger.debug('Fit continuum')
             rescont = self.fit_cont(spec, z, vdisp)
             linespec = rescont['line_spec']
             for key in ['cont_spec','cont_fit','line_spec']:
@@ -125,49 +128,71 @@ class Platefit:
             resfit['dcont'] = rescont
         else:
             resfit['line_spec'] = spec
-            res_cont = {}
             linespec = spec
-        
-        resline = self.fit_lines(linespec, z, **kwargs)
-        
-        resabs = None
+
+        if fitlines:
+            self.logger.debug('Fit emission lines')
+            resline = self.fit_lines(linespec, z, **kwargs)
+
         if fitabs:
             self.logger.debug('Fit absorption lines')
-            # remove emission lines
-            linefit = resline['line_fit']
-            spnoline = spec - linefit 
-            # fit continuum 
+            if fitlines:
+                # remove emission lines
+                linefit = resline['line_fit']
+                spnoline = spec - linefit
+            else:
+                spnoline = spec
+
             resabs = self.fit_abslines(spnoline, z, **kwargs)
-            # add result in resline dict
-            resline['ztable'] = vstack([resline['ztable'],resabs['ztable']])
-            resline['lines'] = vstack([resline['lines'],resabs['lines']]) 
-            resline['lines'].sort('LBDA_REST')
-       
-        if eqw and fitcont:
+
+        if eqw and fitcont and fitlines:
             self.eqw.comp_eqw(spec, linespec, z, resline['lines'])
         if eqw and fitabs:
             self.eqw.comp_eqw(spec, resabs['abs_line'], z, resabs['lines'])
-        
-        resfit['lines'] = resline.pop('lines')
-        resfit['lines'].add_index('LINE')
-        resfit['ztable'] = resline.pop('ztable')
-        resfit['ztable'].add_index('FAMILY')
-        resfit['line_spec'] = resline.pop('line_spec')
-        resfit['line_fit'] = resline.pop('line_fit')
-        resfit['line_initfit'] = resline.pop('line_initfit')
+
+        if fitlines and fitabs:
+            # add stacked lines and absorption lines result to resline dict
+            resfit['ztable'] = vstack([resline['ztable'],resabs['ztable']])
+            resfit['lines'] = vstack([resline['lines'],resabs['lines']])
+        elif fitlines:
+            resfit['ztable'] = resline['ztable']
+            resfit['lines'] = resline['lines']
+        elif fitabs:
+            resfit['ztable'] = resabs['ztable']
+            resfit['lines'] = resabs['lines']
+
+        if fitlines or fitabs:
+            resfit['lines'].sort('LBDA_REST')
+            resfit['lines'].add_index('LINE')
+            resfit['ztable'].add_index('FAMILY')
+
+        if fitlines:
+            resfit['line_spec'] = resline.pop('line_spec')
+            resfit['line_fit'] = resline.pop('line_fit')
+            resfit['line_initfit'] = resline.pop('line_initfit')
+            resfit['dline'] = resline
         if fitcont:
-            resfit['spec_fit'] = resfit['cont_spec'] + resfit['line_fit']
-        else:
-            resfit['spec_fit'] = resfit['line_fit']
-        resfit['dline'] = resline
-        if resabs is not None:
-            resfit['spec_fit'] = resfit['spec_fit'] + resabs['abs_line']
+            resfit['spec_fit'] = resfit['cont_spec']
+        if fitlines:
+            if fitcont:
+                resfit['spec_fit'] += resfit['line_fit']
+            else:
+                resfit['spec_fit'] = resfit['line_fit']
+        if fitabs:
+            if fitcont or fitlines:
+                resfit['spec_fit'] += resabs['abs_line']
+            else:
+                resfit['spec_fit'] = resabs['abs_line']
+        if fitabs:
             resfit['abs_cont'] = resabs['abs_cont']
             resfit['abs_line'] = resabs['abs_line']
             resfit['abs_init'] = resabs['abs_init']
             resfit['abs_fit'] = resabs['abs_fit']
-            resfit['dline']['lmfit_abs'] = resabs['lmfit_abs']
-            resfit['dline']['abs_table_spec'] = resabs['table_spec']
+            if fitlines:
+                resfit['dline']['lmfit_abs'] = resabs['lmfit_abs']
+                resfit['dline']['abs_table_spec'] = resabs['table_spec']
+            else:
+                resfit['dline'] = resabs
 
         return resfit
 
@@ -335,7 +360,7 @@ class Platefit:
 
 
 
-def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True, lines=None, 
+def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True, fitlines=True, lines=None,
              major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True, dble_lyafit=False,
              lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={}):
     """ 
@@ -356,7 +381,9 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
       and a complete line fit is performed (to save computation time, eemce option is disactivated for the first fit),
       default false
     fitcont : bool
-      If True fit and subtract the continuum, otherwise perform only line emission fit (default True)
+      If True, fit and subtract the continuum before performing an emission or absorption line fit (default: True)
+    fitlines : bool
+      If True, perform an emission line fit
     lines: list or astropy table
        the list specify the  MPDAF lines to use in the fit, while the astropy table
        is a replacement of the MPDAF line list table (see `Linefit.fit_lines` for more info)
@@ -486,9 +513,8 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
     if isinstance(spec, str):
         spec = Spectrum(spec)    
     pl = Platefit(contpars=contpars, linepars=linepars)
-    logger.debug('Performing continuum and line fitting')
-    res = pl.fit(spec, z, bootstrap=bootstrap, fit_all=fit_all, ziter=ziter, fitcont=fitcont,
-                 lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,    
+    res = pl.fit(spec, z, bootstrap=bootstrap, fit_all=fit_all, ziter=ziter, fitcont=fitcont, fitlines=fitlines,
+                 lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,
                  dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec,
                  fitabs=fitabs)
     return res   

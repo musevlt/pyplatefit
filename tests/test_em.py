@@ -70,7 +70,7 @@ def test_fit_lines(workdir):
     assert 'balmer' in ztab['FAMILY']
     r = ztab[ztab['FAMILY']=='balmer'][0]
     assert_allclose(r['VEL'],82.14,rtol=1.e-3)
-    assert_allclose(r['Z'],0.419196,rtol=1.e-5)
+    assert_allclose(r['Z'],0.419309,rtol=1.e-4)
     assert r['NL'] == 9
     assert r['NL_CLIPPED'] == 5
     assert_allclose(r['SNRSUM_CLIPPED'],12.97,rtol=1.e-3)
@@ -175,7 +175,7 @@ def test_fit_resonnant(workdir):
     assert_allclose(r['SNRMAX'],65.53,rtol=1.e-2)
     assert_allclose(r['SNRSUM_CLIPPED'],42.20,rtol=1.e-2)
     assert_allclose(r['RCHI2'],0.889,rtol=1.e-2)
-    assert r['NL'] == 19
+    assert r['NL'] == 20
     assert r['NL_CLIPPED'] == 10
     
     res = fit_spec(sp, z)
@@ -184,12 +184,12 @@ def test_fit_resonnant(workdir):
     assert 'mgii2796' in ztab['FAMILY']
     r = ztab[ztab['FAMILY']=='mgii2796'][0]
     assert_allclose(r['VEL'],109.40,rtol=1.e-2)
-    assert_allclose(r['VEL_ERR'],14.19,rtol=1.e-2)
+    assert_allclose(r['VEL_ERR'],13.65,rtol=1.e-2)
     assert_allclose(r['VDISP'],50.59,rtol=1.e-2)
-    assert_allclose(r['VDISP_ERR'],19.29,rtol=1.e-2)
-    assert_allclose(r['SNRMAX'],5.38,rtol=1.e-2)
-    assert_allclose(r['SNRSUM_CLIPPED'],5.38,rtol=1.e-2)
-    assert_allclose(r['RCHI2'],12.47,rtol=1.e-2)
+    assert_allclose(r['VDISP_ERR'],18.60,rtol=1.e-2)
+    assert_allclose(r['SNRMAX'],5.58,rtol=1.e-2)
+    assert_allclose(r['SNRSUM_CLIPPED'],5.58,rtol=1.e-2)
+    assert_allclose(r['RCHI2'],11.76,rtol=1.e-2)
     assert r['NL'] == 2
     assert r['NL_CLIPPED'] == 1
     

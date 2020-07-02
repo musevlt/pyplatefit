@@ -24,21 +24,21 @@ def test_get_lines():
     assert_allclose(tab[0]['LBDA_OBS'], 4861.32, atol=1.e-2)
     
     tab = get_lines()
-    assert len(tab) == 65
+    assert len(tab) == 73
     tab = get_lines(main=True)
     assert len(tab) == 17
     tab = get_lines(main=False)
-    assert len(tab) == 65 - 17
+    assert len(tab) == 73 - 17
     tab = get_lines(doublet=True, family='forbidden')
-    assert len(tab) == 16
+    assert len(tab) == 22
     tab = get_lines(doublet=True, resonant=True)
-    assert len(tab) == 4 
+    assert len(tab) == 8 
     tab = get_lines(lbrange=[4750,9350], z=0.5, resonant=False, family='balmer')
     assert len(tab) == 8  
     tab = get_lines(absline=True)
-    assert len(tab) == 36  
+    assert len(tab) == 40  
     tab = get_lines(emiline=True, doublet=False)
-    assert len(tab) == 27
+    assert len(tab) == 29
     tab = get_lines(lbrange=[4750,9350], z=0.5, emiline=True)
     assert len(tab) == 18
     tab = get_lines(lbrange=[4750,9350], z=0.5, emiline=True, exlbrange=[5800,6000])
