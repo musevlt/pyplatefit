@@ -34,7 +34,7 @@ def test_fit_abs(workdir):
     os.chdir(workdir)
     sp = Spectrum('DR2_001028.fits')
     z = 1.90578
-    res = fit_spec(sp, z, fitabs=True)
+    res = fit_spec(sp, z, fitlines=False, fitabs=True)
     
   
     assert res['abs_fit'].shape == (3681,)
@@ -46,16 +46,16 @@ def test_fit_abs(workdir):
     assert_allclose(r['SNR'],11.94,rtol=1.e-2)
     assert_allclose(r['FWHM_OBS'],6.76,rtol=1.e-2)
     assert_allclose(r['FLUX'],-203.42,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],16.90,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],17.10,rtol=1.e-2)
     assert_allclose(r['EQW'],2.53,rtol=1.e-2)
     
     ztab = res['ztable']
     assert 'abs' in ztab['FAMILY']
     r = ztab[ztab['FAMILY']=='abs'][0]
     assert_allclose(r['VEL'],-21.00,rtol=1.e-2)
-    assert_allclose(r['Z'],1.90571,rtol=1.e-5)
+    assert_allclose(r['Z'],1.90557,rtol=1.e-4)
     assert r['NL'] == 11
     assert r['NL_CLIPPED'] == 9
-    assert_allclose(r['SNRSUM_CLIPPED'],27.41,rtol=1.e-2)
+    assert_allclose(r['SNRSUM_CLIPPED'],27.68,rtol=1.e-2)
     assert_allclose(r['RCHI2'],0.79,rtol=1.e-2)
 
