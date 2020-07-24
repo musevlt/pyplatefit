@@ -1811,21 +1811,36 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     result = init_res(pdata)
     
     if bootstrap:
-        nbootstrap = boot_kws['nbootstrap']
-        seed_val = boot_kws['seed']
-        showprogress = boot_kws['showprogress']
-        logger.debug('Running boostrap with %d iterations', nbootstrap)
-        sample_res = [] 
-        if seed_val is not None:
-            logger.debug('Using seed %d', seed_val)
-            seed(seed_val)
-        cdata = pdata.copy()
-        klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
-        for k in klist:
-            generate_sample_data(pdata, cdata)
-            cres = lsq_fit(cdata, lsq_kws, verbose=False)
-            sample_res.append(cres)
-        reslsq = compute_bootstrap_stat(pdata, sample_res)
+        if n_cpu == 1:    
+            nbootstrap = boot_kws['nbootstrap']
+            seed_val = boot_kws['seed']
+            showprogress = boot_kws['showprogress']
+            logger.debug('Running boostrap with %d iterations', nbootstrap)
+            sample_res = [] 
+            if seed_val is not None:
+                logger.debug('Using seed %d', seed_val)
+                seed(seed_val)
+            cdata = pdata.copy()
+            klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
+            for k in klist:
+                generate_sample_data(pdata, cdata)
+                cres = lsq_fit(cdata, lsq_kws, verbose=False)
+                sample_res.append(cres)
+            reslsq = compute_bootstrap_stat(pdata, sample_res)
+        else:
+            nbootstrap = boot_kws['nbootstrap']
+            seed_val = boot_kws['seed']
+            logger.debug('Running boostrap with %d iterations on %d cpu', nbootstrap, n_cpu)            
+            sample_res = [] 
+            if seed_val is not None:
+                logger.debug('Using seed %d', seed_val)
+                seed(seed_val)
+            to_compute = []                  
+            cdata = pdata.copy()
+            for k in range(nbootstrap):
+                to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
+            sample_res = Parallel(n_jobs=n_cpu)(to_compute)
+            reslsq = compute_bootstrap_stat(pdata, sample_res)             
     else:
         reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
         
