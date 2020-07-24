@@ -4,6 +4,7 @@ v0.5dev (XX/XX/XX)
 ------------------
 New features
 ^^^^^^^^^^^^
+- add option n_cpu to speed up bootstrap computation using parallel computing
 - add option fitlines to perform abs fitting only (Leindert)
 - complete the reference line table with some UV emission lines
 - add absorption line fitting

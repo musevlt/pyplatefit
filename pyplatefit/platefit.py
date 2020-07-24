@@ -360,7 +360,7 @@ class Platefit:
 
 
 
-def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True, fitlines=True, lines=None,
+def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitcont=True, fitlines=True, lines=None,
              major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True, dble_lyafit=False,
              lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={}):
     """ 
@@ -376,6 +376,8 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
       If True, fit all lines except Lya together with the same velocity and velocity dispersion (default False)
     bootstrap : bool
       if True use bootsrap to estimate errors, default False.
+    n_cpu : int
+      run bootstrap in parallel over n_cpu (default 1)
     ziter : bool
       if True, a first emission line fit is performed to refine the redshift before a new continuum subtraction
       and a complete line fit is performed (to save computation time, eemce option is disactivated for the first fit),
@@ -513,7 +515,7 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, ziter=False, fitcont=True,
     if isinstance(spec, str):
         spec = Spectrum(spec)    
     pl = Platefit(contpars=contpars, linepars=linepars)
-    res = pl.fit(spec, z, bootstrap=bootstrap, fit_all=fit_all, ziter=ziter, fitcont=fitcont, fitlines=fitlines,
+    res = pl.fit(spec, z, bootstrap=bootstrap, n_cpu=n_cpu, fit_all=fit_all, ziter=ziter, fitcont=fitcont, fitlines=fitlines,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,
                  dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec,
                  fitabs=fitabs)

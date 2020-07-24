@@ -201,7 +201,7 @@ def test_fit_bootstrap(workdir):
                    linepars=dict(showprogress=False, seed=1))
     ztab = res['ztable']
     r = ztab[0]
-    assert_allclose(r['RCHI2'],14.40,rtol=1.e-2)
+    assert_allclose(r['RCHI2'],14.40,rtol=1.e-1)
     lines = res['lines']
     r = lines[0]
     assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
@@ -214,5 +214,30 @@ def test_fit_bootstrap(workdir):
     lines = res['lines']
     r = lines[0]
     assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
-    assert_allclose(r['SNR'],85.55,rtol=1.e-2)    
+    assert_allclose(r['SNR'],85.55,rtol=1.e-2)   
+    
+def test_fit_bootstrap_parallel(workdir):
+    os.chdir(workdir)
+    sp = Spectrum('udf10_00002.fits')
+    z = 0.41892    
+    res = fit_spec(sp, z, lines=['HBETA'], bootstrap=True,
+                   linepars=dict(seed=1, nbootstrap=40), n_cpu=4)
+    ztab = res['ztable']
+    r = ztab[0]
+    assert_allclose(r['Z'],0.41930,rtol=1.e-4)
+    lines = res['lines']
+    r = lines[0]
+    assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
+    assert_allclose(r['FLUX'],8476.32,rtol=1.e-2)
+    
+    res = fit_spec(sp, z, lines=['HBETA'], bootstrap=True,
+                   linepars=dict(seed=1, nbootstrap=40, showprogress=False), n_cpu=1)
+    ztab = res['ztable']
+    r = ztab[0]
+    assert_allclose(r['Z'],0.41930,rtol=1.e-4)
+    lines = res['lines']
+    r = lines[0]
+    assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
+    assert_allclose(r['FLUX'],8476.32,rtol=1.e-2)    
+    
     

@@ -8,15 +8,15 @@ nnls_sources = ['mnbrak.f90', 'nnls_burst.f90', 'dbrent.f90',
 ext = Extension('pyplatefit.nnls_burst',
                 [os.path.join('pyNNLS', f) for f in nnls_sources])
 
-# Dependencies. Limit version of ppxf for Python 2 users
-install_requires = ['numpy', 'astropy', 'scipy', 'tqdm',
+# Dependencies. 
+install_requires = ['numpy', 'astropy', 'scipy', 'tqdm', 'joblib',
                     'lmfit', 'mpdaf']
 
 setup(
     name='pyplatefit',
     description='TODO',
-    author='Madusha Gunawardhana',
-    author_email='gunawardhana@strw.leidenuniv.nl',
+    author='Roland Bacon',
+    author_email='roland.bacon@univ-lyon1.fr',
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     packages=find_packages(),

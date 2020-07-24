@@ -58,4 +58,22 @@ def test_fit_abs(workdir):
     assert r['NL_CLIPPED'] == 9
     assert_allclose(r['SNRSUM_CLIPPED'],27.68,rtol=1.e-2)
     assert_allclose(r['RCHI2'],0.79,rtol=1.e-2)
+    
+    res = fit_spec(sp, z, fitlines=False, fitabs=True, n_cpu=4, 
+                   bootstrap=True, linepars=dict(seed=1, nbootstrap=40))
+    
+    t = res['lines']
+    r = t[t['LINE']=='FeII2587'][0]
+    assert_allclose(r['FLUX'],-208.53,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],19.17,rtol=1.e-2)
+    assert_allclose(r['EQW'],2.59,rtol=1.e-2)
+    
+    ztab = res['ztable']
+    assert 'abs' in ztab['FAMILY']
+    r = ztab[ztab['FAMILY']=='abs'][0]
+    assert_allclose(r['Z'],1.90557,rtol=1.e-4)
+    assert r['NL'] == 11
+    assert r['NL_CLIPPED'] == 9
+    assert_allclose(r['SNRSUM_CLIPPED'],24.17,rtol=1.e-2)
+    assert_allclose(r['RCHI2'],0.90,rtol=1.e-2)    
 

@@ -33,6 +33,8 @@ import logging
 from collections import OrderedDict
 import os
 
+from joblib import delayed, Parallel
+
 from astropy import constants
 from astropy import units as u
 from astropy.table import Table
@@ -394,7 +396,7 @@ class Linefit:
 
 def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
-                       major_lines=False, bootstrap=False,
+                       major_lines=False, bootstrap=False, n_cpu=1,
                        fit_all=False, lsf=True, trimm_spec=True,
                        find_lya_vel_offset=True, dble_lyafit=False,
                        lsq_kws=None, boot_kws=None, fit_lws=None):
@@ -537,6 +539,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     bootstrap : boolean, optional
         if true, errors and reduced khi2 are estimated from bootstrap 
         default: False
+    n_cpu : int
+        run bootstrap in parallel over n_cpu (default 1)
     fit_all : boolean, optional
         if True, use same velocity offset and velocity dispersion for all lines except Lya
         if False, allow different velocity offsets and velocity disperions between balmer,
@@ -591,27 +595,47 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     result = init_res(pdata)
     
     if bootstrap:
-        nbootstrap = boot_kws['nbootstrap']
-        seed_val = boot_kws['seed']
-        showprogress = boot_kws['showprogress']
-        logger.debug('Running boostrap with %d iterations', nbootstrap)
-        sample_res = [] 
-        if seed_val is not None:
-            logger.debug('Using seed %d', seed_val)
-            seed(seed_val)
-        cdata = pdata.copy()
-        klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
-        for k in klist:
-            generate_sample_data(pdata, cdata)
-            cres = lsq_fit(cdata, lsq_kws, verbose=False)
-            sample_res.append(cres)
-        reslsq = compute_bootstrap_stat(pdata, sample_res)
+        if n_cpu == 1:          
+            nbootstrap = boot_kws['nbootstrap']
+            seed_val = boot_kws['seed']
+            showprogress = boot_kws['showprogress']
+            logger.debug('Running boostrap with %d iterations', nbootstrap)
+            sample_res = [] 
+            if seed_val is not None:
+                logger.debug('Using seed %d', seed_val)
+                seed(seed_val)
+            cdata = pdata.copy()
+            klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
+            for k in klist:
+                generate_sample_data(pdata, cdata)
+                cres = lsq_fit(cdata, lsq_kws, verbose=False)
+                sample_res.append(cres)
+            reslsq = compute_bootstrap_stat(pdata, sample_res)
+        else:
+            nbootstrap = boot_kws['nbootstrap']
+            seed_val = boot_kws['seed']
+            logger.debug('Running boostrap with %d iterations on %d cpu', nbootstrap, n_cpu)            
+            sample_res = [] 
+            if seed_val is not None:
+                logger.debug('Using seed %d', seed_val)
+                seed(seed_val)
+            to_compute = []                  
+            cdata = pdata.copy()
+            for k in range(nbootstrap):
+                to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
+            sample_res = Parallel(n_jobs=n_cpu)(to_compute)
+            reslsq = compute_bootstrap_stat(pdata, sample_res)            
     else:
         reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
         
     resfit = save_fit_res(result, pdata, reslsq)
     
     return resfit
+
+def _bootstrap_parallel(pdata, cdata, lsq_kws):
+    generate_sample_data(pdata, cdata)
+    cres = lsq_fit(cdata, lsq_kws, verbose=False)
+    return cres
         
 def prepare_fit_data(wave, data, std, redshift, vac, 
                      lines, major_lines, trimm_spec):
@@ -897,9 +921,9 @@ def lsq_fit(pdata, lsq_kws, verbose=True):
         args =  (pdata['wave_rest'], pdata['data_rest'], pdata['std_rest'],  
                  pdata[par]['family_lines'], pdata['redshift'], pdata['lsf'])
         minner = Minimizer(residuals, pdata[par]['params'], fcn_args=args) 
-        lsq_kws['maxfev'] = pdata[par]['maxfev']
+        lsq_kws['max_nfev'] = pdata[par]['maxfev']
         if verbose:
-            logger.debug('Leastsq fitting with ftol: %.0e xtol: %.0e maxfev: %d',lsq_kws['ftol'],lsq_kws['xtol'],lsq_kws['maxfev'])
+            logger.debug('Leastsq fitting with ftol: %.0e xtol: %.0e maxfev: %d',lsq_kws['ftol'],lsq_kws['xtol'],lsq_kws['max_nfev'])
         result = minner.minimize(**lsq_kws)
         if verbose:
             logger.debug('%s after %d iterations, redChi2 = %.3f',result.message,
@@ -1773,6 +1797,7 @@ def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=T
     
 def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             unit_data=None, vac=False, lines=None, bootstrap=False,
+            n_cpu=1,
             lsf=True, trimm_spec=True,
             lsq_kws={}, boot_kws={}, fit_lws={}):    
     

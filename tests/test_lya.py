@@ -126,18 +126,18 @@ def test_faint(workdir):
     assert 'LYALPHA' in tab['LINE']
     r = tab[tab['LINE']=='LYALPHA'][0]
     assert_allclose(r['VEL'],160.45,rtol=1.e-2)
-    assert_allclose(r['VDISP'],203.86,rtol=1.e-2)
+    assert_allclose(r['VDISP'],212.33,rtol=1.e-2)
     assert_allclose(r['FLUX'],121.01,rtol=1.e-2)
     assert_allclose(r['FLUX_ERR'],28.54,rtol=1.e-2)
     assert_allclose(r['SNR'],4.24,rtol=1.e-2)
-    assert_allclose(r['NSTD'],-1.26,rtol=1.e-2)
+    assert_allclose(r['NSTD'],-1.31,rtol=1.e-2)
     assert np.ma.is_masked(r['EQW'])
     
     assert 'HeII1640' in tab['LINE']
     r = tab[tab['LINE']=='HeII1640'][0]
     assert_allclose(r['FLUX'],8.13,rtol=1.e-2)
     assert_allclose(r['SNR'],0.64,rtol=1.e-2)
-    assert_allclose(r['NSTD'],-0.216,rtol=1.e-2)
+    assert_allclose(r['NSTD'],-0.229,rtol=1.e-2)
     
     
     
