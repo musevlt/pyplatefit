@@ -168,6 +168,13 @@ def test_2lya(workdir):
     assert_allclose(r['SNR'],41.49,rtol=1.e-2)
     assert_allclose(r['SEP'],515.76,rtol=1.e-2)
     assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2) 
+    r = tab[tab['LINE']=='LYALPHAb']
+    assert_allclose(r['VEL'],34.15,rtol=1.e-2)
+    assert_allclose(r['VDISP'],363.92,rtol=1.e-2)
+    assert_allclose(r['FLUX'],1760.85,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],33.48,rtol=1.e-2)
+    assert_allclose(r['SNR'],52.60,rtol=1.e-2)
+    
      
      
     
