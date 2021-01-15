@@ -56,7 +56,7 @@ def test_fit_lines(workdir):
     assert spline.shape == (3681,)
      
     res_line = pf.fit_lines(spline, z)
-    assert_allclose(res_line['lmfit_lya'].redchi,2.201,rtol=1.e-2)
+    assert_allclose(res_line['lmfit_lya'].redchi,2.173,rtol=1.e-2)
     tab = res_line['lines']
     r = tab[tab['LINE']=='LYALPHA'][0]
     assert r['LINE'] == 'LYALPHA'
