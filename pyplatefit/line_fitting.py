@@ -864,6 +864,8 @@ def init_res(pdata):
                     'LBDA_LNSTD', 'LBDA_RNSTD'] 
     for colname in colnames:
         tablines.add_column(MaskedColumn(name=colname, dtype=np.float, mask=True))
+    tablines.add_column(MaskedColumn(name='BLEND', dtype=np.int, mask=True))
+    tablines.add_column(MaskedColumn(name='ISBLEND', dtype=np.bool, mask=True)) 
     tablines.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True), index=0)
     tablines.add_column(MaskedColumn(name='LINE', dtype='U20', mask=True), index=1)
     tablines.add_column(MaskedColumn(name='DNAME', dtype='U20', mask=True), index=3)
@@ -874,7 +876,7 @@ def init_res(pdata):
         tablines.add_column(MaskedColumn(name='SEP', dtype=np.float, mask=True), index=11)
         colnames.append('SEP') 
         tablines.add_column(MaskedColumn(name='SEP_ERR', dtype=np.float, mask=True), index=12)
-        colnames.append('SEP_ERR')        
+        colnames.append('SEP_ERR') 
     for colname in colnames:
         tablines[colname].format = '.2f'
     tablines['Z'].format = '.5f'
@@ -970,7 +972,9 @@ def save_fit_res(result, pdata, reslsq):
         add_line_stat_to_table(reslsq[key], pdata, sel_lines, tablines)
             
         resfit[f'lmfit_{key}'] = reslsq[key] 
-        
+
+    add_blend_to_table(tablines)  
+    
     resfit['table_spec'] = tabspec 
     resfit['lines'] = tablines
     resfit['ztable'] = ztab      
@@ -1042,6 +1046,67 @@ def add_line_stat_to_table(reslsq, pdata, sel_lines, tablines):
         tablines['LBDA_LNSTD'][lmask] = left
         tablines['LBDA_RNSTD'][lmask] = right
         
+def add_blend_to_table(tablines):
+    tab = tablines[tablines['BLEND']>0]
+    if len(tab) == 0:
+        return
+    blist = np.unique(tab['BLEND'])
+    for b in blist:
+        d = {}
+        # name for the line blend
+        stab = tab[tab['BLEND']==b]
+        name = stab['LINE'][0]
+        if (name == 'LYALPHA1') or (name == 'LYALPHA2'):
+            d['LINE'] = line = 'LYALPHAb'
+        else:
+            for k,c in enumerate(name):
+                if c.isdigit():
+                    break 
+            if k < len(name)-1:
+                d['LINE'] = line = f"{name[:k]}{b}b"
+            else:
+                d['LINE'] = line = f"{name}b"
+        d['BLEND'] = b
+        d['ISBLEND'] = True
+        d['FAMILY'] = family = stab['FAMILY'][0]
+        t = stab[stab['DNAME'] != 'None']
+        if len(t) == 0:
+            d['DNAME'] = 'None'
+        else:
+            d['DNAME'] = t['DNAME'][0]
+        # FLUX
+        d['FLUX'] = np.sum(stab['FLUX'])
+        d['FLUX_ERR'] = np.sqrt(np.sum(stab['FLUX_ERR']**2))
+        d['SNR'] = d['FLUX']/d['FLUX_ERR'] if d['FLUX_ERR'] > 0 else 0
+        # VDISP, FWHM
+        d['VDISP'] = np.sqrt(np.sum(stab['VDISP']**2))
+        d['VDISP_ERR'] = np.sqrt(np.sum(stab['VDISP_ERR']**2))
+        if np.sum(np.abs(stab['FLUX'])) > 0:
+            d['FWHM_OBS'] = np.average(stab['FWHM_OBS'], weights=np.abs(stab['FLUX']))
+        else:
+            d['FWHM_OBS'] = np.average(stab['FWHM_OBS'])
+        # LBDA
+        if np.sum(np.abs(stab['FLUX'])) > 0:
+            d['LBDA_OBS'] = np.average(stab['LBDA_OBS'], weights=np.abs(stab['FLUX']))
+        else:
+            d['LBDA_OBS'] = np.average(stab['LBDA_OBS'])
+        d['LBDA_LEFT'] = np.min(stab['LBDA_LEFT'])
+        d['LBDA_RIGHT'] = np.min(stab['LBDA_RIGHT'])
+        d['LBDA_REST'] = b
+        d['PEAK_OBS'] = np.max(stab['PEAK_OBS'])
+        # Z, VEL
+        d['Z'] = np.mean(stab['Z'])
+        d['Z_ERR'] = np.mean(stab['Z_ERR'])
+        d['VEL'] = np.mean(stab['VEL'])
+        d['VEL_ERR'] = np.mean(stab['VEL_ERR'])
+        if line == 'LYALPHAb':
+            kmax = np.argmax(stab['SKEW'])
+            d['SKEW'] = stab['SKEW'][kmax]
+            d['SKEW_ERR'] = stab['SKEW_ERR'][kmax]
+        upsert_ltable(tablines, d, family, line)       
+        
+    return
+        
 
 def reorganize_doublets(lines):
     dlines = [[e['LINE']] for e in lines[lines['DOUBLET']==0]]
@@ -1066,6 +1131,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
         line_vals = []
         for line in lines:
             dname = inputlines[inputlines['LINE']==line]['DNAME'][0]
+            blend = inputlines[inputlines['LINE']==line]['DOUBLET'][0]
             keys = [key for key in par.keys() if key.split('_')[1]==line]
             fun = keys[0].split('_')[2]
             if fun == 'dbleasymgauss':
@@ -1087,13 +1153,13 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 # the redshift is given at the mid-point of the 2 asymetric gaussian
                 z = l1obs/l0 - 1 # compute redshift in vacuum 
                 lvals1 = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux1, 
-                         'DNAME':dname,  'VDISP':vdisp1, 
-                         'Z_INIT':zinit, 
+                         'DNAME':dname,  'VDISP':vdisp1, 'BLEND':int(l0+0.5),
+                         'Z_INIT':zinit, 'ISBLEND':False,
                          'VEL':dv, 'Z':z, 'SEP':sep
                          } 
                 lvals2 = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux2, 
-                          'DNAME':dname,  'VDISP':vdisp2, 
-                          'Z_INIT':zinit,
+                          'DNAME':dname,  'VDISP':vdisp2, 'BLEND':int(l0+0.5),
+                          'Z_INIT':zinit, 'ISBLEND':False,
                           'VEL':dv, 'Z':z, 'SEP':sep
                           } 
                 if sep_err is not None:
@@ -1191,8 +1257,8 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 if not vac:
                     l1obs = vactoair(l1obs)
                 lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux, 
-                         'DNAME':dname,  'VDISP':vdisp, 
-                         'Z_INIT':zinit,  
+                         'DNAME':dname,  'VDISP':vdisp, 'BLEND':blend,
+                         'Z_INIT':zinit, 'ISBLEND':False,
                          } 
                 if vdisp_err is not None:
                     lvals['VDISP_ERR'] = vdisp_err 
@@ -1257,8 +1323,8 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 if not vac:
                     l1obs = vactoair(l1obs)
                 lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux, 
-                         'DNAME':dname,  'VDISP':vdisp, 
-                         'Z_INIT':zinit,  
+                         'DNAME':dname,  'VDISP':vdisp, 'BLEND':blend,
+                         'Z_INIT':zinit, 'ISBLEND':False, 
                          } 
                 if vdisp_err is not None:
                     lvals['VDISP_ERR'] = vdisp_err 

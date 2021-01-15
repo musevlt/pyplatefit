@@ -66,6 +66,15 @@ def test_fit_lines(workdir):
     assert_allclose(r['FLUX'],2215.83,rtol=1.e-3)
     assert_allclose(r['FLUX_ERR'],272.60,rtol=1.e-3)
     
+    t = res_line['lines']
+    r = t[t['LINE']=='OII3727b'][0]
+    assert_allclose(r['VEL'],92.48,rtol=1.e-3)
+    assert_allclose(r['Z'],0.41923,rtol=1.e-3)
+    assert_allclose(r['LBDA_OBS'],5290.91,rtol=1.e-2)
+    assert_allclose(r['FWHM_OBS'],3.78,rtol=1.e-2)
+    assert_allclose(r['FLUX'],10406.67,rtol=1.e-3)
+    assert_allclose(r['FLUX_ERR'],609.07,rtol=1.e-3)    
+    
     ztab = res_line['ztable']
     assert 'balmer' in ztab['FAMILY']
     r = ztab[ztab['FAMILY']=='balmer'][0]
