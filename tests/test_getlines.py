@@ -16,7 +16,7 @@ def test_get_lines():
 
     tab = get_lines('LYALPHA')
     assert tab[0]['MAIN'] == True
-    tab = get_lines(['LYALPHA','OII3727'])
+    tab = get_lines(['LYALPHA','OII3726'])
     assert len(tab) == 2
     tab = get_lines('LYALPHA', z=3.0)
     assert_allclose(tab[0]['LBDA_OBS'], 4862.68, atol=1.e-2)
@@ -24,21 +24,21 @@ def test_get_lines():
     assert_allclose(tab[0]['LBDA_OBS'], 4861.32, atol=1.e-2)
     
     tab = get_lines()
-    assert len(tab) == 73
+    assert len(tab) == 75
     tab = get_lines(main=True)
     assert len(tab) == 17
     tab = get_lines(main=False)
-    assert len(tab) == 73 - 17
+    assert len(tab) == 75 - 17
     tab = get_lines(doublet=True, family='forbidden')
-    assert len(tab) == 22
+    assert len(tab) == 26
     tab = get_lines(doublet=True, resonant=True)
-    assert len(tab) == 8 
+    assert len(tab) == 4
     tab = get_lines(lbrange=[4750,9350], z=0.5, resonant=False, family='balmer')
     assert len(tab) == 8  
     tab = get_lines(absline=True)
-    assert len(tab) == 40  
+    assert len(tab) == 36  
     tab = get_lines(emiline=True, doublet=False)
-    assert len(tab) == 29
+    assert len(tab) == 28
     tab = get_lines(lbrange=[4750,9350], z=0.5, emiline=True)
     assert len(tab) == 18
     tab = get_lines(lbrange=[4750,9350], z=0.5, emiline=True, exlbrange=[5800,6000])

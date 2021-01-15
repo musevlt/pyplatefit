@@ -58,7 +58,7 @@ def test_fit_lines(workdir):
     res_line = pf.fit_lines(spline, z)
     assert_allclose(res_line['lmfit_balmer'].redchi,249.37,rtol=1.e-4)
     t = res_line['lines']
-    r = t[t['LINE']=='OIII5008'][0]
+    r = t[t['LINE']=='OIII5007'][0]
     assert_allclose(r['VEL'],92.48,rtol=1.e-3)
     assert_allclose(r['Z'],0.41923,rtol=1.e-3)
     assert_allclose(r['LBDA_OBS'],7105.874,rtol=1.e-2)
@@ -147,15 +147,15 @@ def test_fit_spec(workdir):
     assert_allclose(res['dcont']['chi2'], 0.0471, rtol=1.e-3)
     assert_allclose(res['dline']['lmfit_balmer'].redchi, 249.37, rtol=1.e-3)
     
-    res = fit_spec(sp, z, lines=['OII3727','OII3729'], use_line_ratios=False)
+    res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=False)
     assert_allclose(res['dline']['lmfit_forbidden'].redchi, 11.47, rtol=1.e-3)
     
-    res = fit_spec(sp, z, lines=['OII3727','OII3729'], use_line_ratios=True)
+    res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=True)
     assert_allclose(res['dline']['lmfit_forbidden'].redchi, 11.47, rtol=1.e-3)    
     
     
-    res = fit_spec(sp, z, lines=['OII3727','OII3729'], use_line_ratios=True, 
-                   linepars=dict(line_ratios=[("OII3727", "OII3729", 0.5, 0.8)]))
+    res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=True, 
+                   linepars=dict(line_ratios=[("OII3726", "OII3729", 0.5, 0.8)]))
     assert_allclose(res['dline']['lmfit_forbidden'].redchi, 91.36, rtol=1.e-3)
      
      
@@ -165,19 +165,7 @@ def test_fit_resonnant(workdir):
     sp = Spectrum('udf10_00056.fits')
     z = 1.30604
     res = fit_spec(sp, z, fit_all=True)
-    
-    r = res['ztable'][0]
-    assert r['FAMILY'] == 'all'
-    assert_allclose(r['VEL'],80.68,rtol=1.e-2)
-    assert_allclose(r['VEL_ERR'],0.897,rtol=1.e-2)
-    assert_allclose(r['VDISP'],41.97,rtol=1.e-2)
-    assert_allclose(r['VDISP_ERR'],1.080,rtol=1.e-2)
-    assert_allclose(r['SNRMAX'],65.53,rtol=1.e-2)
-    assert_allclose(r['SNRSUM_CLIPPED'],42.20,rtol=1.e-2)
-    assert_allclose(r['RCHI2'],0.889,rtol=1.e-2)
-    assert r['NL'] == 20
-    assert r['NL_CLIPPED'] == 10
-    
+       
     res = fit_spec(sp, z)
     
     ztab = res['ztable']
