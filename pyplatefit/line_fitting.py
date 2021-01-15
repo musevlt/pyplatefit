@@ -1081,18 +1081,12 @@ def add_blend_to_table(tablines):
         # VDISP, FWHM
         d['VDISP'] = np.sqrt(np.sum(stab['VDISP']**2))
         d['VDISP_ERR'] = np.sqrt(np.sum(stab['VDISP_ERR']**2))
-        if np.sum(np.abs(stab['FLUX'])) > 0:
-            d['FWHM_OBS'] = np.average(stab['FWHM_OBS'], weights=np.abs(stab['FLUX']))
-        else:
-            d['FWHM_OBS'] = np.average(stab['FWHM_OBS'])
+        d['FWHM_OBS'] = np.average(stab['FWHM_OBS'])
         # LBDA
-        if np.sum(np.abs(stab['FLUX'])) > 0:
-            d['LBDA_OBS'] = np.average(stab['LBDA_OBS'], weights=np.abs(stab['FLUX']))
-        else:
-            d['LBDA_OBS'] = np.average(stab['LBDA_OBS'])
+        d['LBDA_OBS'] = np.average(stab['LBDA_OBS'])
         d['LBDA_LEFT'] = np.min(stab['LBDA_LEFT'])
-        d['LBDA_RIGHT'] = np.min(stab['LBDA_RIGHT'])
-        d['LBDA_REST'] = b
+        d['LBDA_RIGHT'] = np.max(stab['LBDA_RIGHT'])
+        d['LBDA_REST'] = np.average(stab['LBDA_REST'])
         d['PEAK_OBS'] = np.max(stab['PEAK_OBS'])
         # Z, VEL
         d['Z'] = np.mean(stab['Z'])
