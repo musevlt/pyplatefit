@@ -47,7 +47,8 @@ from scipy.special import erf
 from scipy.signal import argrelmin
 from numpy.random import normal, seed
 from logging import getLogger
-from matplotlib import transforms   
+from matplotlib import transforms 
+from astropy.stats import sigma_clipped_stats
 
 from .linelist import get_lines
 from mpdaf.obj.spectrum import vactoair, airtovac
@@ -996,8 +997,9 @@ def compute_bootstrap_stat(pdata, sample_res):
         parlist = resboot[key].var_names
         for p in parlist:
             values = [res[key].params[p].value for res in sample_res]
-            resboot[key].params[p].value = np.mean(values)
-            resboot[key].params[p].stderr = np.std(values)
+            mean,med,std = sigma_clipped_stats(values) # use robust statistics
+            resboot[key].params[p].value = mean 
+            resboot[key].params[p].stderr = std
         # compute std of models
         models = np.array([res[key].residual*pdata['std_rest'] +
                               + pdata['data_rest']
