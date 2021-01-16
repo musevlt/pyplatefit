@@ -1418,8 +1418,10 @@ def add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, ga
     sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
     flux = SQRT2PI*sigma*vmax
     params.add(f"{family_name}_{name}_asymgauss_flux", value=flux, min=0)
-    params.add(f"{family_name}_{name}_asymgauss_asym", value=gamma[1], 
-               min=gamma[0], max=gamma[2])
+    if np.all(np.isclose(gamma, gamma[0])):
+        params.add(f"{family_name}_{name}_asymgauss_asym", value=gamma[1], vary=False)
+    else:
+        params.add(f"{family_name}_{name}_asymgauss_asym", value=gamma[1], min=gamma[0], max=gamma[2])
 
 def add_dbleasymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, sep, gamma1, gamma2, wave, data):     
     ksel = np.abs(wave-l0) < wind_max
@@ -1456,8 +1458,14 @@ def set_gaussian_fitpars(family_name, params, lines, line_ratios, z, lsf, init_v
                          absline=False):
     logger = logging.getLogger(__name__)
     # add velocity and velocity dispersion fit parameters
-    params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])
-    params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
+    if np.all(np.isclose(init_vel, init_vel[0])):
+        params.add(f'dv_{family_name}', value=init_vel[1], vary=False)
+    else:
+        params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])
+    if np.all(np.isclose(init_dv, init_dv[0])):
+        params.add(f'vdisp_{family_name}', value=init_dv[1], vary=False) 
+    else:
+        params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
     # we use gaussian parameters
     nc = 0
     vdisp = init_dv[1]
@@ -1478,8 +1486,14 @@ def set_asymgaussian_fitpars(family_name, params, lines, z, lsf, init_vel,
                          init_dv, init_gamma, windmax, wave, data):
     logger = logging.getLogger(__name__)
     # add velocity and velocity dispersion fit parameters
-    params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])
-    params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
+    if np.all(np.isclose(init_vel, init_vel[0])):
+        params.add(f'dv_{family_name}', value=init_vel[1], vary=False)
+    else:
+        params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])    
+    if np.all(np.isclose(init_dv, init_dv[0])):
+        params.add(f'vdisp_{family_name}', value=init_dv[1], vary=False) 
+    else:
+        params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
     # we use asymetric gaussian parameters
     nc = 0
     vdisp = init_dv[1]
