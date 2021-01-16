@@ -166,6 +166,12 @@ def test_fit_spec(workdir):
     res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=True, 
                    linepars=dict(line_ratios=[("OII3726", "OII3729", 0.5, 0.8)]))
     assert_allclose(res['dline']['lmfit_forbidden'].redchi, 91.36, rtol=1.e-3)
+    
+    res = fit_spec(sp, z, lines=['OII3726','OII3729'], linepars=dict(vel=(0,0,0), vdisp=(20,20,20)))
+    zfit = res['ztable'][0]['Z']
+    assert_allclose(zfit, z, rtol=1.e-7)
+    assert res['ztable'][0]['VEL'] == 0
+    assert res['ztable'][0]['VDISP'] == 20
      
      
 def test_fit_resonnant(workdir):
