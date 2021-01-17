@@ -1182,7 +1182,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 if vdisp1_err is not None:
                     lvals1['VDISP_ERR'] = vdisp1_err
                     lvals2['VDISP_ERR'] = vdisp2_err 
-                vdisp_err = np.sqrt(vdisp1_err**2+vdisp2_err**2)
+                    vdisp_err = np.sqrt(vdisp1_err**2+vdisp2_err**2)
                 if flux1_err is not None:
                     lvals1['FLUX_ERR'] = flux1_err 
                     lvals1['SNR'] = abs(flux1)/flux1_err 
