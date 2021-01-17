@@ -1,7 +1,7 @@
 Changelog
 =========
-v0.5dev (XX/XX/XX)
-------------------
+v0.5 (17/01/2021)
+-----------------
 New features
 ^^^^^^^^^^^^
 - add option n_cpu to speed up bootstrap computation using parallel computing
