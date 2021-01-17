@@ -916,6 +916,8 @@ def init_par_from_reslsq(pdata, reslsq):
     for key,res in reslsq.items():
         for p,pval in res.params.items():
             pdata['par_'+key]['params'][p].value = pval.value
+            #pinit = res.init_values[p]
+
         
 
 def lsq_fit(pdata, lsq_kws, verbose=True):
@@ -1051,7 +1053,7 @@ def add_line_stat_to_table(reslsq, pdata, sel_lines, tablines):
         bestfit = reslsq.bestfit[mask]
         data = pdata['data_rest'][mask]
         norm = np.sum(bestfit)
-        nstd = np.log10(np.std((data-bestfit)/norm))
+        nstd = np.log10(np.std((data-bestfit)/norm)) if norm > 1.e-10 else 100.
         tablines['NSTD'][lmask] = nstd
         tablines['LBDA_LNSTD'][lmask] = left
         tablines['LBDA_RNSTD'][lmask] = right
@@ -1087,7 +1089,7 @@ def add_blend_to_table(tablines):
         # FLUX
         d['FLUX'] = np.sum(stab['FLUX'])
         d['FLUX_ERR'] = np.sqrt(np.sum(stab['FLUX_ERR']**2))
-        d['SNR'] = d['FLUX']/d['FLUX_ERR'] if d['FLUX_ERR'] > 0 else 0
+        d['SNR'] = np.abs(d['FLUX'])/d['FLUX_ERR'] if d['FLUX_ERR'] > 0 else 0
         # VDISP, FWHM
         d['VDISP'] = np.sqrt(np.sum(stab['VDISP']**2))
         d['VDISP_ERR'] = np.sqrt(np.sum(stab['VDISP_ERR']**2))
@@ -1332,7 +1334,7 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                          } 
                 if vdisp_err is not None:
                     lvals['VDISP_ERR'] = vdisp_err 
-                if flux_err is not None:
+                if (flux_err is not None) and (flux_err > 0):
                     lvals['FLUX_ERR'] = flux_err 
                     lvals['SNR'] = abs(flux)/flux_err 
                     flux_vals.append(flux)
@@ -1893,8 +1895,13 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     logger.debug('Initialize fit')
     init_absfit(pdata, lsf, fit_lws)
     result = init_res(pdata)
+
+    # perform lsq fit
+    reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
     
     if bootstrap:
+        # refine errors parameters using bootstrap
+        init_par_from_reslsq(pdata, reslsq)        
         if n_cpu == 1:    
             nbootstrap = boot_kws['nbootstrap']
             seed_val = boot_kws['seed']
@@ -1925,8 +1932,6 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
                 to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
             sample_res = Parallel(n_jobs=n_cpu)(to_compute)
             reslsq = compute_bootstrap_stat(pdata, sample_res)             
-    else:
-        reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
         
     resfit = save_fit_res(result, pdata, reslsq)
     
