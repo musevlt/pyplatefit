@@ -1,8 +1,6 @@
 Changelog
 =========
 
-v0.6dev (XX/XX/XX)
-------------------
 New features
 ^^^^^^^^^^^^
 - keep lsq initial result, only update std from bootstrap
