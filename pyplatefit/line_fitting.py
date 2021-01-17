@@ -595,7 +595,12 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws)
     result = init_res(pdata)
     
+    # perform lsq fit
+    reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
+    
     if bootstrap:
+        # refine errors parameters using bootstrap
+        init_par_from_reslsq(pdata, reslsq)
         if n_cpu == 1:          
             nbootstrap = boot_kws['nbootstrap']
             seed_val = boot_kws['seed']
@@ -626,8 +631,6 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
             sample_res = Parallel(n_jobs=n_cpu)(to_compute)
             reslsq = compute_bootstrap_stat(pdata, sample_res)            
-    else:
-        reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
         
     resfit = save_fit_res(result, pdata, reslsq)
     
@@ -908,7 +911,12 @@ def init_res(pdata):
     tabspec['INIT_FIT'] = tabspec['FLUX']*0
     
     return dict(tabspec=tabspec, tablines=tablines, ztab=ztab)
- 
+
+def init_par_from_reslsq(pdata, reslsq):
+    for key,res in reslsq.items():
+        for p,pval in res.params.items():
+            pdata['par_'+key]['params'][p].value = pval.value
+        
 
 def lsq_fit(pdata, lsq_kws, verbose=True):
     
@@ -997,9 +1005,9 @@ def compute_bootstrap_stat(pdata, sample_res):
         parlist = resboot[key].var_names
         for p in parlist:
             values = [res[key].params[p].value for res in sample_res]
-            mean,med,std = sigma_clipped_stats(values) # use robust statistics
-            resboot[key].params[p].value = mean 
-            resboot[key].params[p].stderr = std
+            # we do not change the value of first LSQ fit, only the std
+            resboot[key].params[p].value = pdata['par_'+key]['params'][p].value 
+            _,_,resboot[key].params[p].stderr = sigma_clipped_stats(values, sigma=5.0)
         # compute std of models
         models = np.array([res[key].residual*pdata['std_rest'] +
                               + pdata['data_rest']

@@ -1,5 +1,24 @@
 Changelog
 =========
+
+v0.6dev (XX/XX/XX)
+------------------
+New features
+^^^^^^^^^^^^
+- keep lsq initial result, only update std from bootstrap
+- values for line blend (eg OII3727b = OII3726 + OII3729) are returned in addition to the individual lines.
+
+Breaking Changes
+^^^^^^^^^^^^^^^^
+- name of emission lines in default table have been updated to reflect common usage
+- updated emission lines 
+
+Bug fixes
+^^^^^^^^^
+- in bootstrap, the parameter value returned is from the initial LSQ fit (previously we use the mean of the bootsrap fit which was not robust), while the std value is derived from sigma clip statistics.
+- it is now possible to fix values by setting min=init=max in linepars dict (eg vdisp=(50,50,50).
+
+
 v0.5 (17/01/2021)
 -----------------
 New features
