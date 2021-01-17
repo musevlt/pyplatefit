@@ -600,7 +600,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     
     if bootstrap:
         # refine errors parameters using bootstrap
-        init_par_from_reslsq(pdata, reslsq)
+        #init_par_from_reslsq(pdata, reslsq)
         if n_cpu == 1:          
             nbootstrap = boot_kws['nbootstrap']
             seed_val = boot_kws['seed']
@@ -616,7 +616,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 generate_sample_data(pdata, cdata)
                 cres = lsq_fit(cdata, lsq_kws, verbose=False)
                 sample_res.append(cres)
-            reslsq = compute_bootstrap_stat(pdata, sample_res)
+            reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)
         else:
             nbootstrap = boot_kws['nbootstrap']
             seed_val = boot_kws['seed']
@@ -630,7 +630,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             for k in range(nbootstrap):
                 to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
             sample_res = Parallel(n_jobs=n_cpu)(to_compute)
-            reslsq = compute_bootstrap_stat(pdata, sample_res)            
+            reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)            
         
     resfit = save_fit_res(result, pdata, reslsq)
     
@@ -996,7 +996,7 @@ def generate_sample_data(pdata, cdata):
     
     cdata['data_rest'] = normal(pdata['data_rest'], pdata['std_rest'])
     
-def compute_bootstrap_stat(pdata, sample_res):
+def compute_bootstrap_stat(pdata, sample_res, reslsq):
     
     logger = logging.getLogger(__name__)
     resboot = sample_res[0].copy() 
@@ -1008,8 +1008,8 @@ def compute_bootstrap_stat(pdata, sample_res):
         for p in parlist:
             values = [res[key].params[p].value for res in sample_res]
             # we do not change the value of first LSQ fit, only the std
-            resboot[key].params[p].value = pdata['par_'+key]['params'][p].value 
-            _,_,resboot[key].params[p].stderr = sigma_clipped_stats(values, sigma=5.0)
+            resboot[key].params[p].value = reslsq[key].params[p].value
+        _,_,resboot[key].params[p].stderr = sigma_clipped_stats(values, sigma=5.0, maxiters=2)
         # compute std of models
         models = np.array([res[key].residual*pdata['std_rest'] +
                               + pdata['data_rest']
@@ -1901,7 +1901,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     
     if bootstrap:
         # refine errors parameters using bootstrap
-        init_par_from_reslsq(pdata, reslsq)        
+        #init_par_from_reslsq(pdata, reslsq)        
         if n_cpu == 1:    
             nbootstrap = boot_kws['nbootstrap']
             seed_val = boot_kws['seed']
@@ -1917,7 +1917,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
                 generate_sample_data(pdata, cdata)
                 cres = lsq_fit(cdata, lsq_kws, verbose=False)
                 sample_res.append(cres)
-            reslsq = compute_bootstrap_stat(pdata, sample_res)
+            reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)
         else:
             nbootstrap = boot_kws['nbootstrap']
             seed_val = boot_kws['seed']
@@ -1931,7 +1931,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             for k in range(nbootstrap):
                 to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
             sample_res = Parallel(n_jobs=n_cpu)(to_compute)
-            reslsq = compute_bootstrap_stat(pdata, sample_res)             
+            reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)             
         
     resfit = save_fit_res(result, pdata, reslsq)
     
