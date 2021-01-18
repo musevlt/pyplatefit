@@ -599,8 +599,10 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
     
     if bootstrap:
+        # compute bestfit
+        bestfit = compute_bestfit(reslsq, pdata)
+        cdata = pdata.copy()
         # refine errors parameters using bootstrap
-        #init_par_from_reslsq(pdata, reslsq)
         if n_cpu == 1:          
             nbootstrap = boot_kws['nbootstrap']
             seed_val = boot_kws['seed']
@@ -609,11 +611,10 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             sample_res = [] 
             if seed_val is not None:
                 logger.debug('Using seed %d', seed_val)
-                seed(seed_val)
-            cdata = pdata.copy()
+                seed(seed_val) 
             klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
             for k in klist:
-                generate_sample_data(pdata, cdata)
+                generate_sample_data(bestfit, cdata['std_rest'], cdata)
                 cres = lsq_fit(cdata, lsq_kws, verbose=False)
                 sample_res.append(cres)
             reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)
@@ -626,9 +627,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 logger.debug('Using seed %d', seed_val)
                 seed(seed_val)
             to_compute = []                  
-            cdata = pdata.copy()
             for k in range(nbootstrap):
-                to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
+                to_compute.append(delayed(_bootstrap_parallel)(cdata, bestfit, lsq_kws))               
             sample_res = Parallel(n_jobs=n_cpu)(to_compute)
             reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)            
         
@@ -636,8 +636,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     
     return resfit
 
-def _bootstrap_parallel(pdata, cdata, lsq_kws):
-    generate_sample_data(pdata, cdata)
+def _bootstrap_parallel(cdata, bestfit, lsq_kws):
+    generate_sample_data(bestfit, cdata['std_rest'], cdata)
     cres = lsq_fit(cdata, lsq_kws, verbose=False)
     return cres
         
@@ -949,6 +949,14 @@ def lsq_fit(pdata, lsq_kws, verbose=True):
         
     return reslsq
 
+def compute_bestfit(reslsq, pdata):
+    bestfits = []
+    for key,res in reslsq.items():
+        bestfits.append(model(res.params, pdata['wave_rest'], 
+                    pdata['par_'+key]['family_lines'], pdata['redshift'], pdata['lsf']))
+    bestfit = np.sum(bestfits, axis=0)
+    return bestfit
+
 def save_fit_res(result, pdata, reslsq):
     
     logger = logging.getLogger(__name__)
@@ -979,22 +987,26 @@ def save_fit_res(result, pdata, reslsq):
         tabspec['LINE_FIT'] = tabspec['LINE_FIT'] + tabspec[f'{key.upper()}_FIT_LSQ'] 
         tabspec['INIT_FIT'] = tabspec['INIT_FIT'] + tabspec[f'{key.upper()}_INIT_FIT']
         
-        add_result_to_tablines(reslsq[key], tablines, redshift, sel_lines, lsf, vac)          
-        add_line_stat_to_table(reslsq[key], pdata, sel_lines, tablines)     
+        add_result_to_tablines(reslsq[key], tablines, redshift, sel_lines, lsf, vac)
+        add_line_stat_to_table(reslsq[key], pdata, sel_lines, tablines)  
         resfit[f'lmfit_{key}'] = reslsq[key]
         
-    add_result_to_ztab(result, tablines, ztab, snr_min)
-    add_blend_to_table(tablines)  
-    
+    add_blend_to_table(tablines) 
+    add_result_to_ztab(reslsq, tablines, ztab, init_minsnr)
+   
     resfit['table_spec'] = tabspec 
+    
+    tablines.sort('LBDA_REST')
     resfit['lines'] = tablines
+    
+      
     resfit['ztable'] = ztab      
     
     return resfit
 
-def generate_sample_data(pdata, cdata):
+def generate_sample_data(data, std, cdata):
     
-    cdata['data_rest'] = normal(pdata['data_rest'], pdata['std_rest'])
+    cdata['data_rest'] = normal(data, std)
     
 def compute_bootstrap_stat(pdata, sample_res, reslsq):
     
@@ -1009,8 +1021,9 @@ def compute_bootstrap_stat(pdata, sample_res, reslsq):
             values = [res[key].params[p].value for res in sample_res]
             # we do not change the value of first LSQ fit, only the std
             resboot[key].params[p].value = reslsq[key].params[p].value
-        #_,_,resboot[key].params[p].stderr = sigma_clipped_stats(values, sigma=5.0, maxiters=2)
-        resboot[key].params[p].stderr = np.std(values)
+            #resboot[key].params[p].value = np.median(values)
+            #_,_,resboot[key].params[p].stderr = sigma_clipped_stats(values, sigma=5.0, maxiters=2)
+            resboot[key].params[p].stderr = np.std(values)
         # compute std of models
         models = np.array([res[key].residual*pdata['std_rest'] +
                               + pdata['data_rest']
@@ -1351,12 +1364,13 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 upsert_ltable(tablines, lvals, family, line)
             else:
                 raise ValueError('fun %s unknown'%(fun))
-    tablines.sort('LBDA_REST')
+    
 
-def add_result_to_ztab(result, tablines, ztab, snr_min):
-    families = np.unique(lines['FAMILY'])
-    lines = tablines[(tablines['ISBLEND'] | (tablines['BLEND']==0))]
+def add_result_to_ztab(reslsq, tablines, ztab, snr_min):
+    families = np.unique(tablines['FAMILY'])
+    lines = tablines[tablines['ISBLEND'] | (tablines['BLEND']==0)]
     for fam in families:
+        result = reslsq[fam if fam != 'lyalpha' else 'lya']
         cat = lines[lines['FAMILY']==fam]
         tcat = cat[cat['SNR']>0]
         if len(tcat) == 0:
@@ -1365,17 +1379,19 @@ def add_result_to_ztab(result, tablines, ztab, snr_min):
                  SNRMAX=0, SNRSUM_CLIPPED=0, NL_CLIPPED=0,
                  NL=len(cat), RCHI2=result.redchi, NFEV=result.nfev)
         else:
-            kmax = np.argmax(tcat['SNR'])
-            scat = tcat[tcat['SNR']>snr_min]
+            kmax = np.argmax(cat['SNR'])
+            scat = tcat[(tcat['SNR']>snr_min) ]
             d = dict(FAMILY=fam, VEL=cat['VEL'][0], VEL_ERR=cat['VEL_ERR'][0],
                      Z=cat['Z'][0], Z_ERR=cat['Z_ERR'][0], Z_INIT=cat['Z_INIT'][0],
-                     SNRMAX=tcat['SNR'][kmax], LINE=tcat['LINE'][kmax], 
+                     SNRMAX=cat['SNR'][kmax], LINE=cat['LINE'][kmax], 
                      SNRSUM=np.abs(np.sum(tcat['FLUX']))/np.sqrt(np.sum(tcat['FLUX_ERR']**2)),
                      SNRSUM_CLIPPED = np.abs(np.sum(scat['FLUX']))/np.sqrt(np.sum(scat['FLUX_ERR']**2)) if len(scat) > 0 else 0,
                      NL=len(cat), NL_CLIPPED=len(scat), RCHI2=result.redchi, NFEV=result.nfev)   
         upsert_ztable(ztab, d, fam)
+        
     ztab.sort('SNRSUM')
-    ztab = ztab[::-1] 
+    ztab = ztab[::-1]           
+
              
 def upsert_ztable(tab, vals, family):
     if family in tab['FAMILY']:
@@ -1890,8 +1906,10 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
     
     if bootstrap:
-        # refine errors parameters using bootstrap
-        #init_par_from_reslsq(pdata, reslsq)        
+        # compute bestfit
+        bestfit = compute_bestfit(reslsq, pdata)
+        cdata = pdata.copy()        
+        # refine errors parameters using bootstrap  
         if n_cpu == 1:    
             nbootstrap = boot_kws['nbootstrap']
             seed_val = boot_kws['seed']
@@ -1901,10 +1919,9 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             if seed_val is not None:
                 logger.debug('Using seed %d', seed_val)
                 seed(seed_val)
-            cdata = pdata.copy()
             klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
             for k in klist:
-                generate_sample_data(pdata, cdata)
+                generate_sample_data(bestfit, cdata['std_rest'], cdata)
                 cres = lsq_fit(cdata, lsq_kws, verbose=False)
                 sample_res.append(cres)
             reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)
@@ -1917,9 +1934,8 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
                 logger.debug('Using seed %d', seed_val)
                 seed(seed_val)
             to_compute = []                  
-            cdata = pdata.copy()
             for k in range(nbootstrap):
-                to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
+                to_compute.append(delayed(_bootstrap_parallel)(cdata, bestfit, lsq_kws))               
             sample_res = Parallel(n_jobs=n_cpu)(to_compute)
             reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)             
         
