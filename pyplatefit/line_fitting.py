@@ -979,11 +979,11 @@ def save_fit_res(result, pdata, reslsq):
         tabspec['LINE_FIT'] = tabspec['LINE_FIT'] + tabspec[f'{key.upper()}_FIT_LSQ'] 
         tabspec['INIT_FIT'] = tabspec['INIT_FIT'] + tabspec[f'{key.upper()}_INIT_FIT']
         
-        add_result_to_tables(reslsq[key], tablines, ztab, redshift, sel_lines, lsf, init_minsnr, vac)       
-        add_line_stat_to_table(reslsq[key], pdata, sel_lines, tablines)
-            
-        resfit[f'lmfit_{key}'] = reslsq[key] 
-
+        add_result_to_tablines(reslsq[key], tablines, redshift, sel_lines, lsf, vac)          
+        add_line_stat_to_table(reslsq[key], pdata, sel_lines, tablines)     
+        resfit[f'lmfit_{key}'] = reslsq[key]
+        
+    add_result_to_ztab(result, tablines, ztab, snr_min)
     add_blend_to_table(tablines)  
     
     resfit['table_spec'] = tabspec 
@@ -1009,7 +1009,8 @@ def compute_bootstrap_stat(pdata, sample_res, reslsq):
             values = [res[key].params[p].value for res in sample_res]
             # we do not change the value of first LSQ fit, only the std
             resboot[key].params[p].value = reslsq[key].params[p].value
-        _,_,resboot[key].params[p].stderr = sigma_clipped_stats(values, sigma=5.0, maxiters=2)
+        #_,_,resboot[key].params[p].stderr = sigma_clipped_stats(values, sigma=5.0, maxiters=2)
+        resboot[key].params[p].stderr = np.std(values)
         # compute std of models
         models = np.array([res[key].residual*pdata['std_rest'] +
                               + pdata['data_rest']
@@ -1053,7 +1054,7 @@ def add_line_stat_to_table(reslsq, pdata, sel_lines, tablines):
         bestfit = reslsq.bestfit[mask]
         data = pdata['data_rest'][mask]
         norm = np.sum(bestfit)
-        nstd = np.log10(np.std((data-bestfit)/norm)) if norm > 1.e-10 else 100.
+        nstd = np.log10(np.std((data-bestfit)/norm)) if abs(norm) > 1.e-10 else 100.
         tablines['NSTD'][lmask] = nstd
         tablines['LBDA_LNSTD'][lmask] = left
         tablines['LBDA_RNSTD'][lmask] = right
@@ -1124,7 +1125,9 @@ def reorganize_doublets(lines):
     return dlines
     
 
-def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min, vac):
+
+
+def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
     """ add results to the table, if row exist it is updated"""
     par = result.params
     families = [key.split('_')[1] for key in par.keys() if key.split('_')[0]=='dv']
@@ -1132,9 +1135,6 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
         dv = par[f"dv_{family}"].value
         dv_err = par[f"dv_{family}"].stderr
         lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
-        flux_vals = []
-        err_vals = []
-        line_vals = []
         for line in lines:
             dname = inputlines[inputlines['LINE']==line]['DNAME'][0]
             blend = inputlines[inputlines['LINE']==line]['DOUBLET'][0]
@@ -1191,8 +1191,6 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                     lvals2['FLUX_ERR'] = flux2_err 
                     lvals2['SNR'] = abs(flux2)/flux2_err                     
                     flux_vals.append(flux1+flux2)
-                    err_vals.append(np.sqrt(flux1_err**2+flux2_err**2))
-                    line_vals.append(line)
                 if lsf:
                     lvals1['VDINST'] = complsf(l1obs, kms=True) 
                     lvals2['VDINST'] = complsf(l1obs, kms=True)  
@@ -1273,9 +1271,6 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 if flux_err is not None:
                     lvals['FLUX_ERR'] = flux_err 
                     lvals['SNR'] = abs(flux)/flux_err 
-                    flux_vals.append(flux)
-                    err_vals.append(flux_err)
-                    line_vals.append(line)
                 if lsf:
                     lvals['VDINST'] = complsf(l1obs, kms=True)       
                 skew = par[f"{family}_{line}_{fun}_asym"].value
@@ -1339,9 +1334,6 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 if (flux_err is not None) and (flux_err > 0):
                     lvals['FLUX_ERR'] = flux_err 
                     lvals['SNR'] = abs(flux)/flux_err 
-                    flux_vals.append(flux)
-                    err_vals.append(flux_err)
-                    line_vals.append(line)
                 if lsf:
                     lvals['VDINST'] = complsf(l1obs, kms=True)
                 sigma = get_sigma(vdisp, l1obs, z, lsf, restframe=False)
@@ -1359,36 +1351,32 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 upsert_ltable(tablines, lvals, family, line)
             else:
                 raise ValueError('fun %s unknown'%(fun))
+    tablines.sort('LBDA_REST')
 
-        zvals = {'VEL':dv, 'VDISP':vdisp, 'Z':z,
-                 'NFEV':result.nfev, 'RCHI2':result.redchi,
-                 'Z_INIT':zinit,
-                 } 
-        if dv_err is not None:
-            zvals['VEL_ERR'] = dv_err  
-            zvals['Z_ERR'] = z_err
-        if vdisp_err is not None:
-            zvals['VDISP_ERR'] = vdisp_err            
-        if len(flux_vals) > 0:
-            flux_vals = np.abs(flux_vals)
-            err_vals = np.array(err_vals)
-            zvals['SNRSUM'] = np.sum(flux_vals)/np.sqrt(np.sum(err_vals**2))
-            snr_vals = flux_vals/err_vals
-            kmax = np.argmax(snr_vals)
-            zvals['SNRMAX'] = snr_vals[kmax]
-            zvals['LINE'] = line_vals[kmax]
-            ksel = snr_vals > snr_min
-            nl_clip = np.sum(ksel)
-            if nl_clip > 0:
-                zvals['SNRSUM_CLIPPED'] = np.sum(flux_vals[ksel])/np.sqrt(np.sum(err_vals[ksel]**2))
-            zvals['NL'] = len(lines)
-            zvals['NL_CLIPPED'] = nl_clip
-
-        upsert_ztable(ztab, zvals, family)
-        tablines.sort('LBDA_REST')
-        
-        
-        
+def add_result_to_ztab(result, tablines, ztab, snr_min):
+    families = np.unique(lines['FAMILY'])
+    lines = tablines[(tablines['ISBLEND'] | (tablines['BLEND']==0))]
+    for fam in families:
+        cat = lines[lines['FAMILY']==fam]
+        tcat = cat[cat['SNR']>0]
+        if len(tcat) == 0:
+            d = dict(FAMILY=fam, VEL=cat['VEL'][0], VEL_ERR=cat['VEL_ERR'][0],
+                 Z=cat['Z'][0], Z_ERR=cat['Z_ERR'][0], Z_INIT=cat['Z_INIT'][0],
+                 SNRMAX=0, SNRSUM_CLIPPED=0, NL_CLIPPED=0,
+                 NL=len(cat), RCHI2=result.redchi, NFEV=result.nfev)
+        else:
+            kmax = np.argmax(tcat['SNR'])
+            scat = tcat[tcat['SNR']>snr_min]
+            d = dict(FAMILY=fam, VEL=cat['VEL'][0], VEL_ERR=cat['VEL_ERR'][0],
+                     Z=cat['Z'][0], Z_ERR=cat['Z_ERR'][0], Z_INIT=cat['Z_INIT'][0],
+                     SNRMAX=tcat['SNR'][kmax], LINE=tcat['LINE'][kmax], 
+                     SNRSUM=np.abs(np.sum(tcat['FLUX']))/np.sqrt(np.sum(tcat['FLUX_ERR']**2)),
+                     SNRSUM_CLIPPED = np.abs(np.sum(scat['FLUX']))/np.sqrt(np.sum(scat['FLUX_ERR']**2)) if len(scat) > 0 else 0,
+                     NL=len(cat), NL_CLIPPED=len(scat), RCHI2=result.redchi, NFEV=result.nfev)   
+        upsert_ztable(ztab, d, fam)
+    ztab.sort('SNRSUM')
+    ztab = ztab[::-1] 
+             
 def upsert_ztable(tab, vals, family):
     if family in tab['FAMILY']:
         # update

@@ -41,7 +41,7 @@ def test_fit_abs(workdir):
      
     t = res['lines']
     r = t[t['LINE']=='AlII1671'][0]
-    assert_allclose(r['VEL'],-21.18,rtol=1.e-2)
+    assert_allclose(r['VEL'],-21.17,rtol=1.e-2)
     assert_allclose(r['NSTD'],-1.43,rtol=1.e-2)
     assert_allclose(r['SNR'],8.67,rtol=1.e-2)
     assert_allclose(r['FWHM_OBS'],4.94,rtol=1.e-2)
@@ -60,12 +60,12 @@ def test_fit_abs(workdir):
     assert_allclose(r['RCHI2'],0.79,rtol=1.e-2)
     
     res = fit_spec(sp, z, fitlines=False, fitabs=True, n_cpu=1, 
-                   bootstrap=True, linepars=dict(seed=1, nbootstrap=200))
+                   bootstrap=True, linepars=dict(seed=1, nbootstrap=200, showprogress=False))
     
     t = res['lines']
     r = t[t['LINE']=='AlII1671'][0]
     assert_allclose(r['FLUX'],-239.72,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],30.65,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],41.88,rtol=1.e-2)
     assert_allclose(r['EQW'],1.92,rtol=1.e-2)
     
     ztab = res['ztable']
@@ -74,6 +74,6 @@ def test_fit_abs(workdir):
     assert_allclose(r['Z'],1.90557,rtol=1.e-4)
     assert r['NL'] == 11
     assert r['NL_CLIPPED'] == 9
-    assert_allclose(r['SNRSUM_CLIPPED'],24.87,rtol=1.e-2)
+    assert_allclose(r['SNRSUM_CLIPPED'],18.26,rtol=1.e-2)
     assert_allclose(r['RCHI2'],0.81,rtol=1.e-2)    
 
