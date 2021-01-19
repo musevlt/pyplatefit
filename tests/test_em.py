@@ -31,20 +31,6 @@ def workdir(tmpdir_factory):
     return tmpdir
 
     
-def test_fit_cont(workdir):
-    os.chdir(workdir)
-    pf = Platefit()
-    sp = Spectrum('udf10_00002.fits')
-    z = 0.41892
-    assert sp.shape == (3681,)
-    
-    res = pf.fit_cont(sp, z, vdisp=80)
-    assert res['success']
-    assert_allclose(res['chi2'],0.04710,rtol=1.e-4)
-    assert len(res['table_spec']) == 5066 
-    assert_allclose(res['table_spec']['FLUX'][2925],1149.8476,rtol=1.e-3)
-    assert_allclose(res['table_spec']['CONTFIT'][2925],1168.7825219,rtol=1.e-3)
-    assert_allclose(res['table_spec']['LINE'][2925],-0.925022444,rtol=1.e-3)
     
 def test_fit_lines(workdir):
     os.chdir(workdir)
