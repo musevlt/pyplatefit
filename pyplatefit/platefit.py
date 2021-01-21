@@ -4,6 +4,7 @@ from astropy.table import vstack, Column, MaskedColumn
 from mpdaf.obj import Spectrum
 from mpdaf.tools import progressbar
 from matplotlib import transforms
+import numpy as np
 
 from .cont_fitting import Contfit
 from .eqw import EquivalentWidth
@@ -18,7 +19,8 @@ class Platefit:
     This class is a poorman version of Platefit.
     """
 
-    def __init__(self, contpars={}, linepars={}, eqwpars={}):
+    def __init__(self, contpars={}, linepars={}, eqwpars={}, 
+                 minpars = dict(method='nelder', options=dict(xatol=1.e-3))):
         """Initialise a Platefit object
         
         Parameters
@@ -29,6 +31,9 @@ class Platefit:
         linepars: dictionary
           input parameters to be passed to `Linefit` constructor
           
+        minpars: dictionary
+          minimization parameters to be passed to `Linefit` constructor
+               
         eqwpars: dictionary
           input parameters to be passed to `EquivalentWidth` constructor
           
@@ -36,7 +41,7 @@ class Platefit:
         """
         self.logger = logging.getLogger(__name__)
         self.cont = Contfit(**contpars)
-        self.line = Linefit(**linepars)
+        self.line = Linefit(**linepars, minpars=minpars)
         self.eqw = EquivalentWidth(**eqwpars)
 
     def fit(self, spec, z, ziter=False, fitcont=True, fitlines=True, fitabs=False, eqw=True, **kwargs):
@@ -362,7 +367,8 @@ class Platefit:
 
 def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitcont=True, fitlines=True, lines=None,
              major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True, dble_lyafit=False,
-             lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={}):
+             lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={},
+             minpars=dict(method='nelder', options=dict(xatol=1.e-3))):
     """ 
     perform platefit cont and line fitting on a spectra
     
@@ -430,7 +436,14 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitc
         - showprogress : bool, if True display progress bar during bootstrap (default True)
         - nstd_relsize : float, relative size (wrt to FWHM) of the wavelength window used for CHI2 line estimation (used in bootstrap only), default: 3.0
         - minsnr : float, minimum SNR to display line ID in plots (default 3.0)
-        - line_ratios : list of tuples, list of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)] 
+        - line_ratios : list of tuples, list of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]
+
+    minpars : dictionary
+      Input parameters to pass to minimize (lmfit) exemple:
+      dict(method='nelder', options=dict(xatol=1.e-3)) [default]
+      dict(method='leastsq', xtol=1.e-4, maxfev=5000)
+      see https://docs.scipy.org/doc/scipy/reference/optimize.html for detailed info
+      optional parameters for the given method,
         
     Returns
     -------
@@ -514,7 +527,7 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitc
     logger = logging.getLogger(__name__)
     if isinstance(spec, str):
         spec = Spectrum(spec)    
-    pl = Platefit(contpars=contpars, linepars=linepars)
+    pl = Platefit(contpars=contpars, linepars=linepars, minpars=minpars)
     res = pl.fit(spec, z, bootstrap=bootstrap, n_cpu=n_cpu, fit_all=fit_all, ziter=ziter, fitcont=fitcont, fitlines=fitlines,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,
                  dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec,
@@ -524,7 +537,8 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitc
 def plot_fit(ax, result, line_only=False, abs_line=False,
              line=None, start=False, filterspec=0, 
              margin=50, legend=True, iden=True, label=True, minsnr=0, 
-             labelpars={'dl':2.0, 'y':0.95, 'size':10}):
+             info=None,
+             labelpars={'dl':2.0, 'y':0.95, 'size':10, 'xl':0.05, 'yl':0.95, 'dyl':0.05, 'sizel':10}):
     """ 
     plot fitting results obtained with `fit_spec`
     
@@ -642,6 +656,25 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
                 ax.axvline(cline['LBDA_OBS'], color=color, alpha=0.4)
                 ax.text(cline['LBDA_OBS']+labelpars['dl'], y, cline['DNAME'], 
                         dict(fontsize=labelpars['size']), transform=trans)
+                
+        if (line is not None) and (info is not None):
+            x,y,dy = labelpars['xl'],labelpars['yl'],labelpars['dyl']
+            row = lines[lines['LINE']==line]
+            if len(row) > 0:
+                row = row[0]
+                for key in info:
+                    if key not in row.keys():
+                        continue
+                    val = row[key]
+                    if isinstance(val, (float,np.float)):
+                        tval = f"{key}:{val:.2f}"
+                    elif val is None:
+                        tval = f"{key}:None"
+                    else:
+                        tval = f"{key}:{val}"
+                    ax.text(x, y, tval, fontsize=labelpars['sizel'], ha='left', transform=ax.transAxes, color='b')
+                    y -= dy
+            
 
                 
                 

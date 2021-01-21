@@ -94,14 +94,15 @@ class Linefit:
                  velabs=(-500,0,500), vdispabs=(5,50,300),
                  polydegabs=12, polyiterabs=3, polywmask=3.0,
                  vdisp_lya=(50,150,700), gamma_lya=(-1,0,10), 
-                 windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=50, minsnr=3.0,
+                 windmax=10, minsnr=3.0,
                  nbootstrap=200, seed=None, showprogress=True, nstd_relsize=3.0,
                  gamma_2lya1 = (-10,-2,0), gamma_2lya2 = (0,2,10),
                  sep_2lya = (80,500,1000),
                  line_ratios = [
                     ("CIII1907", "CIII1909", 0.6, 1.2),
                     ("OII3727", "OII3729", 1.0, 2.0)
-                    ]
+                    ],
+                 minpars = dict(method='nelder', options=dict(xatol=1.e-3)),
                  ):
         """Initialize line fit parameters and return a Linefit object
           
@@ -144,7 +145,10 @@ class Linefit:
         minsnr : float
           minimum SNR to display line ID in plots (default 3.0)
         line_ratios : list of tuples
-          list of line_ratios, defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]           
+          list of line_ratios, defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)] 
+        minpars : dictionary
+          Parameters to pass to minimize (lmfit) (default dict(method='nelder',xatol=1.e-3) 
+      
          
           WIP: polydegabs=12, polyiterabs=3, polywmask=3.0,
               
@@ -155,11 +159,7 @@ class Linefit:
         """    
              
         self.logger = getLogger(__name__)
-        
-        self.maxfev = maxfev # nb max of iterations by parameter (leastsq)
-        self.xtol = xtol # relative error in the solution (leastq)
-        self.ftol = ftol # relative error in the sum of square (leastsq)
-        
+                
         self.nbootstrap = nbootstrap # number of bootstrap iterations
         self.seed = seed # seed for bootstrap
         self.showprogress = showprogress # if True show progressbar
@@ -184,6 +184,8 @@ class Linefit:
         self.minsnr = minsnr # minium SNR for writing label of emission line in plot
         
         self.line_ratios = line_ratios # list of line ratios constraints
+        
+        self.minpars = minpars # dictionary with lmfit minimizatio method and optional parameters
                          
         return
     
@@ -212,14 +214,12 @@ class Linefit:
 
         """
  
-        lsq_kws = dict(xtol=self.xtol, ftol=self.ftol)
         boot_kws = dict(nbootstrap=self.nbootstrap, seed=self.seed, 
                         showprogress=self.showprogress, )
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya=self.vdisp_lya, 
                        gamma_lya=self.gamma_lya, minsnr=self.minsnr,
                        nstd_relsize=self.nstd_relsize, sep_2lya=self.sep_2lya, 
                        gamma_2lya1=self.gamma_2lya1, gamma_2lya2=self.gamma_2lya2,
-                       maxfev=self.maxfev, 
                        )
         use_line_ratios = kwargs.pop('use_line_ratios', False)
         if use_line_ratios:
@@ -246,8 +246,7 @@ class Linefit:
                    
         res = fit_lines(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
-                        lsq_kws=lsq_kws, boot_kws=boot_kws, fit_lws=fit_lws,
-                        **kwargs)
+                        boot_kws=boot_kws, fit_lws=fit_lws, minpars=self.minpars, **kwargs)
         
         tab = res['table_spec' ]   
         # convert wave to observed frame and air
@@ -290,12 +289,10 @@ class Linefit:
            line_fit spectrum of the line fit
 
         """
-        lsq_kws = dict(xtol=self.xtol, ftol=self.ftol)
         boot_kws = dict(nbootstrap=self.nbootstrap, seed=self.seed, 
                         showprogress=self.showprogress, )
         fit_lws = dict(velabs=self.velabs, vdispabs=self.vdispabs, minsnr=self.minsnr,
-                       nstd_relsize=self.nstd_relsize, 
-                       maxfev=self.maxfev)
+                       nstd_relsize=self.nstd_relsize)
         
         # remove cont
         deg = self.polydegabs 
@@ -328,7 +325,8 @@ class Linefit:
                 lwargs.pop(key)
         res = fit_abs(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data,
-                        lsq_kws=lsq_kws, boot_kws=boot_kws, fit_lws=fit_lws,
+                        boot_kws=boot_kws, 
+                        minpars=self.minpars,
                         **lwargs)          
         
         tab = res['table_spec' ]   
@@ -400,7 +398,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        major_lines=False, bootstrap=False, n_cpu=1,
                        fit_all=False, lsf=True, trimm_spec=True,
                        find_lya_vel_offset=True, dble_lyafit=False,
-                       lsq_kws=None, boot_kws=None, fit_lws=None):
+                       boot_kws=None, fit_lws=None, minpars={}):
     """Fit lines from a set of arrays (wave, data, std) using lmfit.
 
     This function uses lmfit to perform fit of know lines in
@@ -557,9 +555,9 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         if True, compute a starting velocity offset for lya on the data [disabled for dble_lyafit]
     dble_lyafit : False
         if True, use a double asymetric gaussian model for the lya line fit
-    lsq_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
     boot_kws : dictionary with bootstarp parameters 
     fit_lws : dictionary with some default and bounds parameters
+    minpars : dictionary with 
 
     Returns
     -------
@@ -595,8 +593,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws)
     result = init_res(pdata)
     
-    # perform lsq fit
-    reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
+    # perform fit
+    reslsq = lmfit_fit(minpars, pdata, verbose=True)
     
     if bootstrap:
         # compute bestfit
@@ -615,7 +613,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
             for k in klist:
                 generate_sample_data(bestfit, cdata['std_rest'], cdata)
-                cres = lsq_fit(cdata, lsq_kws, verbose=False)
+                cres = lmfit_fit(minpars, cdata, verbose=False)
                 sample_res.append(cres)
             reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)
         else:
@@ -628,7 +626,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                 seed(seed_val)
             to_compute = []                  
             for k in range(nbootstrap):
-                to_compute.append(delayed(_bootstrap_parallel)(cdata, bestfit, lsq_kws))               
+                to_compute.append(delayed(_bootstrap_parallel)(minpars, cdata, bestfit))               
             sample_res = Parallel(n_jobs=n_cpu)(to_compute)
             reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)            
         
@@ -636,9 +634,9 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     
     return resfit
 
-def _bootstrap_parallel(cdata, bestfit, lsq_kws):
+def _bootstrap_parallel(minpars, cdata, bestfit):
     generate_sample_data(bestfit, cdata['std_rest'], cdata)
-    cres = lsq_fit(cdata, lsq_kws, verbose=False)
+    cres = lmfit_fit(minpars, cdata, verbose=False)
     return cres
         
 def prepare_fit_data(wave, data, std, redshift, vac, 
@@ -920,13 +918,13 @@ def init_par_from_reslsq(pdata, reslsq):
 
         
 
-def lsq_fit(pdata, lsq_kws, verbose=True):
+def lmfit_fit(minpars, pdata, verbose=True):
     
     logger = logging.getLogger(__name__)
     
     reslsq = {}
     
-    # Perform LSQ fit   
+    # Perform minimization 
     parlist = [e for e in pdata.keys() if e[0:4]=='par_']
     for par in parlist:
         if verbose:
@@ -934,13 +932,12 @@ def lsq_fit(pdata, lsq_kws, verbose=True):
         args =  (pdata['wave_rest'], pdata['data_rest'], pdata['std_rest'],  
                  pdata[par]['family_lines'], pdata['redshift'], pdata['lsf'])
         minner = Minimizer(residuals, pdata[par]['params'], fcn_args=args) 
-        lsq_kws['max_nfev'] = pdata[par]['maxfev']
         if verbose:
-            logger.debug('Leastsq fitting with ftol: %.0e xtol: %.0e maxfev: %d',lsq_kws['ftol'],lsq_kws['xtol'],lsq_kws['max_nfev'])
-        result = minner.minimize(**lsq_kws)
+            logger.debug('Lmfit fitting: %s',minpars)
+        result = minner.minimize(**minpars)
         if verbose:
-            logger.debug('%s after %d iterations, redChi2 = %.3f',result.message,
-                         result.nfev,result.redchi)
+            logger.debug('%s after %d iterations, reached minimum = %.3f and redChi2 = %.3f',result.message,
+                         result.nfev,result.chisqr,result.redchi)
             bestfit = model(result.params, pdata['wave_rest'], 
                             pdata[par]['family_lines'], pdata['redshift'], pdata['lsf']) 
             result.bestfit = bestfit        
@@ -1891,7 +1888,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             unit_data=None, vac=False, lines=None, bootstrap=False,
             n_cpu=1,
             lsf=True, trimm_spec=True,
-            lsq_kws={}, boot_kws={}, fit_lws={}):    
+            boot_kws={}, fit_lws={}, minpars={}):    
     
     logger = logging.getLogger(__name__)
     
@@ -1903,7 +1900,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     result = init_res(pdata)
 
     # perform lsq fit
-    reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
+    reslsq = lmfit_fit(minpars, pdata, verbose=True)
     
     if bootstrap:
         # compute bestfit
@@ -1922,7 +1919,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
             for k in klist:
                 generate_sample_data(bestfit, cdata['std_rest'], cdata)
-                cres = lsq_fit(cdata, lsq_kws, verbose=False)
+                cres = lmfit_fit(minpars, cdata, verbose=False)
                 sample_res.append(cres)
             reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)
         else:
@@ -1935,7 +1932,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
                 seed(seed_val)
             to_compute = []                  
             for k in range(nbootstrap):
-                to_compute.append(delayed(_bootstrap_parallel)(cdata, bestfit, lsq_kws))               
+                to_compute.append(delayed(_bootstrap_parallel)(minpars, cdata, bestfit))               
             sample_res = Parallel(n_jobs=n_cpu)(to_compute)
             reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)             
         
