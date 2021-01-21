@@ -700,6 +700,7 @@ class Contfit:
         n = dims[1]
         m = np.size(ok)
 
+
         # Various other input/output parameters
         params = np.zeros(n + 1)  # N models + EBV. Where params[0] will be EBV
         nparams = n + 1
