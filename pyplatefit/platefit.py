@@ -366,7 +366,7 @@ class Platefit:
 
 
 def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitcont=True, fitlines=True, lines=None,
-             major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=True, dble_lyafit=False,
+             major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=False, dble_lyafit=False,
              lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={},
              minpars=dict(method='nelder', options=dict(xatol=1.e-3))):
     """ 

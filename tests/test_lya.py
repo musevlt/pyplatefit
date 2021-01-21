@@ -155,25 +155,25 @@ def test_2lya(workdir):
     assert_allclose(r['VEL'],34.15,rtol=1.e-2)
     assert_allclose(r['VDISP'],194.15,rtol=1.e-2)
     assert_allclose(r['FLUX'],680.54,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],21.03,rtol=1.e-2)
-    assert_allclose(r['SNR'],32.35,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],20.65,rtol=1.e-2)
+    assert_allclose(r['SNR'],32.94,rtol=1.e-2)
     assert_allclose(r['SEP'],515.76,rtol=1.e-2)
-    assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2)
+    assert_allclose(r['SEP_ERR'],10.03,rtol=1.e-2)
     assert 'LYALPHA2' in tab['LINE']
     r = tab[tab['LINE']=='LYALPHA2']
     assert_allclose(r['VEL'],34.15,rtol=1.e-2)
     assert_allclose(r['VDISP'],307.69,rtol=1.e-2)
     assert_allclose(r['FLUX'],1080.50,rtol=1.e-2)
     assert_allclose(r['FLUX_ERR'],26.04,rtol=1.e-2)
-    assert_allclose(r['SNR'],41.49,rtol=1.e-2)
+    assert_allclose(r['SNR'],41.53,rtol=1.e-2)
     assert_allclose(r['SEP'],515.76,rtol=1.e-2)
-    assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2) 
+    assert_allclose(r['SEP_ERR'],10.03,rtol=1.e-2) 
     r = tab[tab['LINE']=='LYALPHAb']
     assert_allclose(r['VEL'],34.15,rtol=1.e-2)
     assert_allclose(r['VDISP'],363.92,rtol=1.e-2)
     assert_allclose(r['FLUX'],1760.85,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],33.48,rtol=1.e-2)
-    assert_allclose(r['SNR'],52.60,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],33.21,rtol=1.e-2)
+    assert_allclose(r['SNR'],53.01,rtol=1.e-2)
     
      
      

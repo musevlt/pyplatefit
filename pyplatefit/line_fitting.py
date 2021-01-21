@@ -60,6 +60,7 @@ warnings.filterwarnings("ignore", message="invalid value encountered in subtract
 warnings.filterwarnings("ignore", message="invalid value encountered in greater")
 warnings.filterwarnings("ignore", message="Initial state is not linearly independent and it will not allow a full exploration of parameter space")
 warnings.filterwarnings("ignore", message="invalid value encountered in double_scalars")
+warnings.filterwarnings("ignore", message="invalid value encountered in sqrt")
 
 C = constants.c.to(u.km / u.s).value
 SQRT2PI = np.sqrt(2*np.pi)
@@ -1200,7 +1201,6 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                     lvals1['SNR'] = abs(flux1)/flux1_err 
                     lvals2['FLUX_ERR'] = flux2_err 
                     lvals2['SNR'] = abs(flux2)/flux2_err                     
-                    flux_vals.append(flux1+flux2)
                 if lsf:
                     lvals1['VDINST'] = complsf(l1obs, kms=True) 
                     lvals2['VDINST'] = complsf(l1obs, kms=True)  
