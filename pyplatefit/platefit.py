@@ -198,6 +198,11 @@ class Platefit:
                 resfit['dline']['abs_table_spec'] = resabs['table_spec']
             else:
                 resfit['dline'] = resabs
+                
+        if kwargs.get('bootstrap',False):
+            resfit['ztable']['BOOT'] = self.line.nbootstrap
+        else:
+            resfit['ztable']['BOOT'] = 0
 
         return resfit
 
@@ -555,7 +560,7 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
     line : str
         name of the line to zoom on (if None display all the spectrum)
     start : bool
-        plot also the initial guess before the fit
+        plot also the initial guess before the fit (only if line is not None)
     filterspec : int
         width in pixel of the box-filter to apply on the input spectrum
     margin : float
@@ -568,12 +573,17 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
         display the line name
     minsnr : float
         minimum SNR to display the line names
+    info : list or None
+        list of line parameter to display (only used with line=NAME)
     labelpars : dictionary
         parameters used for label display
         
           - dl: offset in wavelength
           - y: location in y (0-1)
           - size: font size
+          - xl: x location for info
+          - yl, dyl: y location and offset for info
+          - sizel: info font size
     """
     logger = logging.getLogger(__name__)
     lines = result['lines']
@@ -587,7 +597,7 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
             spline = spline.filter(width=filterspec)           
         splinefit = result['line_fit']
         if start:
-           spinitfit = result['line_initfit']
+            spinitfit = result['line_initfit']
         if line is not None:
             spline = truncate_spec(spline, line, lines, margin)
             splinefit = truncate_spec(splinefit, line, lines, margin)

@@ -894,9 +894,11 @@ def init_res(pdata):
     for colname in colnames:
         ztab[colname].format = '.2f'
     ztab.add_column(MaskedColumn(name='LINE', dtype='U20', mask=True), index=8)
-    for colname in ['NL','NL_CLIPPED', 'NFEV']:
+    for colname in ['NL','NL_CLIPPED','NFEV','STATUS']:
             ztab.add_column(MaskedColumn(name=colname, dtype=np.int, mask=True)) 
-    ztab.add_column(MaskedColumn(name='RCHI2', dtype=np.float, mask=True))
+    ztab.add_column(MaskedColumn(name='RCHI2', dtype=np.float, mask=True), index=14)
+    ztab.add_column(MaskedColumn(name='METHOD', dtype='U25', mask=True))
+    ztab.add_column(MaskedColumn(name='BOOT', dtype=np.int, mask=True))
     ztab['RCHI2'].format = '.2f'
     ztab['Z'].format = '.5f'
     ztab['Z_ERR'].format = '.2e'
@@ -1371,12 +1373,17 @@ def add_result_to_ztab(reslsq, tablines, ztab, snr_min):
         result = reslsq[fam if fam != 'lyalpha' else 'lya']
         cat = lines[lines['FAMILY']==fam]
         tcat = cat[cat['SNR']>0]
+        for key in ['status','ier']: #get output status
+            if hasattr(result, key):
+                status = getattr(result, key)
+                break          
         if len(tcat) == 0:
             d = dict(FAMILY=fam, VEL=cat['VEL'][0], VEL_ERR=cat['VEL_ERR'][0],
                  Z=cat['Z'][0], Z_ERR=cat['Z_ERR'][0], Z_INIT=cat['Z_INIT'][0],
                  VDISP=cat['VDISP'][0], VDISP_ERR=cat['VDISP_ERR'][0],
                  SNRMAX=0, SNRSUM_CLIPPED=0, NL_CLIPPED=0, LINE='None',
-                 NL=len(cat), RCHI2=result.redchi, NFEV=result.nfev)
+                 NL=len(cat), RCHI2=result.redchi, NFEV=result.nfev, 
+                 STATUS=status, METHOD=result.method)
         else:
             kmax = np.argmax(cat['SNR'])
             scat = tcat[(tcat['SNR']>snr_min) ]
@@ -1386,7 +1393,8 @@ def add_result_to_ztab(reslsq, tablines, ztab, snr_min):
                      SNRMAX=cat['SNR'][kmax], LINE=cat['LINE'][kmax], 
                      SNRSUM=np.abs(np.sum(tcat['FLUX']))/np.sqrt(np.sum(tcat['FLUX_ERR']**2)),
                      SNRSUM_CLIPPED = np.abs(np.sum(scat['FLUX']))/np.sqrt(np.sum(scat['FLUX_ERR']**2)) if len(scat) > 0 else 0,
-                     NL=len(cat), NL_CLIPPED=len(scat), RCHI2=result.redchi, NFEV=result.nfev)   
+                     NL=len(cat), NL_CLIPPED=len(scat), RCHI2=result.redchi, NFEV=result.nfev, 
+                     STATUS=status, METHOD=result.method)   
         upsert_ztable(ztab, d, fam)
         
     ztab.sort('SNRSUM')

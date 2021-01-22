@@ -1,9 +1,15 @@
 Changelog
 =========
 
+v0.6 (XX/XX/2021)
+-----------------
 New features
 ^^^^^^^^^^^^
-- keep lsq initial result, only update std from bootstrap
+- set default method to nelder with 1.e-3 tolerance on paramaters (more robust than least square)
+- save method, status and nb of bootstrap iteration in ztable
+- allow to use any minimizing methods and its corresponding input parameters from scipy minimize
+- add info option in plot_fit to display values from the lines table
+- in bootstrap keep initial result, only update std from bootstrap statistics
 - values for line blend (eg OII3727b = OII3726 + OII3729) are returned in addition to the individual lines.
 
 Breaking Changes
