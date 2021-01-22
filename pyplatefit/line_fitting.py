@@ -1103,8 +1103,8 @@ def add_blend_to_table(tablines):
         d['FLUX_ERR'] = np.sqrt(np.sum(stab['FLUX_ERR']**2))
         d['SNR'] = np.abs(d['FLUX'])/d['FLUX_ERR'] if d['FLUX_ERR'] > 0 else 0
         # VDISP, FWHM
-        d['VDISP'] = np.sqrt(np.sum(stab['VDISP']**2))
-        d['VDISP_ERR'] = np.sqrt(np.sum(stab['VDISP_ERR']**2))
+        d['VDISP'] = np.average(stab['VDISP'])
+        d['VDISP_ERR'] = np.average(stab['VDISP_ERR'])
         d['FWHM_OBS'] = np.average(stab['FWHM_OBS'])
         # LBDA
         d['LBDA_OBS'] = np.average(stab['LBDA_OBS'])
@@ -1115,6 +1115,7 @@ def add_blend_to_table(tablines):
         # Z, VEL
         d['Z'] = np.mean(stab['Z'])
         d['Z_ERR'] = np.mean(stab['Z_ERR'])
+        d['Z_INIT'] = np.mean(stab['Z_INIT'])
         d['VEL'] = np.mean(stab['VEL'])
         d['VEL_ERR'] = np.mean(stab['VEL_ERR'])
         if line == 'LYALPHAb':
@@ -1373,13 +1374,15 @@ def add_result_to_ztab(reslsq, tablines, ztab, snr_min):
         if len(tcat) == 0:
             d = dict(FAMILY=fam, VEL=cat['VEL'][0], VEL_ERR=cat['VEL_ERR'][0],
                  Z=cat['Z'][0], Z_ERR=cat['Z_ERR'][0], Z_INIT=cat['Z_INIT'][0],
-                 SNRMAX=0, SNRSUM_CLIPPED=0, NL_CLIPPED=0,
+                 VDISP=cat['VDISP'][0], VDISP_ERR=cat['VDISP_ERR'][0],
+                 SNRMAX=0, SNRSUM_CLIPPED=0, NL_CLIPPED=0, LINE='None',
                  NL=len(cat), RCHI2=result.redchi, NFEV=result.nfev)
         else:
             kmax = np.argmax(cat['SNR'])
             scat = tcat[(tcat['SNR']>snr_min) ]
             d = dict(FAMILY=fam, VEL=cat['VEL'][0], VEL_ERR=cat['VEL_ERR'][0],
                      Z=cat['Z'][0], Z_ERR=cat['Z_ERR'][0], Z_INIT=cat['Z_INIT'][0],
+                     VDISP=cat['VDISP'][0], VDISP_ERR=cat['VDISP_ERR'][0],
                      SNRMAX=cat['SNR'][kmax], LINE=cat['LINE'][kmax], 
                      SNRSUM=np.abs(np.sum(tcat['FLUX']))/np.sqrt(np.sum(tcat['FLUX_ERR']**2)),
                      SNRSUM_CLIPPED = np.abs(np.sum(scat['FLUX']))/np.sqrt(np.sum(scat['FLUX_ERR']**2)) if len(scat) > 0 else 0,
