@@ -10,11 +10,11 @@ ext = Extension('pyplatefit.nnls_burst',
 
 # Dependencies. 
 install_requires = ['numpy', 'astropy', 'scipy', 'tqdm', 'joblib',
-                    'lmfit', 'mpdaf']
+                    'lmfit', 'mpdaf', 'numdifftools']
 
 setup(
     name='pyplatefit',
-    description='TODO',
+    description='Fit emission/absorption lines in MUSE spectra',
     author='Roland Bacon',
     author_email='roland.bacon@univ-lyon1.fr',
     use_scm_version=True,
