@@ -20,7 +20,7 @@ class Platefit:
     """
 
     def __init__(self, contpars={}, linepars={}, eqwpars={}, 
-                 minpars = dict(method='nelder', options=dict(xatol=1.e-3))):
+                 minpars = dict(method='least_square', xtol=1.e-3)):
         """Initialise a Platefit object
         
         Parameters
