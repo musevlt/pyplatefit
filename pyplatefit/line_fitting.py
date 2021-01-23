@@ -103,7 +103,7 @@ class Linefit:
                     ("CIII1907", "CIII1909", 0.6, 1.2),
                     ("OII3727", "OII3729", 1.0, 2.0)
                     ],
-                 minpars = dict(method='nelder', options=dict(xatol=1.e-3)),
+                 minpars = dict(method='least_square', xtol=1.e-3),
                  ):
         """Initialize line fit parameters and return a Linefit object
           
@@ -1373,6 +1373,7 @@ def add_result_to_ztab(reslsq, tablines, ztab, snr_min):
         result = reslsq[fam if fam != 'lyalpha' else 'lya']
         cat = lines[lines['FAMILY']==fam]
         tcat = cat[cat['SNR']>0]
+        status = -99
         for key in ['status','ier']: #get output status
             if hasattr(result, key):
                 status = getattr(result, key)

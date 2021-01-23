@@ -445,8 +445,8 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitc
 
     minpars : dictionary
       Input parameters to pass to minimize (lmfit) exemple:
-      dict(method='nelder', options=dict(xatol=1.e-3)) [default]
-      dict(method='leastsq', xtol=1.e-4, maxfev=5000)
+      dict(method='nelder', options=dict(xatol=1.e-3)) 
+      dict(method='least_square', xtol=1.e-3) [default]
       see https://docs.scipy.org/doc/scipy/reference/optimize.html for detailed info
       optional parameters for the given method,
         
@@ -542,7 +542,7 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitc
 def plot_fit(ax, result, line_only=False, abs_line=False,
              line=None, start=False, filterspec=0, 
              margin=50, legend=True, iden=True, label=True, minsnr=0, 
-             info=None,
+             infoline=None, infoz=None,
              labelpars={'dl':2.0, 'y':0.95, 'size':10, 'xl':0.05, 'yl':0.95, 'dyl':0.05, 'sizel':10}):
     """ 
     plot fitting results obtained with `fit_spec`
@@ -573,8 +573,10 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
         display the line name
     minsnr : float
         minimum SNR to display the line names
-    info : list or None
-        list of line parameter to display (only used with line=NAME)
+    infoline : list or None
+        list of line parameters (from lines table) to display, only used with line=NAME
+    infoz : list or None
+        list of global parameters (from ztable) to display
     labelpars : dictionary
         parameters used for label display
         
@@ -667,12 +669,14 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
                 ax.text(cline['LBDA_OBS']+labelpars['dl'], y, cline['DNAME'], 
                         dict(fontsize=labelpars['size']), transform=trans)
                 
-        if (line is not None) and (info is not None):
+        if (infoline is not None) or (infoz is not None):
             x,y,dy = labelpars['xl'],labelpars['yl'],labelpars['dyl']
+                
+        if (line is not None) and (infoline is not None):
             row = lines[lines['LINE']==line]
             if len(row) > 0:
                 row = row[0]
-                for key in info:
+                for key in infoline:
                     if key not in row.keys():
                         continue
                     val = row[key]
@@ -684,6 +688,26 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
                         tval = f"{key}:{val}"
                     ax.text(x, y, tval, fontsize=labelpars['sizel'], ha='left', transform=ax.transAxes, color='b')
                     y -= dy
+                    
+        if (line is not None) and (infoz is not None):
+            row = lines[lines['LINE']==line]
+            fam = row['FAMILY']
+            ztab = result['ztable']
+            row = ztab[ztab['FAMILY']==fam]
+            if len(row) > 0:
+                row = row[0]
+                for key in infoz:
+                    if key not in row.keys():
+                        continue
+                    val = row[key]
+                    if isinstance(val, (float,np.float)):
+                        tval = f"{key}:{val:.2f}"
+                    elif val is None:
+                        tval = f"{key}:None"
+                    else:
+                        tval = f"{key}:{val}"
+                    ax.text(x, y, tval, fontsize=labelpars['sizel'], ha='left', transform=ax.transAxes, color='b')
+                    y -= dy            
             
 
                 
