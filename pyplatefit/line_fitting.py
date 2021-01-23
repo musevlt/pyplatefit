@@ -148,7 +148,7 @@ class Linefit:
         line_ratios : list of tuples
           list of line_ratios, defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)] 
         minpars : dictionary
-          Parameters to pass to minimize (lmfit) (default dict(method='nelder',xatol=1.e-3) 
+          Parameters to pass to minimize (lmfit) (default dict(method='least_square', xtol=1.e-3) 
       
          
           WIP: polydegabs=12, polyiterabs=3, polywmask=3.0,
