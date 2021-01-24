@@ -197,12 +197,7 @@ class Platefit:
                 resfit['dline']['lmfit_abs'] = resabs['lmfit_abs']
                 resfit['dline']['abs_table_spec'] = resabs['table_spec']
             else:
-                resfit['dline'] = resabs
-                
-        if kwargs.get('bootstrap',False):
-            resfit['ztable']['BOOT'] = self.line.nbootstrap
-        else:
-            resfit['ztable']['BOOT'] = 0
+                resfit['dline'] = resabs             
 
         return resfit
 
@@ -370,7 +365,7 @@ class Platefit:
 
 
 
-def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitcont=True, fitlines=True, lines=None,
+def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, lines=None,
              major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=False, dble_lyafit=False,
              lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={},
              minpars=dict(method='least_square', xtol=1.e-3)):
@@ -533,7 +528,7 @@ def fit_spec(spec, z, fit_all=False, bootstrap=False, n_cpu=1, ziter=False, fitc
     if isinstance(spec, str):
         spec = Spectrum(spec)    
     pl = Platefit(contpars=contpars, linepars=linepars, minpars=minpars)
-    res = pl.fit(spec, z, bootstrap=bootstrap, n_cpu=n_cpu, fit_all=fit_all, ziter=ziter, fitcont=fitcont, fitlines=fitlines,
+    res = pl.fit(spec, z, fit_all=fit_all, ziter=ziter, fitcont=fitcont, fitlines=fitlines,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,
                  dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec,
                  fitabs=fitabs)

@@ -66,13 +66,13 @@ def test_fit_lines(workdir):
     assert_allclose(r['SKEW'],7.25,rtol=1.e-2)
     assert_allclose(r['LBDA_OBS'],7022.60,rtol=1.e-2)
     assert_allclose(r['FWHM_OBS'],8.35,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],30.86,rtol=1.e-2)
-    assert_allclose(r['SNR'],135.25,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],29.88,rtol=1.e-2)
+    assert_allclose(r['SNR'],139.65,rtol=1.e-2)
    
     tab = res_line['ztable']
     r = tab[tab['FAMILY']=='lyalpha']
     assert_allclose(r['VEL'],86.40,rtol=1.e-2)
-    assert_allclose(r['SNRSUM'],135.25,rtol=1.e-2)
+    assert_allclose(r['SNRSUM'],139.65,rtol=1.e-2)
     assert r['NL'] == 1
     
 def test_fit(workdir):
@@ -88,11 +88,11 @@ def test_fit(workdir):
     assert r['LINE'] == 'LYALPHA'
     assert_allclose(r['VEL'],86.40,rtol=1.e-2)
     assert_allclose(r['Z'],4.77832,rtol=1.e-2)
-    assert_allclose(r['FLUX'],4173.19,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],40.99,rtol=1.e-2)
-    assert_allclose(r['SNR'],101.81,rtol=1.e-2)
-    assert_allclose(r['EQW'],-60.60,rtol=1.e-2)
-    assert_allclose(r['EQW_ERR'],2.00,rtol=1.e-2)
+    assert_allclose(r['FLUX'],4172.52,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],39.68,rtol=1.e-2)
+    assert_allclose(r['SNR'],105.16,rtol=1.e-2)
+    assert_allclose(r['EQW'],-60.59,rtol=1.e-2)
+    assert_allclose(r['EQW_ERR'],1.98,rtol=1.e-2)
     assert_allclose(r['NSTD'],-2.295,rtol=1.e-2)
     
     
@@ -110,37 +110,14 @@ def test_faint(workdir):
     assert_allclose(r['VEL'],37.03,rtol=1.e-2)
     assert_allclose(r['VDISP'],263.94,rtol=1.e-2)
     assert_allclose(r['FLUX'],117.54,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],15.520,rtol=1.e-2)
-    assert_allclose(r['SNR'],7.57,rtol=1.e-2)
-    assert np.ma.is_masked(r['EQW'])
-    
-    assert 'HeII1640' in tab['LINE']
-    r = tab[tab['LINE']=='HeII1640'][0]
-    assert_allclose(r['FLUX'],6.12,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],42.76,rtol=1.e-2)
-    assert_allclose(r['SNR'],0.143,rtol=1.e-2)
-  
-    
-    res = fit_spec(sp, z, lines=['LYALPHA','HeII1640'], bootstrap=True, linepars={'seed':1, 'showprogress':False})
-    tab = res['lines']
-    
-    assert 'LYALPHA' in tab['LINE']
-    r = tab[tab['LINE']=='LYALPHA'][0]
-    assert_allclose(r['VEL'],37.03,rtol=1.e-2)
-    assert_allclose(r['VDISP'],263.94,rtol=1.e-2)
-    assert_allclose(r['FLUX'],117.54,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],31.45,rtol=1.e-2)
-    assert_allclose(r['SNR'],3.74,rtol=1.e-2)
-    assert_allclose(r['NSTD'],-1.57,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],16.07,rtol=1.e-2)
+    assert_allclose(r['SNR'],7.32,rtol=1.e-2)
     assert np.ma.is_masked(r['EQW'])
     
     assert 'HeII1640' in tab['LINE']
     r = tab[tab['LINE']=='HeII1640'][0]
     assert r['FLUX'] < 0.005
     assert r['SNR'] < 0.005
-    
-    
-    
     
 def test_2lya(workdir):
     os.chdir(workdir)
@@ -156,10 +133,10 @@ def test_2lya(workdir):
     assert_allclose(r['VEL'],34.15,rtol=1.e-2)
     assert_allclose(r['VDISP'],194.15,rtol=1.e-2)
     assert_allclose(r['FLUX'],680.54,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],20.65,rtol=1.e-2)
-    assert_allclose(r['SNR'],32.94,rtol=1.e-2)
-    assert_allclose(r['SEP'],515.76,rtol=1.e-2)
-    assert_allclose(r['SEP_ERR'],10.03,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],21.03,rtol=1.e-2)
+    assert_allclose(r['SNR'],32.35,rtol=1.e-2)
+    assert_allclose(r['SEP'],515.83,rtol=1.e-2)
+    assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2)
     assert 'LYALPHA2' in tab['LINE']
     r = tab[tab['LINE']=='LYALPHA2']
     assert_allclose(r['VEL'],34.15,rtol=1.e-2)
@@ -167,8 +144,8 @@ def test_2lya(workdir):
     assert_allclose(r['FLUX'],1080.50,rtol=1.e-2)
     assert_allclose(r['FLUX_ERR'],26.04,rtol=1.e-2)
     assert_allclose(r['SNR'],41.53,rtol=1.e-2)
-    assert_allclose(r['SEP'],515.76,rtol=1.e-2)
-    assert_allclose(r['SEP_ERR'],10.03,rtol=1.e-2) 
+    assert_allclose(r['SEP'],515.83,rtol=1.e-2)
+    assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2) 
     r = tab[tab['LINE']=='LYALPHAb']
     assert_allclose(r['VEL'],34.15,rtol=1.e-2)
     assert_allclose(r['VDISP'],251.01,rtol=1.e-2)

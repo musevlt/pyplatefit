@@ -34,8 +34,8 @@ def test_fit_abs(workdir):
     os.chdir(workdir)
     sp = Spectrum('DR2_001028.fits')
     z = 1.90578
-    res = fit_spec(sp, z, fitlines=False, fitabs=True, bootstrap=False,
-                   minpars=dict(method='leastsq', xtol=1.e-4))
+    res = fit_spec(sp, z, fitlines=False, fitabs=True,
+                   minpars=dict(method='least_square', xtol=1.e-4))
     
   
     assert res['abs_fit'].shape == (3681,)
@@ -60,22 +60,4 @@ def test_fit_abs(workdir):
     assert_allclose(r['SNRSUM_CLIPPED'],27.68,rtol=1.e-2)
     assert_allclose(r['RCHI2'],0.79,rtol=1.e-2)
     
-    res = fit_spec(sp, z, fitlines=False, fitabs=True, n_cpu=1, lines=['AlII1671'],
-                   bootstrap=True, linepars=dict(seed=1, nbootstrap=200, showprogress=False),
-                   minpars=dict(method='leastsq', xtol=1.e-3))
-    
-    t = res['lines']
-    r = t[t['LINE']=='AlII1671'][0]
-    assert_allclose(r['FLUX'],-239.72,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],38.64,rtol=1.e-2)
-    assert_allclose(r['EQW'],1.92,rtol=1.e-2)
-    
-    ztab = res['ztable']
-    assert 'abs' in ztab['FAMILY']
-    r = ztab[ztab['FAMILY']=='abs'][0]
-    assert_allclose(r['Z'],1.90557,rtol=1.e-4)
-    assert r['NL'] == 1
-    assert r['NL_CLIPPED'] == 1
-    assert_allclose(r['SNRSUM_CLIPPED'],6.19,rtol=1.e-2)
-    assert_allclose(r['RCHI2'],0.54,rtol=1.e-2)    
 

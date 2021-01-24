@@ -96,7 +96,7 @@ class Linefit:
                  polydegabs=12, polyiterabs=3, polywmask=3.0,
                  vdisp_lya=(50,150,700), gamma_lya=(-1,0,10), 
                  windmax=10, minsnr=3.0,
-                 nbootstrap=200, seed=None, showprogress=True, nstd_relsize=3.0,
+                 nstd_relsize=3.0,
                  gamma_2lya1 = (-10,-2,0), gamma_2lya2 = (0,2,10),
                  sep_2lya = (80,500,1000),
                  line_ratios = [
@@ -135,12 +135,6 @@ class Linefit:
           relative error in the sum of square for the leastsq fitting (default: 1.e-6).
         maxfev : int
           max number of iterations by parameter for the leastsq fitting (default 50)
-        nbootstrap : int
-          number of sample in bootstrap (default 200)
-        seed : None or int
-          random number seed in bootstrap (default None)
-        showprogress : bool
-          if True display progress bar during bootstrap (default True)
         nstd_relsize : float
           relative size (wrt to FWHM) of the wavelength window used for NSTD line estimation (used in bootstrap only), default: 3.0
         minsnr : float
@@ -161,9 +155,6 @@ class Linefit:
              
         self.logger = getLogger(__name__)
                 
-        self.nbootstrap = nbootstrap # number of bootstrap iterations
-        self.seed = seed # seed for bootstrap
-        self.showprogress = showprogress # if True show progressbar
         self.nstd_relsize = nstd_relsize # relative size with respct to FWHM for line NSTD estimate
         
         self.vel = vel # bounds in velocity km/s for emi lines, rest frame
@@ -215,8 +206,6 @@ class Linefit:
 
         """
  
-        boot_kws = dict(nbootstrap=self.nbootstrap, seed=self.seed, 
-                        showprogress=self.showprogress, )
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya=self.vdisp_lya, 
                        gamma_lya=self.gamma_lya, minsnr=self.minsnr,
                        nstd_relsize=self.nstd_relsize, sep_2lya=self.sep_2lya, 
@@ -247,7 +236,7 @@ class Linefit:
                    
         res = fit_lines(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
-                        boot_kws=boot_kws, fit_lws=fit_lws, minpars=self.minpars, **kwargs)
+                        fit_lws=fit_lws, minpars=self.minpars, **kwargs)
         
         tab = res['table_spec' ]   
         # convert wave to observed frame and air
@@ -290,8 +279,7 @@ class Linefit:
            line_fit spectrum of the line fit
 
         """
-        boot_kws = dict(nbootstrap=self.nbootstrap, seed=self.seed, 
-                        showprogress=self.showprogress, )
+        # WIP fit_lws not used ?
         fit_lws = dict(velabs=self.velabs, vdispabs=self.vdispabs, minsnr=self.minsnr,
                        nstd_relsize=self.nstd_relsize)
         
@@ -326,7 +314,6 @@ class Linefit:
                 lwargs.pop(key)
         res = fit_abs(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data,
-                        boot_kws=boot_kws, 
                         minpars=self.minpars,
                         **lwargs)          
         
@@ -396,10 +383,10 @@ class Linefit:
 
 def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
-                       major_lines=False, bootstrap=False, n_cpu=1,
+                       major_lines=False, 
                        fit_all=False, lsf=True, trimm_spec=True,
                        find_lya_vel_offset=True, dble_lyafit=False,
-                       boot_kws=None, fit_lws=None, minpars={}):
+                       fit_lws=None, minpars={}):
     """Fit lines from a set of arrays (wave, data, std) using lmfit.
 
     This function uses lmfit to perform fit of know lines in
@@ -536,11 +523,6 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     major_lines : boolean, optional
         If true, the fit is restricted to the major lines as defined in mpdaf line table (used only when lines is None, )
         default: False
-    bootstrap : boolean, optional
-        if true, errors and reduced khi2 are estimated from bootstrap 
-        default: False
-    n_cpu : int
-        run bootstrap in parallel over n_cpu (default 1)
     fit_all : boolean, optional
         if True, use same velocity offset and velocity dispersion for all lines except Lya
         if False, allow different velocity offsets and velocity disperions between balmer,
@@ -556,9 +538,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         if True, compute a starting velocity offset for lya on the data [disabled for dble_lyafit]
     dble_lyafit : False
         if True, use a double asymetric gaussian model for the lya line fit
-    boot_kws : dictionary with bootstarp parameters 
     fit_lws : dictionary with some default and bounds parameters
-    minpars : dictionary with 
+    minpars : dictionary with minimization method and associate parameters
 
     Returns
     -------
@@ -595,50 +576,11 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     result = init_res(pdata)
     
     # perform fit
-    reslsq = lmfit_fit(minpars, pdata, verbose=True)
-    
-    if bootstrap:
-        # compute bestfit
-        bestfit = compute_bestfit(reslsq, pdata)
-        cdata = pdata.copy()
-        # refine errors parameters using bootstrap
-        if n_cpu == 1:          
-            nbootstrap = boot_kws['nbootstrap']
-            seed_val = boot_kws['seed']
-            showprogress = boot_kws['showprogress']
-            logger.debug('Running boostrap with %d iterations', nbootstrap)
-            sample_res = [] 
-            if seed_val is not None:
-                logger.debug('Using seed %d', seed_val)
-                seed(seed_val) 
-            klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
-            for k in klist:
-                generate_sample_data(bestfit, cdata['std_rest'], cdata)
-                cres = lmfit_fit(minpars, cdata, verbose=False)
-                sample_res.append(cres)
-            reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)
-        else:
-            nbootstrap = boot_kws['nbootstrap']
-            seed_val = boot_kws['seed']
-            logger.debug('Running boostrap with %d iterations on %d cpu', nbootstrap, n_cpu)            
-            sample_res = [] 
-            if seed_val is not None:
-                logger.debug('Using seed %d', seed_val)
-                seed(seed_val)
-            to_compute = []                  
-            for k in range(nbootstrap):
-                to_compute.append(delayed(_bootstrap_parallel)(minpars, cdata, bestfit))               
-            sample_res = Parallel(n_jobs=n_cpu)(to_compute)
-            reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)            
+    reslsq = lmfit_fit(minpars, pdata, verbose=True)   
         
     resfit = save_fit_res(result, pdata, reslsq)
     
     return resfit
-
-def _bootstrap_parallel(minpars, cdata, bestfit):
-    generate_sample_data(bestfit, cdata['std_rest'], cdata)
-    cres = lmfit_fit(minpars, cdata, verbose=False)
-    return cres
         
 def prepare_fit_data(wave, data, std, redshift, vac, 
                      lines, major_lines, trimm_spec):
@@ -898,7 +840,6 @@ def init_res(pdata):
             ztab.add_column(MaskedColumn(name=colname, dtype=np.int, mask=True)) 
     ztab.add_column(MaskedColumn(name='RCHI2', dtype=np.float, mask=True), index=14)
     ztab.add_column(MaskedColumn(name='METHOD', dtype='U25', mask=True))
-    ztab.add_column(MaskedColumn(name='BOOT', dtype=np.int, mask=True))
     ztab['RCHI2'].format = '.2f'
     ztab['Z'].format = '.5f'
     ztab['Z_ERR'].format = '.2e'
@@ -912,13 +853,6 @@ def init_res(pdata):
     tabspec['INIT_FIT'] = tabspec['FLUX']*0
     
     return dict(tabspec=tabspec, tablines=tablines, ztab=ztab)
-
-def init_par_from_reslsq(pdata, reslsq):
-    for key,res in reslsq.items():
-        for p,pval in res.params.items():
-            pdata['par_'+key]['params'][p].value = pval.value
-            #pinit = res.init_values[p]
-
         
 
 def lmfit_fit(minpars, pdata, verbose=True):
@@ -1004,40 +938,6 @@ def save_fit_res(result, pdata, reslsq):
     
     return resfit
 
-def generate_sample_data(data, std, cdata):
-    
-    cdata['data_rest'] = normal(data, std)
-    
-def compute_bootstrap_stat(pdata, sample_res, reslsq):
-    
-    logger = logging.getLogger(__name__)
-    resboot = sample_res[0].copy() 
-    keys = resboot.keys()
-    for key in keys:
-        logger.debug('Computing bootstrap statistics for family: %s',key)
-        # compute parameters mean & std
-        parlist = resboot[key].var_names
-        for p in parlist:
-            values = [res[key].params[p].value for res in sample_res]
-            # we do not change the value of first LSQ fit, only the std
-            resboot[key].params[p].value = reslsq[key].params[p].value
-            #resboot[key].params[p].value = np.median(values)
-            #_,_,resboot[key].params[p].stderr = sigma_clipped_stats(values, sigma=5.0, maxiters=2)
-            resboot[key].params[p].stderr = np.std(values)
-        # compute std of models
-        models = np.array([res[key].residual*pdata['std_rest'] +
-                              + pdata['data_rest']
-                              for res in sample_res])
-        std_models = np.std(models, axis=0)
-        bestfit = model(resboot[key].params, pdata['wave_rest'], 
-                        pdata['par_'+key]['family_lines'], pdata['redshift'], pdata['lsf']) 
-        rchi2 = np.sum((pdata['data_rest']-bestfit)**2/std_models**2)/resboot[key].nfree
-        resboot[key].redchi = rchi2
-        resboot[key].bestfit = bestfit
-        resboot[key].std_models = std_models
-        resboot[key].nfev = np.sum([res[key].nfev for res in sample_res])
-           
-    return resboot
            
 def add_line_stat_to_table(reslsq, pdata, sel_lines, tablines):
     kfactor = pdata['nstd_relsize']
@@ -1643,16 +1543,6 @@ def complsf(wave, kms=False):
         sigma = sigma*C/wave
     return sigma
 
-def set_nwakers(d, result):
-    """ set nwalkers for mcmc"""
-    nwalkers = d.get('nwalkers', 0)
-    if nwalkers == 0:               
-        nwalkers = int(np.ceil(3*result.nvarys/2)*2) # nearest even number to 3*nb of variables
-        mcdict = d.copy()
-        mcdict['nwalkers'] = nwalkers
-        return mcdict
-    else:
-        return d
     
 def residuals(params, wave, data, std, lines, z, lsf=True):
     vmodel = model(params, wave, lines, z, lsf)
@@ -1695,160 +1585,6 @@ def rest_fwhm_asymgauss(lbda, flux):
         return None 
     return l1,l2
 
-def update_bounds(result, delta_vel, delta_vdisp, delta_gamma):
-    """ update bounds with offset wrt result of current fit
-    """
-    logger = logging.getLogger(__name__)
-    if all(v is None for v in [delta_vel,delta_vdisp,delta_gamma]):
-        return
-    
-    par = result.params
-    families = [key.split('_')[1] for key in par.keys() if key.split('_')[0]=='dv']
-    for family in families: 
-        fun = [key.split('_')[2] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')][0]
-        if delta_vel is not None:
-            dv = par[f"dv_{family}"].value
-            par[f"dv_{family}"].min = dv - delta_vel
-            par[f"dv_{family}"].max = dv + delta_vel
-        if delta_vdisp is not None:
-            if fun == 'dbleasymgauss':
-                vdisp1 = par[f"vdisp1_{family}"].value
-                par[f"vdisp1_{family}"].min = vdisp1 - delta_vdisp
-                par[f"vdisp1_{family}"].max = vdisp1 + delta_vdisp
-                vdisp2 = par[f"vdisp2_{family}"].value
-                par[f"vdisp2_{family}"].min = vdisp2 - delta_vdisp
-                par[f"vdisp2_{family}"].max = vdisp2 + delta_vdisp  
-            else:
-                vdisp = par[f"vdisp_{family}"].value
-                par[f"vdisp_{family}"].min = vdisp - delta_vdisp
-                par[f"vdisp_{family}"].max = vdisp + delta_vdisp            
-        if delta_gamma is not None:
-            fun = [key.split('_')[2] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')][0]
-            if fun == 'asymgauss':
-                lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
-                for line in lines:
-                    gamma = par[f"{family}_{line}_{fun}_asym"].value
-                    par[f"{family}_{line}_{fun}_asym"].min = gamma - delta_gamma
-                    par[f"{family}_{line}_{fun}_asym"].max = gamma + delta_gamma
-            elif fun == 'dbleasymgauss':
-                lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
-                for line in lines:
-                    gamma1 = par[f"{family}_{line}_{fun}_asym1"].value
-                    par[f"{family}_{line}_{fun}_asym1"].min = gamma1 - delta_gamma
-                    par[f"{family}_{line}_{fun}_asym1"].max = gamma1 + delta_gamma  
-                    gamma2 = par[f"{family}_{line}_{fun}_asym2"].value
-                    par[f"{family}_{line}_{fun}_asym2"].min = gamma2 - delta_gamma
-                    par[f"{family}_{line}_{fun}_asym2"].max = gamma2 + delta_gamma                       
- 
-    logger.debug('Update bounds relative to LSQ fit. delta vel %s vdisp %s gamma %s',delta_vel,delta_vdisp,delta_gamma)    
-    
-def mode_skewedgaussian(location, scale, shape):
-    """Compute the mode of a skewed Gaussian.
-
-    The centre parameter of the SkewedGaussianModel from lmfit-py is not the
-    position of the peak, it's the location of the probability distribution
-    function (PDF): i.e. the mean of the underlying Gaussian.
-
-    There is no analytic expression for the mode (position of the maximum) but
-    the Wikipedia page (https://en.wikipedia.org/wiki/Skew_normal_distribution)
-    gives a "quite accurate" approximation.
-
-    Parameters
-    ----------
-    location : float
-        Location of the PDF. This is the`center` parameter from lmfit.
-    scale : float
-        Scale of the PDF. This is the `sigma` parameter from lmfit.
-    shape : float
-        Shape of the PDF. This is the `gamma` parameter from lmfit.
-
-    Returns
-    -------
-    float: The mode of the PDF.
-
-    """
-    # If the shape is 0, this is a Gaussian and the mode is the location.
-    if shape == 0:
-        return location
-
-    delta = scale / np.sqrt(1 + scale ** 2)
-    gamma_1 = ((4 - np.pi) / 2) * (
-        (delta * np.sqrt(2 / np.pi) ** 3) /
-        (1 - 2 * delta ** 2 / np.pi) ** 1.5
-    )
-
-    mu_z = delta * np.sqrt(2 / np.pi)
-    sigma_z = np.sqrt(1 - mu_z ** 2)
-    m_0 = (mu_z - gamma_1 * sigma_z / 2 - np.sign(shape) / 2 *
-           np.exp(-2 * np.pi / np.abs(shape)))
-
-    return location + scale * m_0
-
-
-def measure_fwhm(wave, data, mode):
-    """Measure the FWHM on the curve.
-
-    This function is used to measure the full width at half maximum (FWHM) of
-    a line identified by its mode (wavelength of its peak) on the best fitting
-    model. It is used for the Lyman α line for which we don't have a formula to
-    compute it.
-
-    Note: the data must be continuum subtracted.
-
-    Parameters
-    ----------
-    wave : array of floats
-        The wavelength axis of the spectrum.
-    data : array of floats
-        The data from lmfit best fit.
-    mode : float
-        The value of the mode, in the same unit as the wavelength.
-
-    Returns
-    -------
-    float
-        Full width at half maximum in the same value as the wavelength.
-
-    """
-    # In the case of lines with a strong asymmetry, it may be difficult to
-    # measure the FWHM at the resolution of the spectrum. We multiply its
-    # resolution by 10 to be able to measure the FWHM at sub-pixel level.
-    wave2 = np.linspace(np.min(wave), np.max(wave), 10 * len(wave))
-    data = np.interp(wave2, wave, data)
-    wave = wave2
-
-    mode_idx = np.argmin(np.abs(wave - mode))
-    half_maximum = data[mode_idx] / 2
-
-    # If the half maximum in 0, there is no line.
-    if half_maximum == 0:
-        return np.nan
-
-    # If the half_maximum is negative, that means that the line is identified
-    # in absorption. We can nevertheless try to measure a FWHM but on the
-    # opposite of the data because of the way we measure it.
-    if half_maximum < 0:
-        half_maximum = -half_maximum
-        data = -data
-
-    # There may be several lines in the spectrum, so it may cross several times
-    # the half maximum line and we can't use argmin on the absolute value of
-    # the difference to the half maximum because it may be lower - but still
-    # near zero - for another line. Instead, we are looking for the local
-    # minimums and take the nearest to the mode position.
-    # In case of really strong asymmetry, we may need to take the mode
-    # position.
-    try:
-        hm1_idx = argrelmin(np.abs(data[:mode_idx + 1] - half_maximum))[0][-1]
-    except IndexError:
-        hm1_idx = mode_idx
-    try:
-        hm2_idx = (argrelmin(np.abs(data[mode_idx:] - half_maximum))[0][0] +
-                   mode_idx)
-    except IndexError:
-        hm2_idx = mode_idx
-
-    return wave[hm2_idx] - wave[hm1_idx]
 
 def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=True, minsnr=0, line=None, margin=5,
          dplot={'dl':2.0, 'y':0.95, 'size':10}):
@@ -1912,41 +1648,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     result = init_res(pdata)
 
     # perform lsq fit
-    reslsq = lmfit_fit(minpars, pdata, verbose=True)
-    
-    if bootstrap:
-        # compute bestfit
-        bestfit = compute_bestfit(reslsq, pdata)
-        cdata = pdata.copy()        
-        # refine errors parameters using bootstrap  
-        if n_cpu == 1:    
-            nbootstrap = boot_kws['nbootstrap']
-            seed_val = boot_kws['seed']
-            showprogress = boot_kws['showprogress']
-            logger.debug('Running boostrap with %d iterations', nbootstrap)
-            sample_res = [] 
-            if seed_val is not None:
-                logger.debug('Using seed %d', seed_val)
-                seed(seed_val)
-            klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
-            for k in klist:
-                generate_sample_data(bestfit, cdata['std_rest'], cdata)
-                cres = lmfit_fit(minpars, cdata, verbose=False)
-                sample_res.append(cres)
-            reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)
-        else:
-            nbootstrap = boot_kws['nbootstrap']
-            seed_val = boot_kws['seed']
-            logger.debug('Running boostrap with %d iterations on %d cpu', nbootstrap, n_cpu)            
-            sample_res = [] 
-            if seed_val is not None:
-                logger.debug('Using seed %d', seed_val)
-                seed(seed_val)
-            to_compute = []                  
-            for k in range(nbootstrap):
-                to_compute.append(delayed(_bootstrap_parallel)(minpars, cdata, bestfit))               
-            sample_res = Parallel(n_jobs=n_cpu)(to_compute)
-            reslsq = compute_bootstrap_stat(pdata, sample_res, reslsq)             
+    reslsq = lmfit_fit(minpars, pdata, verbose=True)       
         
     resfit = save_fit_res(result, pdata, reslsq)
     

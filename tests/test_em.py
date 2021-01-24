@@ -100,12 +100,12 @@ def test_fit(workdir):
     assert_allclose(r['FLUX'],8477.96,rtol=1.e-2)
     assert_allclose(r['FLUX_ERR'],98.40,rtol=1.e-2)
     assert_allclose(r['EQW'],-7.78,rtol=1.e-2)
-    assert_allclose(r['EQW_ERR'],0.11,rtol=1.e-2)    
+    assert_allclose(r['EQW_ERR'],0.111,rtol=1.e-2)    
     
     
     r = res['ztable'][0]
+    assert r['STATUS'] == 3
     assert_allclose(r['SNRSUM'],86.15,rtol=1.e-2)
-    assert r['STATUS'] == 0
     
 def test_mpdaf(workdir):
     os.chdir(workdir)
@@ -122,7 +122,7 @@ def test_mpdaf(workdir):
     assert_allclose(r['FLUX'],8477.96,rtol=1.e-2)
     assert_allclose(r['FLUX_ERR'],98.40,rtol=1.e-2)
     assert_allclose(r['EQW'],-7.78,rtol=1.e-2)
-    assert_allclose(r['EQW_ERR'],0.11,rtol=1.e-2)    
+    assert_allclose(r['EQW_ERR'],0.111,rtol=1.e-2)    
      
     r = res['ztable'][0]
     assert_allclose(r['SNRSUM'],86.15,rtol=1.e-2)
@@ -148,7 +148,6 @@ def test_fit_nocont(workdir):
     r = res['ztable'][0]
     assert r['METHOD'] == 'leastsq'
     assert r['STATUS'] == 2
-    assert r['BOOT'] == 0
     
 def test_fit_spec(workdir):
     os.chdir(workdir)
@@ -158,11 +157,11 @@ def test_fit_spec(workdir):
     
     res = fit_spec(sp, z)
     assert_allclose(res['dcont']['chi2'], 0.0471, rtol=1.e-2)
-    assert_allclose(res['dline']['lmfit_balmer'].redchi, 268.40, rtol=1.e-2)
+    assert_allclose(res['dline']['lmfit_balmer'].redchi, 249.36, rtol=1.e-2)
     
     res = fit_spec('udf10_00002.fits', z)
     assert_allclose(res['dcont']['chi2'], 0.0471, rtol=1.e-2)
-    assert_allclose(res['dline']['lmfit_balmer'].redchi, 268.40, rtol=1.e-2)
+    assert_allclose(res['dline']['lmfit_balmer'].redchi, 249.36, rtol=1.e-2)
     
     res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=False)
     assert_allclose(res['dline']['lmfit_forbidden'].redchi, 11.47, rtol=1.e-2)
@@ -180,8 +179,7 @@ def test_fit_spec(workdir):
     assert_allclose(zfit, z, rtol=1.e-6)
     assert res['ztable'][0]['VEL'] == 0
     assert res['ztable'][0]['VDISP'] == 20
-     
-     
+        
 def test_fit_resonnant(workdir):
     os.chdir(workdir)
     
@@ -197,66 +195,10 @@ def test_fit_resonnant(workdir):
     assert_allclose(r['VEL'],109.40,rtol=1.e-2)
     assert_allclose(r['VEL_ERR'],13.65,rtol=1.e-2)
     assert_allclose(r['VDISP'],50.59,rtol=1.e-2)
-    assert_allclose(r['VDISP_ERR'],18.90,rtol=1.e-2)
-    assert_allclose(r['SNRMAX'],5.26,rtol=1.e-2)
-    assert_allclose(r['SNRSUM_CLIPPED'],5.26,rtol=1.e-2)
+    assert_allclose(r['VDISP_ERR'],18.63,rtol=1.e-2)
+    assert_allclose(r['SNRMAX'],5.27,rtol=1.e-2)
+    assert_allclose(r['SNRSUM_CLIPPED'],5.27,rtol=1.e-2)
     assert_allclose(r['RCHI2'],11.79,rtol=1.e-2)
     assert r['NL'] == 1
     assert r['NL_CLIPPED'] == 1
-    
-def test_fit_bootstrap(workdir):
-    os.chdir(workdir)
-    sp = Spectrum('udf10_00002.fits')
-    z = 0.41892    
-    res = fit_spec(sp, z, lines=['HBETA'], bootstrap=True,
-                   linepars=dict(showprogress=False, seed=1, nbootstrap=200))
-    ztab = res['ztable']
-    r = ztab[0]
-    assert_allclose(r['RCHI2'],14.40,rtol=1.e-2)
-    assert r['METHOD'] == 'Nelder-Mead'
-    assert r['STATUS'] == 0
-    assert r['BOOT'] == 200    
-    
-    lines = res['lines']
-    r = lines[0]
-    assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
-    assert_allclose(r['SNR'],319.27,rtol=1.e-2)
-    
-    res = fit_spec(sp, z, lines=['HBETA'], bootstrap=False)
-    ztab = res['ztable']
-    r = ztab[0]
-    assert_allclose(r['RCHI2'],13.22,rtol=1.e-2)
-    assert r['METHOD'] == 'Nelder-Mead'
-    assert r['STATUS'] == 0
-    assert r['BOOT'] == 0  
-    
-    lines = res['lines']
-    r = lines[0]
-    assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
-    assert_allclose(r['SNR'],85.55,rtol=1.e-2)   
-    
-def test_fit_bootstrap_parallel(workdir):
-    os.chdir(workdir)
-    sp = Spectrum('udf10_00002.fits')
-    z = 0.41892    
-    res = fit_spec(sp, z, lines=['HBETA'], bootstrap=True,
-                   linepars=dict(seed=1, nbootstrap=40), n_cpu=4)
-    ztab = res['ztable']
-    r = ztab[0]
-    assert_allclose(r['Z'],0.41930,rtol=1.e-4)
-    lines = res['lines']
-    r = lines[0]
-    assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
-    assert_allclose(r['FLUX'],8476.32,rtol=1.e-2)
-    
-    res = fit_spec(sp, z, lines=['HBETA'], bootstrap=True,
-                   linepars=dict(seed=1, nbootstrap=40, showprogress=False), n_cpu=1)
-    ztab = res['ztable']
-    r = ztab[0]
-    assert_allclose(r['Z'],0.41930,rtol=1.e-4)
-    lines = res['lines']
-    r = lines[0]
-    assert_allclose(r['NSTD'],-2.19,rtol=1.e-2)
-    assert_allclose(r['FLUX'],8476.32,rtol=1.e-2)    
-    
     
