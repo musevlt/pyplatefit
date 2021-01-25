@@ -214,6 +214,7 @@ SUBROUTINE NNLS (A,MDA,M,N,B,X,RNORM,W,ZZ,INDEX,MODE)
       double precision :: ZERO, ZTEST
       parameter (FACTOR = 0.01d0)
       parameter (TWO = 2.0d0, ZERO = 0.0d0)
+      dimension DUMMY(1)
 !     ------------------------------------------------------------------
       MODE=1
       IF (M .le. 0 .or. N .le. 0) then
@@ -272,7 +273,7 @@ SUBROUTINE NNLS (A,MDA,M,N,B,X,RNORM,W,ZZ,INDEX,MODE)
 !     NEAR LINEAR DEPENDENCE.
 !
       ASAVE=A(NPP1,J)
-      CALL H12 (1,NPP1,NPP1+1,M,A(1,J),1,UP,DUMMY,1,1,0)
+      CALL H12 (1,NPP1,NPP1+1,M,A(1,J),(1),UP,DUMMY,1,1,0)
       UNORM=ZERO
       IF (NSETP .ne. 0) then
           DO 90 L=1,NSETP

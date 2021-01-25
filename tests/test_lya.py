@@ -56,7 +56,7 @@ def test_fit_lines(workdir):
     assert spline.shape == (3681,)
      
     res_line = pf.fit_lines(spline, z)
-    assert_allclose(res_line['lmfit_lya'].redchi,2.201,rtol=1.e-2)
+    assert_allclose(res_line['lmfit_lya'].redchi,2.173,rtol=1.e-2)
     tab = res_line['lines']
     r = tab[tab['LINE']=='LYALPHA'][0]
     assert r['LINE'] == 'LYALPHA'
@@ -66,13 +66,13 @@ def test_fit_lines(workdir):
     assert_allclose(r['SKEW'],7.25,rtol=1.e-2)
     assert_allclose(r['LBDA_OBS'],7022.60,rtol=1.e-2)
     assert_allclose(r['FWHM_OBS'],8.35,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],30.076,rtol=1.e-2)
-    assert_allclose(r['SNR'],138.76,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],29.88,rtol=1.e-2)
+    assert_allclose(r['SNR'],139.65,rtol=1.e-2)
    
     tab = res_line['ztable']
     r = tab[tab['FAMILY']=='lyalpha']
-    assert_allclose(r['VEL'],86.39,rtol=1.e-2)
-    assert_allclose(r['SNRSUM'],138.76,rtol=1.e-2)
+    assert_allclose(r['VEL'],86.40,rtol=1.e-2)
+    assert_allclose(r['SNRSUM'],139.65,rtol=1.e-2)
     assert r['NL'] == 1
     
 def test_fit(workdir):
@@ -81,18 +81,18 @@ def test_fit(workdir):
     sp = Spectrum('udf10_00053.fits')
     z = 4.77666
     
-    pf = Platefit(linepars=dict(seed=1, showprogress=False)) 
-    res = pf.fit(sp, z, bootstrap=True, major_lines=True)
+    pf = Platefit() 
+    res = pf.fit(sp, z, major_lines=True)
     
     r = res['lines'][0]
     assert r['LINE'] == 'LYALPHA'
     assert_allclose(r['VEL'],86.40,rtol=1.e-2)
     assert_allclose(r['Z'],4.77832,rtol=1.e-2)
-    assert_allclose(r['FLUX'],4176.66,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],20.12,rtol=1.e-2)
-    assert_allclose(r['SNR'],207.51,rtol=1.e-2)
-    assert_allclose(r['EQW'],-60.65,rtol=1.e-2)
-    assert_allclose(r['EQW_ERR'],1.70,rtol=1.e-2)
+    assert_allclose(r['FLUX'],4172.52,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],39.68,rtol=1.e-2)
+    assert_allclose(r['SNR'],105.16,rtol=1.e-2)
+    assert_allclose(r['EQW'],-60.59,rtol=1.e-2)
+    assert_allclose(r['EQW_ERR'],1.98,rtol=1.e-2)
     assert_allclose(r['NSTD'],-2.295,rtol=1.e-2)
     
     
@@ -110,36 +110,14 @@ def test_faint(workdir):
     assert_allclose(r['VEL'],37.03,rtol=1.e-2)
     assert_allclose(r['VDISP'],263.94,rtol=1.e-2)
     assert_allclose(r['FLUX'],117.54,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],16.187,rtol=1.e-2)
-    assert_allclose(r['SNR'],7.26,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],16.07,rtol=1.e-2)
+    assert_allclose(r['SNR'],7.32,rtol=1.e-2)
     assert np.ma.is_masked(r['EQW'])
     
     assert 'HeII1640' in tab['LINE']
     r = tab[tab['LINE']=='HeII1640'][0]
     assert r['FLUX'] < 0.005
-    #assert np.ma.is_masked(r['FLUX_ERR']) 
-    #assert np.ma.is_masked(r['SNR'])   
-    
-    res = fit_spec(sp, z, lines=['LYALPHA','HeII1640'], bootstrap=True, linepars={'seed':1, 'showprogress':False})
-    tab = res['lines']
-    
-    assert 'LYALPHA' in tab['LINE']
-    r = tab[tab['LINE']=='LYALPHA'][0]
-    assert_allclose(r['VEL'],160.45,rtol=1.e-2)
-    assert_allclose(r['VDISP'],212.33,rtol=1.e-2)
-    assert_allclose(r['FLUX'],121.01,rtol=1.e-2)
-    assert_allclose(r['FLUX_ERR'],28.54,rtol=1.e-2)
-    assert_allclose(r['SNR'],4.24,rtol=1.e-2)
-    assert_allclose(r['NSTD'],-1.31,rtol=1.e-2)
-    assert np.ma.is_masked(r['EQW'])
-    
-    assert 'HeII1640' in tab['LINE']
-    r = tab[tab['LINE']=='HeII1640'][0]
-    assert_allclose(r['FLUX'],8.13,rtol=1.e-2)
-    assert_allclose(r['SNR'],0.64,rtol=1.e-2)
-    assert_allclose(r['NSTD'],-0.229,rtol=1.e-2)
-    
-    
+    assert r['SNR'] < 0.005
     
 def test_2lya(workdir):
     os.chdir(workdir)
@@ -157,7 +135,7 @@ def test_2lya(workdir):
     assert_allclose(r['FLUX'],680.54,rtol=1.e-2)
     assert_allclose(r['FLUX_ERR'],21.03,rtol=1.e-2)
     assert_allclose(r['SNR'],32.35,rtol=1.e-2)
-    assert_allclose(r['SEP'],515.76,rtol=1.e-2)
+    assert_allclose(r['SEP'],515.83,rtol=1.e-2)
     assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2)
     assert 'LYALPHA2' in tab['LINE']
     r = tab[tab['LINE']=='LYALPHA2']
@@ -165,9 +143,16 @@ def test_2lya(workdir):
     assert_allclose(r['VDISP'],307.69,rtol=1.e-2)
     assert_allclose(r['FLUX'],1080.50,rtol=1.e-2)
     assert_allclose(r['FLUX_ERR'],26.04,rtol=1.e-2)
-    assert_allclose(r['SNR'],41.49,rtol=1.e-2)
-    assert_allclose(r['SEP'],515.76,rtol=1.e-2)
+    assert_allclose(r['SNR'],41.53,rtol=1.e-2)
+    assert_allclose(r['SEP'],515.83,rtol=1.e-2)
     assert_allclose(r['SEP_ERR'],9.66,rtol=1.e-2) 
+    r = tab[tab['LINE']=='LYALPHAb']
+    assert_allclose(r['VEL'],34.15,rtol=1.e-2)
+    assert_allclose(r['VDISP'],251.01,rtol=1.e-2)
+    assert_allclose(r['FLUX'],1760.85,rtol=1.e-2)
+    assert_allclose(r['FLUX_ERR'],33.21,rtol=1.e-2)
+    assert_allclose(r['SNR'],53.01,rtol=1.e-2)
+    
      
      
     

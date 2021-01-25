@@ -47,7 +47,8 @@ from scipy.special import erf
 from scipy.signal import argrelmin
 from numpy.random import normal, seed
 from logging import getLogger
-from matplotlib import transforms   
+from matplotlib import transforms 
+from astropy.stats import sigma_clipped_stats
 
 from .linelist import get_lines
 from mpdaf.obj.spectrum import vactoair, airtovac
@@ -59,6 +60,7 @@ warnings.filterwarnings("ignore", message="invalid value encountered in subtract
 warnings.filterwarnings("ignore", message="invalid value encountered in greater")
 warnings.filterwarnings("ignore", message="Initial state is not linearly independent and it will not allow a full exploration of parameter space")
 warnings.filterwarnings("ignore", message="invalid value encountered in double_scalars")
+warnings.filterwarnings("ignore", message="invalid value encountered in sqrt")
 
 C = constants.c.to(u.km / u.s).value
 SQRT2PI = np.sqrt(2*np.pi)
@@ -93,14 +95,15 @@ class Linefit:
                  velabs=(-500,0,500), vdispabs=(5,50,300),
                  polydegabs=12, polyiterabs=3, polywmask=3.0,
                  vdisp_lya=(50,150,700), gamma_lya=(-1,0,10), 
-                 windmax=10, xtol=1.e-4, ftol=1.e-6, maxfev=50, minsnr=3.0,
-                 nbootstrap=200, seed=None, showprogress=True, nstd_relsize=3.0,
+                 windmax=10, minsnr=3.0,
+                 nstd_relsize=3.0,
                  gamma_2lya1 = (-10,-2,0), gamma_2lya2 = (0,2,10),
                  sep_2lya = (80,500,1000),
                  line_ratios = [
                     ("CIII1907", "CIII1909", 0.6, 1.2),
                     ("OII3727", "OII3729", 1.0, 2.0)
-                    ]
+                    ],
+                 minpars = dict(method='least_square', xtol=1.e-3),
                  ):
         """Initialize line fit parameters and return a Linefit object
           
@@ -132,18 +135,15 @@ class Linefit:
           relative error in the sum of square for the leastsq fitting (default: 1.e-6).
         maxfev : int
           max number of iterations by parameter for the leastsq fitting (default 50)
-        nbootstrap : int
-          number of sample in bootstrap (default 200)
-        seed : None or int
-          random number seed in bootstrap (default None)
-        showprogress : bool
-          if True display progress bar during bootstrap (default True)
         nstd_relsize : float
           relative size (wrt to FWHM) of the wavelength window used for NSTD line estimation (used in bootstrap only), default: 3.0
         minsnr : float
           minimum SNR to display line ID in plots (default 3.0)
         line_ratios : list of tuples
-          list of line_ratios, defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]           
+          list of line_ratios, defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)] 
+        minpars : dictionary
+          Parameters to pass to minimize (lmfit) (default dict(method='least_square', xtol=1.e-3) 
+      
          
           WIP: polydegabs=12, polyiterabs=3, polywmask=3.0,
               
@@ -154,14 +154,7 @@ class Linefit:
         """    
              
         self.logger = getLogger(__name__)
-        
-        self.maxfev = maxfev # nb max of iterations by parameter (leastsq)
-        self.xtol = xtol # relative error in the solution (leastq)
-        self.ftol = ftol # relative error in the sum of square (leastsq)
-        
-        self.nbootstrap = nbootstrap # number of bootstrap iterations
-        self.seed = seed # seed for bootstrap
-        self.showprogress = showprogress # if True show progressbar
+                
         self.nstd_relsize = nstd_relsize # relative size with respct to FWHM for line NSTD estimate
         
         self.vel = vel # bounds in velocity km/s for emi lines, rest frame
@@ -183,6 +176,8 @@ class Linefit:
         self.minsnr = minsnr # minium SNR for writing label of emission line in plot
         
         self.line_ratios = line_ratios # list of line ratios constraints
+        
+        self.minpars = minpars # dictionary with lmfit minimizatio method and optional parameters
                          
         return
     
@@ -211,14 +206,10 @@ class Linefit:
 
         """
  
-        lsq_kws = dict(xtol=self.xtol, ftol=self.ftol)
-        boot_kws = dict(nbootstrap=self.nbootstrap, seed=self.seed, 
-                        showprogress=self.showprogress, )
         fit_lws = dict(vel=self.vel, vdisp=self.vdisp, vdisp_lya=self.vdisp_lya, 
                        gamma_lya=self.gamma_lya, minsnr=self.minsnr,
                        nstd_relsize=self.nstd_relsize, sep_2lya=self.sep_2lya, 
                        gamma_2lya1=self.gamma_2lya1, gamma_2lya2=self.gamma_2lya2,
-                       maxfev=self.maxfev, 
                        )
         use_line_ratios = kwargs.pop('use_line_ratios', False)
         if use_line_ratios:
@@ -245,8 +236,7 @@ class Linefit:
                    
         res = fit_lines(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
-                        lsq_kws=lsq_kws, boot_kws=boot_kws, fit_lws=fit_lws,
-                        **kwargs)
+                        fit_lws=fit_lws, minpars=self.minpars, **kwargs)
         
         tab = res['table_spec' ]   
         # convert wave to observed frame and air
@@ -289,12 +279,9 @@ class Linefit:
            line_fit spectrum of the line fit
 
         """
-        lsq_kws = dict(xtol=self.xtol, ftol=self.ftol)
-        boot_kws = dict(nbootstrap=self.nbootstrap, seed=self.seed, 
-                        showprogress=self.showprogress, )
+        # WIP fit_lws not used ?
         fit_lws = dict(velabs=self.velabs, vdispabs=self.vdispabs, minsnr=self.minsnr,
-                       nstd_relsize=self.nstd_relsize, 
-                       maxfev=self.maxfev)
+                       nstd_relsize=self.nstd_relsize)
         
         # remove cont
         deg = self.polydegabs 
@@ -327,7 +314,7 @@ class Linefit:
                 lwargs.pop(key)
         res = fit_abs(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data,
-                        lsq_kws=lsq_kws, boot_kws=boot_kws, fit_lws=fit_lws,
+                        minpars=self.minpars,
                         **lwargs)          
         
         tab = res['table_spec' ]   
@@ -396,10 +383,10 @@ class Linefit:
 
 def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
-                       major_lines=False, bootstrap=False, n_cpu=1,
+                       major_lines=False, 
                        fit_all=False, lsf=True, trimm_spec=True,
                        find_lya_vel_offset=True, dble_lyafit=False,
-                       lsq_kws=None, boot_kws=None, fit_lws=None):
+                       fit_lws=None, minpars={}):
     """Fit lines from a set of arrays (wave, data, std) using lmfit.
 
     This function uses lmfit to perform fit of know lines in
@@ -536,11 +523,6 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     major_lines : boolean, optional
         If true, the fit is restricted to the major lines as defined in mpdaf line table (used only when lines is None, )
         default: False
-    bootstrap : boolean, optional
-        if true, errors and reduced khi2 are estimated from bootstrap 
-        default: False
-    n_cpu : int
-        run bootstrap in parallel over n_cpu (default 1)
     fit_all : boolean, optional
         if True, use same velocity offset and velocity dispersion for all lines except Lya
         if False, allow different velocity offsets and velocity disperions between balmer,
@@ -556,9 +538,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         if True, compute a starting velocity offset for lya on the data [disabled for dble_lyafit]
     dble_lyafit : False
         if True, use a double asymetric gaussian model for the lya line fit
-    lsq_kws : dictionary with leasq parameters (see scipy.optimize.leastsq)
-    boot_kws : dictionary with bootstarp parameters 
     fit_lws : dictionary with some default and bounds parameters
+    minpars : dictionary with minimization method and associate parameters
 
     Returns
     -------
@@ -594,48 +575,12 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws)
     result = init_res(pdata)
     
-    if bootstrap:
-        if n_cpu == 1:          
-            nbootstrap = boot_kws['nbootstrap']
-            seed_val = boot_kws['seed']
-            showprogress = boot_kws['showprogress']
-            logger.debug('Running boostrap with %d iterations', nbootstrap)
-            sample_res = [] 
-            if seed_val is not None:
-                logger.debug('Using seed %d', seed_val)
-                seed(seed_val)
-            cdata = pdata.copy()
-            klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
-            for k in klist:
-                generate_sample_data(pdata, cdata)
-                cres = lsq_fit(cdata, lsq_kws, verbose=False)
-                sample_res.append(cres)
-            reslsq = compute_bootstrap_stat(pdata, sample_res)
-        else:
-            nbootstrap = boot_kws['nbootstrap']
-            seed_val = boot_kws['seed']
-            logger.debug('Running boostrap with %d iterations on %d cpu', nbootstrap, n_cpu)            
-            sample_res = [] 
-            if seed_val is not None:
-                logger.debug('Using seed %d', seed_val)
-                seed(seed_val)
-            to_compute = []                  
-            cdata = pdata.copy()
-            for k in range(nbootstrap):
-                to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
-            sample_res = Parallel(n_jobs=n_cpu)(to_compute)
-            reslsq = compute_bootstrap_stat(pdata, sample_res)            
-    else:
-        reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
+    # perform fit
+    reslsq = lmfit_fit(minpars, pdata, verbose=True)   
         
     resfit = save_fit_res(result, pdata, reslsq)
     
     return resfit
-
-def _bootstrap_parallel(pdata, cdata, lsq_kws):
-    generate_sample_data(pdata, cdata)
-    cres = lsq_fit(cdata, lsq_kws, verbose=False)
-    return cres
         
 def prepare_fit_data(wave, data, std, redshift, vac, 
                      lines, major_lines, trimm_spec):
@@ -864,6 +809,8 @@ def init_res(pdata):
                     'LBDA_LNSTD', 'LBDA_RNSTD'] 
     for colname in colnames:
         tablines.add_column(MaskedColumn(name=colname, dtype=np.float, mask=True))
+    tablines.add_column(MaskedColumn(name='BLEND', dtype=np.int, mask=True))
+    tablines.add_column(MaskedColumn(name='ISBLEND', dtype=np.bool, mask=True)) 
     tablines.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True), index=0)
     tablines.add_column(MaskedColumn(name='LINE', dtype='U20', mask=True), index=1)
     tablines.add_column(MaskedColumn(name='DNAME', dtype='U20', mask=True), index=3)
@@ -874,7 +821,7 @@ def init_res(pdata):
         tablines.add_column(MaskedColumn(name='SEP', dtype=np.float, mask=True), index=11)
         colnames.append('SEP') 
         tablines.add_column(MaskedColumn(name='SEP_ERR', dtype=np.float, mask=True), index=12)
-        colnames.append('SEP_ERR')        
+        colnames.append('SEP_ERR') 
     for colname in colnames:
         tablines[colname].format = '.2f'
     tablines['Z'].format = '.5f'
@@ -889,9 +836,10 @@ def init_res(pdata):
     for colname in colnames:
         ztab[colname].format = '.2f'
     ztab.add_column(MaskedColumn(name='LINE', dtype='U20', mask=True), index=8)
-    for colname in ['NL','NL_CLIPPED', 'NFEV']:
+    for colname in ['NL','NL_CLIPPED','NFEV','STATUS']:
             ztab.add_column(MaskedColumn(name=colname, dtype=np.int, mask=True)) 
-    ztab.add_column(MaskedColumn(name='RCHI2', dtype=np.float, mask=True))
+    ztab.add_column(MaskedColumn(name='RCHI2', dtype=np.float, mask=True), index=14)
+    ztab.add_column(MaskedColumn(name='METHOD', dtype='U25', mask=True))
     ztab['RCHI2'].format = '.2f'
     ztab['Z'].format = '.5f'
     ztab['Z_ERR'].format = '.2e'
@@ -905,15 +853,15 @@ def init_res(pdata):
     tabspec['INIT_FIT'] = tabspec['FLUX']*0
     
     return dict(tabspec=tabspec, tablines=tablines, ztab=ztab)
- 
+        
 
-def lsq_fit(pdata, lsq_kws, verbose=True):
+def lmfit_fit(minpars, pdata, verbose=True):
     
     logger = logging.getLogger(__name__)
     
     reslsq = {}
     
-    # Perform LSQ fit   
+    # Perform minimization 
     parlist = [e for e in pdata.keys() if e[0:4]=='par_']
     for par in parlist:
         if verbose:
@@ -921,13 +869,12 @@ def lsq_fit(pdata, lsq_kws, verbose=True):
         args =  (pdata['wave_rest'], pdata['data_rest'], pdata['std_rest'],  
                  pdata[par]['family_lines'], pdata['redshift'], pdata['lsf'])
         minner = Minimizer(residuals, pdata[par]['params'], fcn_args=args) 
-        lsq_kws['max_nfev'] = pdata[par]['maxfev']
         if verbose:
-            logger.debug('Leastsq fitting with ftol: %.0e xtol: %.0e maxfev: %d',lsq_kws['ftol'],lsq_kws['xtol'],lsq_kws['max_nfev'])
-        result = minner.minimize(**lsq_kws)
+            logger.debug('Lmfit fitting: %s',minpars)
+        result = minner.minimize(**minpars)
         if verbose:
-            logger.debug('%s after %d iterations, redChi2 = %.3f',result.message,
-                         result.nfev,result.redchi)
+            logger.debug('%s after %d iterations, reached minimum = %.3f and redChi2 = %.3f',result.message,
+                         result.nfev,result.chisqr,result.redchi)
             bestfit = model(result.params, pdata['wave_rest'], 
                             pdata[par]['family_lines'], pdata['redshift'], pdata['lsf']) 
             result.bestfit = bestfit        
@@ -935,6 +882,14 @@ def lsq_fit(pdata, lsq_kws, verbose=True):
         
         
     return reslsq
+
+def compute_bestfit(reslsq, pdata):
+    bestfits = []
+    for key,res in reslsq.items():
+        bestfits.append(model(res.params, pdata['wave_rest'], 
+                    pdata['par_'+key]['family_lines'], pdata['redshift'], pdata['lsf']))
+    bestfit = np.sum(bestfits, axis=0)
+    return bestfit
 
 def save_fit_res(result, pdata, reslsq):
     
@@ -966,48 +921,23 @@ def save_fit_res(result, pdata, reslsq):
         tabspec['LINE_FIT'] = tabspec['LINE_FIT'] + tabspec[f'{key.upper()}_FIT_LSQ'] 
         tabspec['INIT_FIT'] = tabspec['INIT_FIT'] + tabspec[f'{key.upper()}_INIT_FIT']
         
-        add_result_to_tables(reslsq[key], tablines, ztab, redshift, sel_lines, lsf, init_minsnr, vac)       
-        add_line_stat_to_table(reslsq[key], pdata, sel_lines, tablines)
-            
-        resfit[f'lmfit_{key}'] = reslsq[key] 
+        add_result_to_tablines(reslsq[key], tablines, redshift, sel_lines, lsf, vac)
+        add_line_stat_to_table(reslsq[key], pdata, sel_lines, tablines)  
+        resfit[f'lmfit_{key}'] = reslsq[key]
         
+    add_blend_to_table(tablines) 
+    add_result_to_ztab(reslsq, tablines, ztab, init_minsnr)
+   
     resfit['table_spec'] = tabspec 
+    
+    tablines.sort('LBDA_REST')
     resfit['lines'] = tablines
+    
+      
     resfit['ztable'] = ztab      
     
     return resfit
 
-def generate_sample_data(pdata, cdata):
-    
-    cdata['data_rest'] = normal(pdata['data_rest'], pdata['std_rest'])
-    
-def compute_bootstrap_stat(pdata, sample_res):
-    
-    logger = logging.getLogger(__name__)
-    resboot = sample_res[0].copy() 
-    keys = resboot.keys()
-    for key in keys:
-        logger.debug('Computing bootstrap statistics for family: %s',key)
-        # compute parameters mean & std
-        parlist = resboot[key].var_names
-        for p in parlist:
-            values = [res[key].params[p].value for res in sample_res]
-            resboot[key].params[p].value = np.mean(values)
-            resboot[key].params[p].stderr = np.std(values)
-        # compute std of models
-        models = np.array([res[key].residual*pdata['std_rest'] +
-                              + pdata['data_rest']
-                              for res in sample_res])
-        std_models = np.std(models, axis=0)
-        bestfit = model(resboot[key].params, pdata['wave_rest'], 
-                        pdata['par_'+key]['family_lines'], pdata['redshift'], pdata['lsf']) 
-        rchi2 = np.sum((pdata['data_rest']-bestfit)**2/std_models**2)/resboot[key].nfree
-        resboot[key].redchi = rchi2
-        resboot[key].bestfit = bestfit
-        resboot[key].std_models = std_models
-        resboot[key].nfev = np.sum([res[key].nfev for res in sample_res])
-           
-    return resboot
            
 def add_line_stat_to_table(reslsq, pdata, sel_lines, tablines):
     kfactor = pdata['nstd_relsize']
@@ -1037,10 +967,66 @@ def add_line_stat_to_table(reslsq, pdata, sel_lines, tablines):
         bestfit = reslsq.bestfit[mask]
         data = pdata['data_rest'][mask]
         norm = np.sum(bestfit)
-        nstd = np.log10(np.std((data-bestfit)/norm))
+        nstd = np.log10(np.std((data-bestfit)/norm)) if abs(norm) > 1.e-10 else 100.
         tablines['NSTD'][lmask] = nstd
         tablines['LBDA_LNSTD'][lmask] = left
         tablines['LBDA_RNSTD'][lmask] = right
+        
+def add_blend_to_table(tablines):
+    tab = tablines[tablines['BLEND']>0]
+    if len(tab) == 0:
+        return
+    blist = np.unique(tab['BLEND'])
+    for b in blist:
+        d = {}
+        # name for the line blend
+        stab = tab[tab['BLEND']==b]
+        name = stab['LINE'][0]
+        if (name == 'LYALPHA1') or (name == 'LYALPHA2'):
+            d['LINE'] = line = 'LYALPHAb'
+        else:
+            for k,c in enumerate(name):
+                if c.isdigit():
+                    break 
+            if k < len(name)-1:
+                d['LINE'] = line = f"{name[:k]}{b}b"
+            else:
+                d['LINE'] = line = f"{name}b"
+        d['BLEND'] = b
+        d['ISBLEND'] = True
+        d['FAMILY'] = family = stab['FAMILY'][0]
+        t = stab[stab['DNAME'] != 'None']
+        if len(t) == 0:
+            d['DNAME'] = 'None'
+        else:
+            d['DNAME'] = t['DNAME'][0]
+        # FLUX
+        d['FLUX'] = np.sum(stab['FLUX'])
+        d['FLUX_ERR'] = np.sqrt(np.sum(stab['FLUX_ERR']**2))
+        d['SNR'] = np.abs(d['FLUX'])/d['FLUX_ERR'] if d['FLUX_ERR'] > 0 else 0
+        # VDISP, FWHM
+        d['VDISP'] = np.average(stab['VDISP'])
+        d['VDISP_ERR'] = np.average(stab['VDISP_ERR'])
+        d['FWHM_OBS'] = np.average(stab['FWHM_OBS'])
+        # LBDA
+        d['LBDA_OBS'] = np.average(stab['LBDA_OBS'])
+        d['LBDA_LEFT'] = np.min(stab['LBDA_LEFT'])
+        d['LBDA_RIGHT'] = np.max(stab['LBDA_RIGHT'])
+        d['LBDA_REST'] = np.average(stab['LBDA_REST'])
+        d['PEAK_OBS'] = np.max(stab['PEAK_OBS'])
+        # Z, VEL
+        d['Z'] = np.mean(stab['Z'])
+        d['Z_ERR'] = np.mean(stab['Z_ERR'])
+        d['Z_INIT'] = np.mean(stab['Z_INIT'])
+        d['VEL'] = np.mean(stab['VEL'])
+        d['VEL_ERR'] = np.mean(stab['VEL_ERR'])
+        if line == 'LYALPHAb':
+            kmax = np.argmax(stab['SKEW'])
+            d['SKEW'] = stab['SKEW'][kmax]
+            d['SKEW_ERR'] = stab['SKEW_ERR'][kmax]
+        upsert_ltable(tablines, d, family, line)       
+        
+    return
         
 
 def reorganize_doublets(lines):
@@ -1053,7 +1039,9 @@ def reorganize_doublets(lines):
     return dlines
     
 
-def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min, vac):
+
+
+def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
     """ add results to the table, if row exist it is updated"""
     par = result.params
     families = [key.split('_')[1] for key in par.keys() if key.split('_')[0]=='dv']
@@ -1061,11 +1049,9 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
         dv = par[f"dv_{family}"].value
         dv_err = par[f"dv_{family}"].stderr
         lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
-        flux_vals = []
-        err_vals = []
-        line_vals = []
         for line in lines:
             dname = inputlines[inputlines['LINE']==line]['DNAME'][0]
+            blend = inputlines[inputlines['LINE']==line]['DOUBLET'][0]
             keys = [key for key in par.keys() if key.split('_')[1]==line]
             fun = keys[0].split('_')[2]
             if fun == 'dbleasymgauss':
@@ -1087,13 +1073,13 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 # the redshift is given at the mid-point of the 2 asymetric gaussian
                 z = l1obs/l0 - 1 # compute redshift in vacuum 
                 lvals1 = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux1, 
-                         'DNAME':dname,  'VDISP':vdisp1, 
-                         'Z_INIT':zinit, 
+                         'DNAME':dname,  'VDISP':vdisp1, 'BLEND':int(l0+0.5),
+                         'Z_INIT':zinit, 'ISBLEND':False,
                          'VEL':dv, 'Z':z, 'SEP':sep
                          } 
                 lvals2 = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux2, 
-                          'DNAME':dname,  'VDISP':vdisp2, 
-                          'Z_INIT':zinit,
+                          'DNAME':dname,  'VDISP':vdisp2, 'BLEND':int(l0+0.5),
+                          'Z_INIT':zinit, 'ISBLEND':False,
                           'VEL':dv, 'Z':z, 'SEP':sep
                           } 
                 if sep_err is not None:
@@ -1110,15 +1096,14 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 if vdisp1_err is not None:
                     lvals1['VDISP_ERR'] = vdisp1_err
                     lvals2['VDISP_ERR'] = vdisp2_err 
-                vdisp_err = np.sqrt(vdisp1_err**2+vdisp2_err**2)
+                    vdisp_err = np.sqrt(vdisp1_err**2+vdisp2_err**2)
+                else:
+                    vdisp_err = None
                 if flux1_err is not None:
                     lvals1['FLUX_ERR'] = flux1_err 
                     lvals1['SNR'] = abs(flux1)/flux1_err 
                     lvals2['FLUX_ERR'] = flux2_err 
                     lvals2['SNR'] = abs(flux2)/flux2_err                     
-                    flux_vals.append(flux1+flux2)
-                    err_vals.append(np.sqrt(flux1_err**2+flux2_err**2))
-                    line_vals.append(line)
                 if lsf:
                     lvals1['VDINST'] = complsf(l1obs, kms=True) 
                     lvals2['VDINST'] = complsf(l1obs, kms=True)  
@@ -1191,17 +1176,14 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 if not vac:
                     l1obs = vactoair(l1obs)
                 lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux, 
-                         'DNAME':dname,  'VDISP':vdisp, 
-                         'Z_INIT':zinit,  
+                         'DNAME':dname,  'VDISP':vdisp, 'BLEND':blend,
+                         'Z_INIT':zinit, 'ISBLEND':False,
                          } 
                 if vdisp_err is not None:
                     lvals['VDISP_ERR'] = vdisp_err 
                 if flux_err is not None:
                     lvals['FLUX_ERR'] = flux_err 
                     lvals['SNR'] = abs(flux)/flux_err 
-                    flux_vals.append(flux)
-                    err_vals.append(flux_err)
-                    line_vals.append(line)
                 if lsf:
                     lvals['VDINST'] = complsf(l1obs, kms=True)       
                 skew = par[f"{family}_{line}_{fun}_asym"].value
@@ -1257,17 +1239,14 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 if not vac:
                     l1obs = vactoair(l1obs)
                 lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux, 
-                         'DNAME':dname,  'VDISP':vdisp, 
-                         'Z_INIT':zinit,  
+                         'DNAME':dname,  'VDISP':vdisp, 'BLEND':blend,
+                         'Z_INIT':zinit, 'ISBLEND':False, 
                          } 
                 if vdisp_err is not None:
                     lvals['VDISP_ERR'] = vdisp_err 
-                if flux_err is not None:
+                if (flux_err is not None) and (flux_err > 0):
                     lvals['FLUX_ERR'] = flux_err 
                     lvals['SNR'] = abs(flux)/flux_err 
-                    flux_vals.append(flux)
-                    err_vals.append(flux_err)
-                    line_vals.append(line)
                 if lsf:
                     lvals['VDINST'] = complsf(l1obs, kms=True)
                 sigma = get_sigma(vdisp, l1obs, z, lsf, restframe=False)
@@ -1285,36 +1264,44 @@ def add_result_to_tables(result, tablines, ztab, zinit, inputlines, lsf, snr_min
                 upsert_ltable(tablines, lvals, family, line)
             else:
                 raise ValueError('fun %s unknown'%(fun))
+    
 
-        zvals = {'VEL':dv, 'VDISP':vdisp, 'Z':z,
-                 'NFEV':result.nfev, 'RCHI2':result.redchi,
-                 'Z_INIT':zinit,
-                 } 
-        if dv_err is not None:
-            zvals['VEL_ERR'] = dv_err  
-            zvals['Z_ERR'] = z_err
-        if vdisp_err is not None:
-            zvals['VDISP_ERR'] = vdisp_err            
-        if len(flux_vals) > 0:
-            flux_vals = np.abs(flux_vals)
-            err_vals = np.array(err_vals)
-            zvals['SNRSUM'] = np.sum(flux_vals)/np.sqrt(np.sum(err_vals**2))
-            snr_vals = flux_vals/err_vals
-            kmax = np.argmax(snr_vals)
-            zvals['SNRMAX'] = snr_vals[kmax]
-            zvals['LINE'] = line_vals[kmax]
-            ksel = snr_vals > snr_min
-            nl_clip = np.sum(ksel)
-            if nl_clip > 0:
-                zvals['SNRSUM_CLIPPED'] = np.sum(flux_vals[ksel])/np.sqrt(np.sum(err_vals[ksel]**2))
-            zvals['NL'] = len(lines)
-            zvals['NL_CLIPPED'] = nl_clip
+def add_result_to_ztab(reslsq, tablines, ztab, snr_min):
+    families = np.unique(tablines['FAMILY'])
+    lines = tablines[tablines['ISBLEND'] | (tablines['BLEND']==0)]
+    for fam in families:
+        result = reslsq[fam if fam != 'lyalpha' else 'lya']
+        cat = lines[lines['FAMILY']==fam]
+        tcat = cat[cat['SNR']>0]
+        status = -99
+        for key in ['status','ier']: #get output status
+            if hasattr(result, key):
+                status = getattr(result, key)
+                break          
+        if len(tcat) == 0:
+            d = dict(FAMILY=fam, VEL=cat['VEL'][0], VEL_ERR=cat['VEL_ERR'][0],
+                 Z=cat['Z'][0], Z_ERR=cat['Z_ERR'][0], Z_INIT=cat['Z_INIT'][0],
+                 VDISP=cat['VDISP'][0], VDISP_ERR=cat['VDISP_ERR'][0],
+                 SNRMAX=0, SNRSUM_CLIPPED=0, NL_CLIPPED=0, LINE='None',
+                 NL=len(cat), RCHI2=result.redchi, NFEV=result.nfev, 
+                 STATUS=status, METHOD=result.method)
+        else:
+            kmax = np.argmax(cat['SNR'])
+            scat = tcat[(tcat['SNR']>snr_min) ]
+            d = dict(FAMILY=fam, VEL=cat['VEL'][0], VEL_ERR=cat['VEL_ERR'][0],
+                     Z=cat['Z'][0], Z_ERR=cat['Z_ERR'][0], Z_INIT=cat['Z_INIT'][0],
+                     VDISP=cat['VDISP'][0], VDISP_ERR=cat['VDISP_ERR'][0],
+                     SNRMAX=cat['SNR'][kmax], LINE=cat['LINE'][kmax], 
+                     SNRSUM=np.abs(np.sum(tcat['FLUX']))/np.sqrt(np.sum(tcat['FLUX_ERR']**2)),
+                     SNRSUM_CLIPPED = np.abs(np.sum(scat['FLUX']))/np.sqrt(np.sum(scat['FLUX_ERR']**2)) if len(scat) > 0 else 0,
+                     NL=len(cat), NL_CLIPPED=len(scat), RCHI2=result.redchi, NFEV=result.nfev, 
+                     STATUS=status, METHOD=result.method)   
+        upsert_ztable(ztab, d, fam)
+        
+    ztab.sort('SNRSUM')
+    ztab = ztab[::-1]           
 
-        upsert_ztable(ztab, zvals, family)
-        tablines.sort('LBDA_REST')
-        
-        
-        
+             
 def upsert_ztable(tab, vals, family):
     if family in tab['FAMILY']:
         # update
@@ -1358,8 +1345,10 @@ def add_asymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, ga
     sigma = get_sigma(vdisp, l0, z, lsf, restframe=True)                  
     flux = SQRT2PI*sigma*vmax
     params.add(f"{family_name}_{name}_asymgauss_flux", value=flux, min=0)
-    params.add(f"{family_name}_{name}_asymgauss_asym", value=gamma[1], 
-               min=gamma[0], max=gamma[2])
+    if np.all(np.isclose(gamma, gamma[0])):
+        params.add(f"{family_name}_{name}_asymgauss_asym", value=gamma[1], vary=False)
+    else:
+        params.add(f"{family_name}_{name}_asymgauss_asym", value=gamma[1], min=gamma[0], max=gamma[2])
 
 def add_dbleasymgauss_par(params, family_name, name, l0, z, vdisp, lsf, wind_max, sep, gamma1, gamma2, wave, data):     
     ksel = np.abs(wave-l0) < wind_max
@@ -1396,8 +1385,14 @@ def set_gaussian_fitpars(family_name, params, lines, line_ratios, z, lsf, init_v
                          absline=False):
     logger = logging.getLogger(__name__)
     # add velocity and velocity dispersion fit parameters
-    params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])
-    params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
+    if np.all(np.isclose(init_vel, init_vel[0])):
+        params.add(f'dv_{family_name}', value=init_vel[1], vary=False)
+    else:
+        params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])
+    if np.all(np.isclose(init_dv, init_dv[0])):
+        params.add(f'vdisp_{family_name}', value=init_dv[1], vary=False) 
+    else:
+        params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
     # we use gaussian parameters
     nc = 0
     vdisp = init_dv[1]
@@ -1418,8 +1413,14 @@ def set_asymgaussian_fitpars(family_name, params, lines, z, lsf, init_vel,
                          init_dv, init_gamma, windmax, wave, data):
     logger = logging.getLogger(__name__)
     # add velocity and velocity dispersion fit parameters
-    params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])
-    params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
+    if np.all(np.isclose(init_vel, init_vel[0])):
+        params.add(f'dv_{family_name}', value=init_vel[1], vary=False)
+    else:
+        params.add(f'dv_{family_name}', value=init_vel[1], min=init_vel[0], max=init_vel[2])    
+    if np.all(np.isclose(init_dv, init_dv[0])):
+        params.add(f'vdisp_{family_name}', value=init_dv[1], vary=False) 
+    else:
+        params.add(f'vdisp_{family_name}', value=init_dv[1], min=init_dv[0], max=init_dv[2]) 
     # we use asymetric gaussian parameters
     nc = 0
     vdisp = init_dv[1]
@@ -1542,16 +1543,6 @@ def complsf(wave, kms=False):
         sigma = sigma*C/wave
     return sigma
 
-def set_nwakers(d, result):
-    """ set nwalkers for mcmc"""
-    nwalkers = d.get('nwalkers', 0)
-    if nwalkers == 0:               
-        nwalkers = int(np.ceil(3*result.nvarys/2)*2) # nearest even number to 3*nb of variables
-        mcdict = d.copy()
-        mcdict['nwalkers'] = nwalkers
-        return mcdict
-    else:
-        return d
     
 def residuals(params, wave, data, std, lines, z, lsf=True):
     vmodel = model(params, wave, lines, z, lsf)
@@ -1594,160 +1585,6 @@ def rest_fwhm_asymgauss(lbda, flux):
         return None 
     return l1,l2
 
-def update_bounds(result, delta_vel, delta_vdisp, delta_gamma):
-    """ update bounds with offset wrt result of current fit
-    """
-    logger = logging.getLogger(__name__)
-    if all(v is None for v in [delta_vel,delta_vdisp,delta_gamma]):
-        return
-    
-    par = result.params
-    families = [key.split('_')[1] for key in par.keys() if key.split('_')[0]=='dv']
-    for family in families: 
-        fun = [key.split('_')[2] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')][0]
-        if delta_vel is not None:
-            dv = par[f"dv_{family}"].value
-            par[f"dv_{family}"].min = dv - delta_vel
-            par[f"dv_{family}"].max = dv + delta_vel
-        if delta_vdisp is not None:
-            if fun == 'dbleasymgauss':
-                vdisp1 = par[f"vdisp1_{family}"].value
-                par[f"vdisp1_{family}"].min = vdisp1 - delta_vdisp
-                par[f"vdisp1_{family}"].max = vdisp1 + delta_vdisp
-                vdisp2 = par[f"vdisp2_{family}"].value
-                par[f"vdisp2_{family}"].min = vdisp2 - delta_vdisp
-                par[f"vdisp2_{family}"].max = vdisp2 + delta_vdisp  
-            else:
-                vdisp = par[f"vdisp_{family}"].value
-                par[f"vdisp_{family}"].min = vdisp - delta_vdisp
-                par[f"vdisp_{family}"].max = vdisp + delta_vdisp            
-        if delta_gamma is not None:
-            fun = [key.split('_')[2] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')][0]
-            if fun == 'asymgauss':
-                lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
-                for line in lines:
-                    gamma = par[f"{family}_{line}_{fun}_asym"].value
-                    par[f"{family}_{line}_{fun}_asym"].min = gamma - delta_gamma
-                    par[f"{family}_{line}_{fun}_asym"].max = gamma + delta_gamma
-            elif fun == 'dbleasymgauss':
-                lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
-                for line in lines:
-                    gamma1 = par[f"{family}_{line}_{fun}_asym1"].value
-                    par[f"{family}_{line}_{fun}_asym1"].min = gamma1 - delta_gamma
-                    par[f"{family}_{line}_{fun}_asym1"].max = gamma1 + delta_gamma  
-                    gamma2 = par[f"{family}_{line}_{fun}_asym2"].value
-                    par[f"{family}_{line}_{fun}_asym2"].min = gamma2 - delta_gamma
-                    par[f"{family}_{line}_{fun}_asym2"].max = gamma2 + delta_gamma                       
- 
-    logger.debug('Update bounds relative to LSQ fit. delta vel %s vdisp %s gamma %s',delta_vel,delta_vdisp,delta_gamma)    
-    
-def mode_skewedgaussian(location, scale, shape):
-    """Compute the mode of a skewed Gaussian.
-
-    The centre parameter of the SkewedGaussianModel from lmfit-py is not the
-    position of the peak, it's the location of the probability distribution
-    function (PDF): i.e. the mean of the underlying Gaussian.
-
-    There is no analytic expression for the mode (position of the maximum) but
-    the Wikipedia page (https://en.wikipedia.org/wiki/Skew_normal_distribution)
-    gives a "quite accurate" approximation.
-
-    Parameters
-    ----------
-    location : float
-        Location of the PDF. This is the`center` parameter from lmfit.
-    scale : float
-        Scale of the PDF. This is the `sigma` parameter from lmfit.
-    shape : float
-        Shape of the PDF. This is the `gamma` parameter from lmfit.
-
-    Returns
-    -------
-    float: The mode of the PDF.
-
-    """
-    # If the shape is 0, this is a Gaussian and the mode is the location.
-    if shape == 0:
-        return location
-
-    delta = scale / np.sqrt(1 + scale ** 2)
-    gamma_1 = ((4 - np.pi) / 2) * (
-        (delta * np.sqrt(2 / np.pi) ** 3) /
-        (1 - 2 * delta ** 2 / np.pi) ** 1.5
-    )
-
-    mu_z = delta * np.sqrt(2 / np.pi)
-    sigma_z = np.sqrt(1 - mu_z ** 2)
-    m_0 = (mu_z - gamma_1 * sigma_z / 2 - np.sign(shape) / 2 *
-           np.exp(-2 * np.pi / np.abs(shape)))
-
-    return location + scale * m_0
-
-
-def measure_fwhm(wave, data, mode):
-    """Measure the FWHM on the curve.
-
-    This function is used to measure the full width at half maximum (FWHM) of
-    a line identified by its mode (wavelength of its peak) on the best fitting
-    model. It is used for the Lyman α line for which we don't have a formula to
-    compute it.
-
-    Note: the data must be continuum subtracted.
-
-    Parameters
-    ----------
-    wave : array of floats
-        The wavelength axis of the spectrum.
-    data : array of floats
-        The data from lmfit best fit.
-    mode : float
-        The value of the mode, in the same unit as the wavelength.
-
-    Returns
-    -------
-    float
-        Full width at half maximum in the same value as the wavelength.
-
-    """
-    # In the case of lines with a strong asymmetry, it may be difficult to
-    # measure the FWHM at the resolution of the spectrum. We multiply its
-    # resolution by 10 to be able to measure the FWHM at sub-pixel level.
-    wave2 = np.linspace(np.min(wave), np.max(wave), 10 * len(wave))
-    data = np.interp(wave2, wave, data)
-    wave = wave2
-
-    mode_idx = np.argmin(np.abs(wave - mode))
-    half_maximum = data[mode_idx] / 2
-
-    # If the half maximum in 0, there is no line.
-    if half_maximum == 0:
-        return np.nan
-
-    # If the half_maximum is negative, that means that the line is identified
-    # in absorption. We can nevertheless try to measure a FWHM but on the
-    # opposite of the data because of the way we measure it.
-    if half_maximum < 0:
-        half_maximum = -half_maximum
-        data = -data
-
-    # There may be several lines in the spectrum, so it may cross several times
-    # the half maximum line and we can't use argmin on the absolute value of
-    # the difference to the half maximum because it may be lower - but still
-    # near zero - for another line. Instead, we are looking for the local
-    # minimums and take the nearest to the mode position.
-    # In case of really strong asymmetry, we may need to take the mode
-    # position.
-    try:
-        hm1_idx = argrelmin(np.abs(data[:mode_idx + 1] - half_maximum))[0][-1]
-    except IndexError:
-        hm1_idx = mode_idx
-    try:
-        hm2_idx = (argrelmin(np.abs(data[mode_idx:] - half_maximum))[0][0] +
-                   mode_idx)
-    except IndexError:
-        hm2_idx = mode_idx
-
-    return wave[hm2_idx] - wave[hm1_idx]
 
 def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=True, minsnr=0, line=None, margin=5,
          dplot={'dl':2.0, 'y':0.95, 'size':10}):
@@ -1799,7 +1636,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             unit_data=None, vac=False, lines=None, bootstrap=False,
             n_cpu=1,
             lsf=True, trimm_spec=True,
-            lsq_kws={}, boot_kws={}, fit_lws={}):    
+            boot_kws={}, fit_lws={}, minpars={}):    
     
     logger = logging.getLogger(__name__)
     
@@ -1809,40 +1646,9 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     logger.debug('Initialize fit')
     init_absfit(pdata, lsf, fit_lws)
     result = init_res(pdata)
-    
-    if bootstrap:
-        if n_cpu == 1:    
-            nbootstrap = boot_kws['nbootstrap']
-            seed_val = boot_kws['seed']
-            showprogress = boot_kws['showprogress']
-            logger.debug('Running boostrap with %d iterations', nbootstrap)
-            sample_res = [] 
-            if seed_val is not None:
-                logger.debug('Using seed %d', seed_val)
-                seed(seed_val)
-            cdata = pdata.copy()
-            klist = progressbar(range(nbootstrap)) if showprogress else range(nbootstrap)
-            for k in klist:
-                generate_sample_data(pdata, cdata)
-                cres = lsq_fit(cdata, lsq_kws, verbose=False)
-                sample_res.append(cres)
-            reslsq = compute_bootstrap_stat(pdata, sample_res)
-        else:
-            nbootstrap = boot_kws['nbootstrap']
-            seed_val = boot_kws['seed']
-            logger.debug('Running boostrap with %d iterations on %d cpu', nbootstrap, n_cpu)            
-            sample_res = [] 
-            if seed_val is not None:
-                logger.debug('Using seed %d', seed_val)
-                seed(seed_val)
-            to_compute = []                  
-            cdata = pdata.copy()
-            for k in range(nbootstrap):
-                to_compute.append(delayed(_bootstrap_parallel)(pdata, cdata, lsq_kws))               
-            sample_res = Parallel(n_jobs=n_cpu)(to_compute)
-            reslsq = compute_bootstrap_stat(pdata, sample_res)             
-    else:
-        reslsq = lsq_fit(pdata, lsq_kws, verbose=True)
+
+    # perform lsq fit
+    reslsq = lmfit_fit(minpars, pdata, verbose=True)       
         
     resfit = save_fit_res(result, pdata, reslsq)
     
