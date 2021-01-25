@@ -9,11 +9,138 @@ from astropy.io import fits
 from mpdaf.obj import airtovac, vactoair
 from logging import getLogger
 
-from .nnls_burst import fit_continuum1
+from scipy.optimize import brent, nnls
 
 CURDIR = os.path.dirname(os.path.abspath(__file__))
 
 __all__ = ('Contfit')
+
+def do_continuum_fit(ebv, modellib, l, flux):
+    """ This is the one-dimensional function called by brent.
+    """
+    # Make a copy of the grids, but now with the new value for E(B-V).
+    grid_copy = modellib * np.exp(-ebv*(l/5500)**(-0.7))[:, np.newaxis]
+    # Should really minimize chisq here..
+    x, rnorm = nnls(grid_copy, flux)
+    return rnorm
+
+def dbrent(ax,bx,cx,f,args,tol):
+    ITMAX=100
+    CGOLD=.3819660
+    ZEPS=1e-10
+    a=min(ax,cx)
+    b=max(ax,cx)
+    v=bx
+    w=v
+    x=v
+    e=0
+    d = 0
+    fx=f(x, *args)
+    fv=fx
+    fw=fx
+    for i in range(ITMAX):
+        xm=(a+b)/2
+        tol1=tol*np.abs(x)+ZEPS
+        tol2=2.*tol1
+        if np.abs(x-xm) <= (tol2-(b-a)/2):
+            return fx, x
+        if np.abs(e) > tol1:
+            r=(x-w)*(fx-fv)
+            q=(x-v)*(fx-fw)
+            p=(x-v)*q-(x-w)*r
+            q=2*(q-r)
+            if q >0:
+                p=-p
+            q=np.abs(q)
+            etemp=e
+            e=d
+            if (np.abs(p) >= np.abs(q*etemp/2)) or (p<=q*(a-x)) or (p>=q*(b-x)):
+                if x >= xm:
+                    e=a-x
+                else:
+                    e=b-x
+                d=CGOLD*e
+            else:
+                d=p/q
+                u=x+d
+                if ((u-a)<tol2) or ((b-u)< tol2):
+                    d=np.abs(tol1) * np.sign(xm-x)
+        else:
+            if x >= xm:
+                e=a-x
+            else:
+                e=b-x
+            d=CGOLD*e
+            
+        if np.abs(d) >= tol1:
+          u=x+d
+        else:
+          u=x+np.abs(tol1)*np.sign(d)
+
+        fu=f(u, *args)
+        if fu <= fx:
+            if u>=x:
+                a=x
+            else:
+                b=x
+            v=w
+            fv=fw
+            w=x
+            fw=fx
+            x=u
+            fx=fu
+        else:
+            if u<x:
+                a=u
+            else:
+                b=u
+            if fu<=fw or w==x:
+                v=w
+                fv=fw
+                w=u
+                fw=fu
+            elif fu<=fv or v==x or v==w:
+                v=u
+                fv=fu
+    print('dbrent exceed maximum iterations')
+    return fx, x
+  
+def fit_continuum1(l, f, modellib):
+    """Notice in this routine we expect that F & the model library has 
+    already been multiplied with the weights before calling.
+    """
+    m_in = l.shape[0]
+    nb_in = modellib.shape[1]
+     
+    # First bracket the minimum
+    # The variable is E(B-V) and we will let the interval be
+    # -1 to 6. Somewhere inside there there ought to be a minimum
+    ax=-1
+    bx=6
+    cx= 0
+    cx, fc, niter, funcalls = brent(do_continuum_fit, args=(modellib, l, f), brack=(ax, cx, bx), full_output=1)
+    
+    if cx<ax or cx>bx:
+        return np.full(nb_in+1, -99.9), -99.9, -99.9 
+    
+    # Now call the minimization routine.
+    tol = 1e-7
+    minval, ebvmin = dbrent(ax,bx,cx,f=do_continuum_fit,args=(modellib, l, f),tol=tol)
+    
+    # Finally use the NNLS parameters from the common block to
+    # create the output parameters as well as the best-fit continuum
+    # and calculate the best-fit mean chi^2 using meanclip 
+    grid_copy = modellib * np.exp(-ebvmin*(l/5500)**(-0.7))[:, np.newaxis]
+    x, rnorm = nnls(grid_copy, f)
+    
+    params = np.empty(nb_in+1)
+    params[0] = ebvmin
+    params[1:] = x
+    mean = rnorm*rnorm/m_in
+    sigma = -1.0
+    # call meanclip(chi2, m, mean, sigma)
+    
+    return params, np.full(1, mean), np.full(1, sigma)    
 
 class Contfit:
     """
@@ -710,29 +837,9 @@ class Contfit:
         for i in range(n):
             temp = np.array(modellibrary[ok, i]) / np.array(dflux[ok])
             a[:, i] = np.array(temp).squeeze()
-
-        # Adjust the input parameters to match the shape and precision
-        a = np.array(a).transpose().reshape(1, np.size(a))
-        a = np.array(a).squeeze()
-        nxm = m
-        nmodel = n
-        lam = np.array(lam).squeeze()
-        flux = b
-        params = params
-        nparams = nparams
-        nm = np.size(a)
-        mean = np.zeros(1)  # one of the inputs/outputs of fortran. NOTE the way the variable is declared
-        sigma = np.zeros(1)  # one of the inputs/outputs of fortran
-
-        # ----------------------------- Call the external fortran routine --------------------------------------------------
-        # fit_continuum1test(np.long(nparams), np.int(nxm), np.long(nmodel), np.long(nm), np.double(lam), np.double(flux),
-        #                    np.double(a), np.double(params), np.double(mean), np.double(sigma))
-        # fit_continuum1test(lam, flux, params, nxm, nparams)
-
-        # print(nxm, nm, nparams, nmodel)
-        # lambda, flux, models, parameters, mean, sigma, nmodels, ok, size(a), nparams
-        fit_continuum1(lam, np.double(flux), np.double(a), np.double(params),
-                       mean, sigma, nmodel, nxm, nm, nparams)
+        
+        # Equivalent to the external fortran routine
+        params, mean, sigma = fit_continuum1(lam, b, a)
 
         # print('parameters=', params)
         # print(mean, sigma)
