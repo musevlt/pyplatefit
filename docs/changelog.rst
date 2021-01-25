@@ -5,6 +5,7 @@ v0.6 (XX/XX/2021)
 -----------------
 New features
 ^^^^^^^^^^^^
+- replace fortran routines (nnls) by python code and numpy call
 - remove bootstrap option which was not given robust results and is now better replace by least_square 
 - set default method to least_square using Trust Region Reflective method with 1.e-3 tolerance on parameters
 - save method, status in ztable
