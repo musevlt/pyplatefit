@@ -1,7 +1,7 @@
 Changelog
 =========
 
-v0.6 (XX/XX/2021)
+v0.6 (25/01/2021)
 -----------------
 New features
 ^^^^^^^^^^^^
@@ -20,7 +20,6 @@ Breaking Changes
 
 Bug fixes
 ^^^^^^^^^
-- in bootstrap, the parameter value returned is from the initial LSQ fit (previously we use the mean of the bootsrap fit which was not robust), while the std value is derived from sigma clip statistics.
 - it is now possible to fix values by setting min=init=max in linepars dict (eg vdisp=(50,50,50).
 
 
