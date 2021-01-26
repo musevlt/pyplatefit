@@ -118,9 +118,11 @@ def fit_continuum1(l, f, modellib):
     ax=-1
     bx=6
     cx= 0
-    cx, fc, niter, funcalls = brent(do_continuum_fit, args=(modellib, l, f), brack=(ax, cx, bx), full_output=1)
-    
-    if cx<ax or cx>bx:
+    try:
+        cx, fc, niter, funcalls = brent(do_continuum_fit, args=(modellib, l, f), brack=(ax, cx, bx), full_output=1)
+        if cx<ax or cx>bx:
+            return np.full(nb_in+1, -99.9), -99.9, -99.9 
+    except:
         return np.full(nb_in+1, -99.9), -99.9, -99.9 
     
     # Now call the minimization routine.
@@ -427,12 +429,14 @@ class Contfit:
 
         for isz in range(nsz):
             # Notice that the definition of chi squared is that returned by NNLS
-
-            continuum[:, isz], settings_nnls = self._model_fit_nnls(logwl, flux, err, redshift, vdisp, isz,
+            
+            try:
+                continuum[:, isz], settings_nnls = self._model_fit_nnls(logwl, flux, err, redshift, vdisp, isz,
                                                                    firstcall=True, debug=False)
-
-            contcoefs = np.array(settings_nnls['params'][:])
-            mean_chi2 = np.array(settings_nnls['mean'][:])
+                contcoefs = np.array(settings_nnls['params'][:])
+                mean_chi2 = np.array(settings_nnls['mean'][:])
+            except:
+                contcoefs[0] = -99
 
             if contcoefs[0] < -90:              
                 self.logger.debug('Continnum fit failed, use constant')
