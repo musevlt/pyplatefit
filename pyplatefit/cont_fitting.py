@@ -449,11 +449,18 @@ class Contfit:
 
                 cont = spec.clone()
                 # cont is just the median over the wavelength range
-                cont.data = np.ones_like(spec.data) * np.ma.median(spec.data)
+                vmed = np.ma.median(spec.data)
+                cont.data = np.ones_like(spec.data) * vmed
                 res['cont_spec'] = cont
                 
                 res['line_spec'] = spec - cont
-                
+                # save results in a table (in rest frame)
+                tab = Table(data=[restwl,flux,err,np.ones_like(flux)*vmed*(1+z),np.zeros_like(flux)], 
+                            names=['RESTWL','FLUX','ERR','CONTFIT','CONTRESID'])
+                tab['CONT'] = tab['CONTFIT'] + tab['CONTRESID']
+                tab['LINE'] = tab['FLUX'] - tab['CONT']
+                tab['AIRWL'] = airwl
+                res['table_spec'] = tab                
 
                 return res
 
