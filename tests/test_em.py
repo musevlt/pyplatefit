@@ -153,9 +153,11 @@ def test_fit_spec(workdir):
     assert_allclose(res['dline']['lmfit_forbidden'].redchi, 11.47, rtol=1.e-2)
     
     res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=True)
-    assert_allclose(res['dline']['lmfit_forbidden'].redchi, 11.47, rtol=1.e-2)    
+    assert_allclose(res['dline']['lmfit_forbidden'].redchi, 11.47, rtol=1.e-2) 
     
-    
+    res = fit_spec(sp, z, lines=['OII3726','OII3729'], ziter=True)
+    assert_allclose(res['dline']['lmfit_forbidden'].redchi, 4.00, rtol=1.e-2)      
+       
     res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=True, 
                    linepars=dict(line_ratios=[("OII3726", "OII3729", 0.5, 0.8)]))
     assert_allclose(res['dline']['lmfit_forbidden'].redchi, 91.36, rtol=1.e-2)

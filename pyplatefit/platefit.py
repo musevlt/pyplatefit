@@ -105,7 +105,6 @@ class Platefit:
             linespec = rescont['line_spec'] 
             # set parameters to speed the fit
             kwargs1 = kwargs.copy()
-            kwargs1['bootstrap'] = False
             kwargs1['fit_all'] = True
             resline = self.fit_lines(linespec, z, **kwargs1)
             ztable = resline['ztable']
