@@ -5,7 +5,7 @@ import pytest
 from numpy.testing import assert_allclose, assert_array_equal
 
 from pyplatefit import Platefit
-from pyplatefit import fit_spec
+from pyplatefit import fit_spec, get_lines
 from astropy.table import Table
 from mpdaf.obj import Spectrum
 
@@ -94,7 +94,21 @@ def test_fit(workdir):
     assert_allclose(r['EQW'],-60.59,rtol=1.e-2)
     assert_allclose(r['EQW_ERR'],1.98,rtol=1.e-2)
     assert_allclose(r['NSTD'],-2.295,rtol=1.e-2)
+
     
+def test_mylines(workdir):
+    os.chdir(workdir)
+    
+    sp = Spectrum('udf10_00723.fits')
+    z = 3.18817
+    
+    mylines = get_lines(orig=True)
+    mylines['RESONANT'][(mylines['LINE']=='CIV1548') | (mylines['LINE']=='CIV1550')] = False
+    res = fit_spec(sp, z, lines=mylines, major_lines=True)    
+    
+    ztab = res['ztable']
+    assert 'civ1548' not in ztab['FAMILY']
+    assert len(res['ztable']) == 2
     
 def test_faint(workdir):
     os.chdir(workdir)

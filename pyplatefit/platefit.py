@@ -13,6 +13,13 @@ from .line_fitting import Linefit, plotline
 
 __all__ = ('Platefit', 'fit_spec', 'plot_fit')
 
+def muse_lsf(wave):
+    # from UDF paper
+    #fwhm = 5.835e-8 * wave**2 - 9.080e-4 * wave + 5.983
+    # from DRS
+    fwhm = 5.19939 - 0.000756746*wave + 4.93397e-08*wave**2
+    return fwhm
+
 
 class Platefit:
     """
@@ -44,7 +51,8 @@ class Platefit:
         self.line = Linefit(**linepars, minpars=minpars)
         self.eqw = EquivalentWidth(**eqwpars)
 
-    def fit(self, spec, z, ziter=False, fitcont=True, fitlines=True, fitabs=False, eqw=True, **kwargs):
+    def fit(self, spec, z, ziter=False, fitcont=True, fitlines=True, fitabs=False, eqw=True,
+            lsf=muse_lsf, **kwargs):
         """Perform continuum and emission and absorption lines fit on a spectrum
 
         Parameters
@@ -106,7 +114,7 @@ class Platefit:
             # set parameters to speed the fit
             kwargs1 = kwargs.copy()
             kwargs1['fit_all'] = True
-            resline = self.fit_lines(linespec, z, **kwargs1)
+            resline = self.fit_lines(linespec, z, lsf=lsf, **kwargs1)
             ztable = resline['ztable']
             if 'all' in ztable['FAMILY']:
                 row = ztable[ztable['FAMILY']=='all'][0]
@@ -136,7 +144,7 @@ class Platefit:
 
         if fitlines:
             self.logger.debug('Fit emission lines')
-            resline = self.fit_lines(linespec, z, **kwargs)
+            resline = self.fit_lines(linespec, z, lsf=lsf, **kwargs)
 
         if fitabs:
             self.logger.debug('Fit absorption lines')
@@ -147,7 +155,7 @@ class Platefit:
             else:
                 spnoline = spec
 
-            resabs = self.fit_abslines(spnoline, z, **kwargs)
+            resabs = self.fit_abslines(spnoline, z, lsf=lsf, **kwargs)
 
         if eqw and fitcont and fitlines:
             self.eqw.comp_eqw(spec, linespec, z, resline['lines'])
@@ -245,7 +253,7 @@ class Platefit:
         return self.cont.fit(spec, z, vdisp)
 
     
-    def fit_lines(self, line, z, **kwargs):
+    def fit_lines(self, line, z, lsf=muse_lsf, **kwargs):
         """  
         Perform emission lines fit on a continuum subtracted spectrum 
     
@@ -265,9 +273,9 @@ class Platefit:
            See `Linefit.fit`
            
         """
-        return self.line.fit(line, z, **kwargs)        
+        return self.line.fit(line, z, lsf=lsf, **kwargs)        
     
-    def fit_abslines(self, spec, z, **kwargs):
+    def fit_abslines(self, spec, z, lsf=muse_lsf, **kwargs):
         """  
         Perform absorption lines fit on a continuum subtracted spectrum 
     
@@ -287,7 +295,7 @@ class Platefit:
            See `Linefit.fit`
            
         """
-        return self.line.absfit(spec, z, **kwargs)         
+        return self.line.absfit(spec, z, lsf=lsf, **kwargs)         
         
 
     def info_cont(self, res):
@@ -364,9 +372,10 @@ class Platefit:
 
 
 
+
 def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, lines=None,
              major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=False, dble_lyafit=False,
-             lsf=True, eqw=True, trimm_spec=True, contpars={}, linepars={},
+             lsf=muse_lsf, eqw=True, trimm_spec=True, contpars={}, linepars={},
              minpars=dict(method='least_square', xtol=1.e-3)):
     """ 
     perform platefit cont and line fitting on a spectra
@@ -530,7 +539,7 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
     res = pl.fit(spec, z, fit_all=fit_all, ziter=ziter, fitcont=fitcont, fitlines=fitlines,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,
                  dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec,
-                 fitabs=fitabs)
+                 fitabs=fitabs, major_lines=major_lines)
     return res   
                                        
 def plot_fit(ax, result, line_only=False, abs_line=False,
@@ -642,6 +651,10 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
     if legend:
         ax.legend()
         
+    # remove x and y label
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+        
     # display lines
     if iden:
         if line_only:
@@ -716,6 +729,7 @@ def truncate_spec(spec, line, lines, margin):
     l2 = row['LBDA_RIGHT'] + margin
     sp = spec.subspec(lmin=l1, lmax=l2)
     return sp
+
  
             
         

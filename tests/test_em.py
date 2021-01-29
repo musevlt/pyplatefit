@@ -142,32 +142,45 @@ def test_fit_spec(workdir):
     z = 0.41892
     
     res = fit_spec(sp, z)
+    assert len(res['lines']) == 23   
     assert_allclose(res['dcont']['chi2'], 0.0471, rtol=1.e-2)
     assert_allclose(res['dline']['lmfit_balmer'].redchi, 249.36, rtol=1.e-2)
+    
+    res = fit_spec(sp, z, major_lines=True)
+    assert len(res['lines']) == 11   
     
     res = fit_spec('udf10_00002.fits', z)
     assert_allclose(res['dcont']['chi2'], 0.0471, rtol=1.e-2)
     assert_allclose(res['dline']['lmfit_balmer'].redchi, 249.36, rtol=1.e-2)
     
+    
     res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=False)
     assert_allclose(res['dline']['lmfit_forbidden'].redchi, 11.47, rtol=1.e-2)
     
-    res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=True)
-    assert_allclose(res['dline']['lmfit_forbidden'].redchi, 11.47, rtol=1.e-2) 
-    
     res = fit_spec(sp, z, lines=['OII3726','OII3729'], ziter=True)
-    assert_allclose(res['dline']['lmfit_forbidden'].redchi, 4.00, rtol=1.e-2)      
+    assert_allclose(res['dline']['lmfit_forbidden'].redchi, 4.00, rtol=1.e-2)          
+    
+    res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=True)
+    lines = res['lines']
+    lines = lines[~lines['ISBLEND']]
+    ratio = lines['FLUX'][1]/lines['FLUX'][0]
+    assert (ratio >= 0.3) and (ratio <= 1.5)
+    
+        
        
     res = fit_spec(sp, z, lines=['OII3726','OII3729'], use_line_ratios=True, 
                    linepars=dict(line_ratios=[("OII3726", "OII3729", 0.5, 0.8)]))
-    assert_allclose(res['dline']['lmfit_forbidden'].redchi, 91.36, rtol=1.e-2)
+    lines = res['lines']
+    lines = lines[~lines['ISBLEND']]
+    ratio = lines['FLUX'][1]/lines['FLUX'][0]
+    assert (ratio >= 0.5) and (ratio <= 0.8)    
     
     res = fit_spec(sp, z, lines=['OII3726','OII3729'], linepars=dict(vel=(0,0,0), vdisp=(20,20,20)))
     zfit = res['ztable'][0]['Z']
     assert_allclose(zfit, z, rtol=1.e-6)
     assert res['ztable'][0]['VEL'] == 0
     assert res['ztable'][0]['VDISP'] == 20
-        
+    
 def test_fit_resonnant(workdir):
     os.chdir(workdir)
     
@@ -190,3 +203,33 @@ def test_fit_resonnant(workdir):
     assert r['NL'] == 1
     assert r['NL_CLIPPED'] == 1
     
+
+def mylsf(lbda):
+    return 2.00
+
+def test_fit_lsf(workdir):
+    os.chdir(workdir)
+    
+    sp = Spectrum('udf10_00002.fits')
+    z = 0.41892
+  
+    res = fit_spec(sp, z)
+    lines = res['lines']
+    r = lines[lines['LINE']=='OIII5007'][0]
+    assert_allclose(r['VDISP'],66.65,rtol=1.e-2)
+    assert_allclose(r['VDINST'],41.44,rtol=1.e-2)
+    assert_allclose(r['FWHM_OBS'],4.38,rtol=1.e-2)
+       
+    res = fit_spec(sp, z, lsf=mylsf)
+    lines = res['lines']
+    r = lines[lines['LINE']=='OIII5007'][0]
+    assert_allclose(r['VDISP'],72.69,rtol=1.e-2)
+    assert_allclose(r['VDINST'],35.83,rtol=1.e-2)
+    assert_allclose(r['FWHM_OBS'],4.52,rtol=1.e-2)    
+    
+    res = fit_spec(sp, z, lsf=None)
+    lines = res['lines']
+    r = lines[lines['LINE']=='OIII5007'][0]
+    assert_allclose(r['VDISP'],84.04,rtol=1.e-2)
+    assert_allclose(r['FWHM_OBS'],4.69,rtol=1.e-2)
+    assert 'VDINST' not in lines.columns

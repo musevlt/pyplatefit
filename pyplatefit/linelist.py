@@ -19,13 +19,14 @@ CURDIR = os.path.dirname(os.path.abspath(__file__))
 
 
 
-def get_lines(iden=None, 
+def get_lines(iden=None, orig=False,
               z=0, vac=True, 
               restframe=False,
               main=None, doublet=None,  
               family=None, resonant=None,
               absline=None, emiline=None,
               lbrange=None, exlbrange=None,
+              user_linetable=None,
               margin=0):
     """Return a table of lines
 
@@ -33,8 +34,10 @@ def get_lines(iden=None,
     ----------
     iden : str or list of str
         identifiers, eg 'LYALPHA', ['OII3727','OII3729'] default None
+    orig : bool
+        if true return the original lines table 
     z : float
-        redshift (0)
+        redshift (None)
     vac : bool
         if False return wavelength in air    
     restframe : bool
@@ -56,11 +59,18 @@ def get_lines(iden=None,
         wavelength range ex [4750,9350] default None
     exlbrange : array-like
         wavelength range to exclude in observed frame (ex for AO spectra)
+    user_linetable : astropy Table
+        user lines table, if None the default table is used
     margin : float
         margin in A to select a line (25)
     """
     
-    lines = get_line_table()
+    if user_linetable is None:
+        lines = get_line_table()
+    else:
+        lines = user_linetable.copy()
+    if orig:
+        return lines
     if iden is not None:
         if isinstance(iden, str):
             lines = lines[lines['LINE'] == iden]

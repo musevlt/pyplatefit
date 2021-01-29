@@ -20,6 +20,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
     'numpydoc',
+    'nbsphinx',
     'sphinx_automodapi.automodapi',
     'sphinx_automodapi.smart_resolver'
 ]
@@ -47,7 +48,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'pyplatefit'
-copyright = '2019, Roland Bacon'
+copyright = '2021, Roland Bacon'
 author = 'Roland Bacon'
 
 # The version info for the project you're documenting, acts as replacement for

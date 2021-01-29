@@ -4,13 +4,16 @@ v0.7 (XX/XX/2021)
 -----------------
 New features
 ^^^^^^^^^^^^
+- update default line ratio range of OII doublet to 0.3-1.5
+- one can now specify his own LSF model
+- updated documentationn
 
 Breaking Changes
 ^^^^^^^^^^^^^^^^
 
 Bug fixes
 ^^^^^^^^^
-
+- fix a bug with the option flag major_lines not correctly propagated
 
 v0.6 (25/01/2021)
 -----------------

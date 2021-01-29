@@ -101,7 +101,7 @@ class Linefit:
                  sep_2lya = (80,500,1000),
                  line_ratios = [
                     ("CIII1907", "CIII1909", 0.6, 1.2),
-                    ("OII3727", "OII3729", 1.0, 2.0)
+                    ("OII3726", "OII3729", 0.3, 1.5)
                     ],
                  minpars = dict(method='least_square', xtol=1.e-3),
                  ):
@@ -384,7 +384,7 @@ class Linefit:
 def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        unit_data=None, vac=False, lines=None, line_ratios=None,
                        major_lines=False, 
-                       fit_all=False, lsf=True, trimm_spec=True,
+                       fit_all=False, lsf=None, trimm_spec=True,
                        find_lya_vel_offset=True, dble_lyafit=False,
                        fit_lws=None, minpars={}):
     """Fit lines from a set of arrays (wave, data, std) using lmfit.
@@ -528,8 +528,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
         if False, allow different velocity offsets and velocity disperions between balmer,
         forbidden and resonnant lines
         default: false 
-    lsf : boolean, optional
-        if True, use LSF estimate to derive instrumental PSF, otherwise assume no LSF
+    lsf : function, optional
+        LSF function LSF to derive FWHM as function of wavelength, otherwise assume no LSF
         default: True
     trimm_spec : boolean, optional
         if True, mask unused wavelengths part
@@ -613,30 +613,24 @@ def prepare_fit_data(wave, data, std, redshift, vac,
         lines_to_fit = None    
     
     if lines is None:
-        logger.debug("Getting lines from get_lines...") 
-        main = True if major_lines else None
-        lines = get_lines(z=redshift, vac=True, main=main, margin=MARGIN_EMLINES,
-                            lbrange=[wave.min(), wave.max()], 
-                            exlbrange=excluded_lbrange,
-                            emiline=True, restframe=True)
-        if lines_to_fit is not None:
-            lines = lines[np.in1d(lines['LINE'].tolist(), lines_to_fit)]
-            if len(lines) < len(lines_to_fit):
-                logger.debug(
-                    "Some lines are not on the spectrum coverage: %s.",
-                    ", ".join(set(lines_to_fit) - set(lines['LINE'])))
-        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
-        if not vac:
-            lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])        
+        logger.debug("Getting lines from default line table...") 
     else:
-        logger.debug("Getting lines from input table") 
-        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
-        if not vac:
-            lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])
-        lines = lines[
-            (lines['LBDA_EXP'] >= wave.min()) &
-            (lines['LBDA_EXP'] <= wave.max())
-        ]
+        logger.debug("Getting lines from user line table...") 
+    main = True if major_lines else None
+    lines = get_lines(z=redshift, vac=True, main=main, margin=MARGIN_EMLINES,
+                        lbrange=[wave.min(), wave.max()], 
+                        exlbrange=excluded_lbrange,
+                        emiline=True, restframe=True,
+                        user_linetable=lines)
+    if lines_to_fit is not None:
+        lines = lines[np.in1d(lines['LINE'].tolist(), lines_to_fit)]
+        if len(lines) < len(lines_to_fit):
+            logger.debug(
+                "Some lines are not on the spectrum coverage: %s.",
+                ", ".join(set(lines_to_fit) - set(lines['LINE'])))
+    lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
+    if not vac:
+        lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])        
 
     # When there is no known line on the spectrum area.
     if not lines:
@@ -814,7 +808,7 @@ def init_res(pdata):
     tablines.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True), index=0)
     tablines.add_column(MaskedColumn(name='LINE', dtype='U20', mask=True), index=1)
     tablines.add_column(MaskedColumn(name='DNAME', dtype='U20', mask=True), index=3)
-    if pdata['lsf']:
+    if pdata['lsf'] is not None:
         tablines.add_column(MaskedColumn(name='VDINST', dtype=np.float, mask=True), index=11)
         colnames.append('VDINST')
     if pdata['dble_lyafit']:
@@ -1104,9 +1098,9 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                     lvals1['SNR'] = abs(flux1)/flux1_err 
                     lvals2['FLUX_ERR'] = flux2_err 
                     lvals2['SNR'] = abs(flux2)/flux2_err                     
-                if lsf:
-                    lvals1['VDINST'] = complsf(l1obs, kms=True) 
-                    lvals2['VDINST'] = complsf(l1obs, kms=True)  
+                if lsf is not None:
+                    lvals1['VDINST'] = complsf(lsf, l1obs, kms=True) 
+                    lvals2['VDINST'] = complsf(lsf, l1obs, kms=True)  
                 skew1 = par[f"{family}_{line}_{fun}_asym1"].value
                 lvals1['SKEW'] = skew1
                 skew2 = par[f"{family}_{line}_{fun}_asym2"].value
@@ -1116,7 +1110,7 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 if skew1_err is not None:
                     lvals1['SKEW_ERR'] = skew1_err
                     lvals2['SKEW_ERR'] = skew2_err                 
-                # find the line peak loaction in rest frame
+                # find the line peak location in rest frame
                 swave_rest = np.linspace(l0-50,l0+50,1000)
                 l1c = l0*(1+(dv-0.5*sep)/C)
                 sigma1 = get_sigma(vdisp1, l1c, z, lsf, restframe=True) 
@@ -1184,8 +1178,8 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 if flux_err is not None:
                     lvals['FLUX_ERR'] = flux_err 
                     lvals['SNR'] = abs(flux)/flux_err 
-                if lsf:
-                    lvals['VDINST'] = complsf(l1obs, kms=True)       
+                if lsf is not None:
+                    lvals['VDINST'] = complsf(lsf, l1obs, kms=True)       
                 skew = par[f"{family}_{line}_{fun}_asym"].value
                 lvals['SKEW'] = skew
                 skew_err = par[f"{family}_{line}_{fun}_asym"].stderr 
@@ -1247,8 +1241,8 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 if (flux_err is not None) and (flux_err > 0):
                     lvals['FLUX_ERR'] = flux_err 
                     lvals['SNR'] = abs(flux)/flux_err 
-                if lsf:
-                    lvals['VDINST'] = complsf(l1obs, kms=True)
+                if lsf is not None:
+                    lvals['VDINST'] = complsf(lsf, l1obs, kms=True)
                 sigma = get_sigma(vdisp, l1obs, z, lsf, restframe=False)
                 fwhm = 2.355*sigma
                 lvals.update({'FWHM_OBS':fwhm, 'LBDA_LEFT':l1obs-0.5*fwhm, 'LBDA_RIGHT':l1obs+0.5*fwhm, 
@@ -1460,19 +1454,19 @@ def add_line_ratio(family, params, line_ratios, dlines):
                 "%s_%s_gauss_flux * %s_to_%s_factor" % (family, line1, line1, line2)
             ) 
             
-def get_sigma(vdisp, l0, z, lsf=True, restframe=True):
+def get_sigma(vdisp, l0, z, lsf=None, restframe=True):
     sigma = vdisp*l0/C
-    if lsf:
+    if lsf is not None:
         if restframe:
             l0obs = l0*(1+z)
-            siginst = complsf(l0obs)/(1+z)
+            siginst = complsf(lsf, l0obs)/(1+z)
         else:
-            siginst = complsf(l0)
+            siginst = complsf(lsf, l0)
         sigma = np.sqrt(sigma**2+siginst**2) 
     return sigma
 
 
-def model(params, wave, lines, z, lsf=True):
+def model(params, wave, lines, z, lsf=None):
     """ wave is rest frame wavelengths """
     logger = logging.getLogger(__name__)
     model = 0
@@ -1532,19 +1526,16 @@ def model_gauss(z, lsf, l0, flux, vdisp, dv, wave):
     model = gauss(peak, l1, sigma, wave)
     return model
 
-def complsf(wave, kms=False):
+def complsf(lsfmodel, wave, kms=False):
     # compute estimation of LSF in A
-    # from UDF paper
-    #fwhm = 5.835e-8 * wave**2 - 9.080e-4 * wave + 5.983
-    # from DRS
-    fwhm = 5.19939 - 0.000756746*wave + 4.93397e-08*wave**2
+    fwhm = lsfmodel(wave)
     sigma = fwhm/2.355
     if kms:
         sigma = sigma*C/wave
     return sigma
 
     
-def residuals(params, wave, data, std, lines, z, lsf=True):
+def residuals(params, wave, data, std, lines, z, lsf=None):
     vmodel = model(params, wave, lines, z, lsf)
     res = (vmodel - data)/std 
     return res
@@ -1635,7 +1626,7 @@ def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=T
 def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             unit_data=None, vac=False, lines=None, bootstrap=False,
             n_cpu=1,
-            lsf=True, trimm_spec=True,
+            lsf=None, trimm_spec=True,
             boot_kws={}, fit_lws={}, minpars={}):    
     
     logger = logging.getLogger(__name__)
@@ -1684,29 +1675,24 @@ def prepare_absfit_data(wave, data, std, redshift, vac,
         lines_to_fit = None    
     
     if lines is None:
-        logger.debug("Getting lines from get_lines...") 
-        lines = get_lines(z=redshift, vac=True, margin=0,
-                            lbrange=[wave.min(), wave.max()], 
-                            exlbrange=excluded_lbrange,
-                            absline=True, restframe=True)
-        if lines_to_fit is not None:
-            lines = lines[np.in1d(lines['LINE'].tolist(), lines_to_fit)]
-            if len(lines) < len(lines_to_fit):
-                logger.debug(
-                    "Some lines are not on the spectrum coverage: %s.",
-                    ", ".join(set(lines_to_fit) - set(lines['LINE'])))
-        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
-        if not vac:
-            lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])        
+        logger.debug("Getting lines from default line table...") 
     else:
-        logger.debug("Getting lines from input table") 
-        lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
-        if not vac:
-            lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])
-        lines = lines[
-            (lines['LBDA_EXP'] >= wave.min()) &
-            (lines['LBDA_EXP'] <= wave.max())
-        ]
+        logger.debug("Getting lines from user line table...") 
+    lines = get_lines(z=redshift, vac=True, margin=0,
+                        lbrange=[wave.min(), wave.max()], 
+                        exlbrange=excluded_lbrange,
+                        absline=True, restframe=True,
+                        user_linetable=lines)
+    if lines_to_fit is not None:
+        lines = lines[np.in1d(lines['LINE'].tolist(), lines_to_fit)]
+        if len(lines) < len(lines_to_fit):
+            logger.debug(
+                "Some lines are not on the spectrum coverage: %s.",
+                ", ".join(set(lines_to_fit) - set(lines['LINE'])))
+    lines['LBDA_EXP'] = (1 + redshift) * lines['LBDA_REST']
+    if not vac:
+        lines['LBDA_EXP'] = vactoair(lines['LBDA_EXP'])        
+
 
     # When there is no known line on the spectrum area.
     if not lines:
