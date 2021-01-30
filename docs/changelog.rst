@@ -1,40 +1,29 @@
 Changelog
 =========
-v0.7 (XX/XX/2021)
+
+v0.6 (30/01/2021)
 -----------------
 New features
 ^^^^^^^^^^^^
+- allow to use any minimizing methods and its corresponding input parameters from scipy minimize
+- set default method to least_square using Trust Region Reflective method with 1.e-3 tolerance on parameters
+- save minimization method and status in ztable
+- add infoline and infoz option in plot_fit to display values from the tables lines and ztable
+- add line multiplet (eg OII3727b = OII3726 + OII3729) in the returned line table.
 - update default line ratio range of OII doublet to 0.3-1.5
 - one can now specify his own LSF model
-- updated documentationn
+- updated documentation, now based on a notebook tutorial
 
 Breaking Changes
 ^^^^^^^^^^^^^^^^
-
-Bug fixes
-^^^^^^^^^
-- fix a bug with the option flag major_lines not correctly propagated
-
-v0.6 (25/01/2021)
------------------
-New features
-^^^^^^^^^^^^
-- replace fortran routines (nnls) by python code and numpy call
-- set default method to least_square using Trust Region Reflective method with 1.e-3 tolerance on parameters
-- save method, status in ztable
-- allow to use any minimizing methods and its corresponding input parameters from scipy minimize
-- add info option in plot_fit to display values from the lines table
-- values for line multiplet (eg OII3727b = OII3726 + OII3729) are returned in addition to the individual lines.
-
-Breaking Changes
-^^^^^^^^^^^^^^^^
-- remove bootstrap option which was not given robust results and is now better replace by least_square 
+- remove bootstrap option which was not given robust results and is now better replace by Trust Region Reflective least_squares 
 - name of emission lines in default table have been updated to reflect common usage
 - updated emission lines 
 
 Bug fixes
 ^^^^^^^^^
 - it is now possible to fix values by setting min=init=max in linepars dict (eg vdisp=(50,50,50).
+- fix a bug with the option flag major_lines not correctly propagated
 
 
 v0.5 (17/01/2021)

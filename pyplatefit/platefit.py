@@ -73,6 +73,8 @@ class Platefit:
            Fit absorption lines
         eqw : bool
            Compute Equivalent Width
+        lsf : function
+            LSF model
         **kwargs : keyword arguments
            Additional arguments passed to `Linefit.fit` function.  
 
@@ -137,6 +139,7 @@ class Platefit:
             for key in ['cont_spec','cont_fit','line_spec']:
                 if key in rescont.keys():
                     resfit[key] = rescont.pop(key)
+            del rescont['spec']
             resfit['dcont'] = rescont
         else:
             resfit['line_spec'] = spec
@@ -164,14 +167,16 @@ class Platefit:
 
         if fitlines and fitabs:
             # add stacked lines and absorption lines result to resline dict
-            resfit['ztable'] = vstack([resline['ztable'],resabs['ztable']])
-            resfit['lines'] = vstack([resline['lines'],resabs['lines']])
+            resfit['ztable'] = vstack([resline.pop('ztable'),
+                                       resabs.pop('ztable')])
+            resfit['lines'] = vstack([resline.pop('lines'),
+                                      resabs.pop('lines')])
         elif fitlines:
-            resfit['ztable'] = resline['ztable']
-            resfit['lines'] = resline['lines']
+            resfit['ztable'] = resline.pop('ztable')
+            resfit['lines'] = resline.pop('lines')
         elif fitabs:
-            resfit['ztable'] = resabs['ztable']
-            resfit['lines'] = resabs['lines']
+            resfit['ztable'] = resabs.pop('ztable')
+            resfit['lines'] = resabs.pop('lines')
 
         if fitlines or fitabs:
             resfit['lines'].sort('LBDA_REST')
@@ -263,6 +268,8 @@ class Platefit:
             continuum subtracted spectrum
         z : float
             reshift 
+        lsf : function
+            LSF model
         kwargs : keyword arguments
            Additional arguments passed to the `fit_lines` function.
 
@@ -285,6 +292,8 @@ class Platefit:
             input spectrum 
         z : float
             reshift 
+        lsf : function
+            LSF model
         kwargs : keyword arguments
            Additional arguments passed to the `fit_lines` function.
 
@@ -388,10 +397,6 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
       redshift (in vacuum)
     fit_all : bool
       If True, fit all lines except Lya together with the same velocity and velocity dispersion (default False)
-    bootstrap : bool
-      if True use bootsrap to estimate errors, default False.
-    n_cpu : int
-      run bootstrap in parallel over n_cpu (default 1)
     ziter : bool
       if True, a first emission line fit is performed to refine the redshift before a new continuum subtraction
       and a complete line fit is performed (to save computation time, eemce option is disactivated for the first fit),
@@ -405,18 +410,18 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
        is a replacement of the MPDAF line list table (see `Linefit.fit_lines` for more info)
     major_lines : bool
        if true, use only major lines as defined in MPDAF line list (default False).
-    fitabs : boll
+    fitabs : bool
        if True, fit also absorption lines after the emission line fit
     vdisp : float
-       velocity dispersion in km/s (default 80 km/s).
+       fixed velocity dispersion in km/s (default 80 km/s) used in the continuum fit.
     use_line_ratios : bool
        if True, use constrain line ratios in fit (default False)
     find_lya_vel_offset : bool
        if True, perform an initial search for the lya velocity offset [deactivated for dble lya fit]
     dble_lyafit : bool
         if True, use a double asymetric gaussian model for the lya line fit    
-    lsf : bool
-       if True, use LSF model to take into account the instrumental LSF (default True).
+    lsf : function
+       LSF model to take into account the instrumental LSF (default to muse_lsf).
     eqw : bool
        if True compute equivalent widths (default True).
     trimm_spec : bool
@@ -436,12 +441,6 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
         - gamma_2lya2 : (min,init,max), bounds and init value for lya right line skewness parameter, default (0,2,10)
         - sep_2lya : (min,init,max), bounds and init value for the 2 peak lya line separation (rest frame, km/s), default (80,500,1000)
         - windmax : float, maximum half size window in A to find peak values around initial wavelength value (default 10)
-        - xtol : float, relative error in the solution for the leastq fitting (default 1.e-4)
-        - ftol : float, relative error in the sum of square for the leastsq fitting (default 1.e-6)
-        - maxfev : int, max number of iterations by parameter for the leastsq fitting (default 50)
-        - nbootstrap : int, number of sample in bootstrap (default 200)
-        - seed : None or int, random number seed in bootstrap (default None)
-        - showprogress : bool, if True display progress bar during bootstrap (default True)
         - nstd_relsize : float, relative size (wrt to FWHM) of the wavelength window used for CHI2 line estimation (used in bootstrap only), default: 3.0
         - minsnr : float, minimum SNR to display line ID in plots (default 3.0)
         - line_ratios : list of tuples, list of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]
@@ -529,7 +528,9 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
       - NL: number of fitted lines
       - NL_CLIPPED: number of lines with SNR>SNR_MIN
       - NFEV: the number of function evaluation
-      - RCHI2: the reduced Chi2 of the family lines fit        
+      - RCHI2: the reduced Chi2 of the family lines fit 
+      - METHOD: minimization method
+      - STATUS: return status from minimization
 
     """
     logger = logging.getLogger(__name__)

@@ -1624,10 +1624,9 @@ def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=T
     
     
 def fit_abs(wave, data, std, redshift, *, unit_wave=None,
-            unit_data=None, vac=False, lines=None, bootstrap=False,
-            n_cpu=1,
+            unit_data=None, vac=False, lines=None, 
             lsf=None, trimm_spec=True,
-            boot_kws={}, fit_lws={}, minpars={}):    
+            fit_lws={}, minpars={}):    
     
     logger = logging.getLogger(__name__)
     

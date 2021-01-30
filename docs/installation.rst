@@ -14,7 +14,6 @@ The following dependencies are required:
 - python 3.6 or later
 - mpdaf, MUSE Python utilities
 - lmfit, the main fitting module
-- emcee, the MCMC module
 
 .. warning::
 

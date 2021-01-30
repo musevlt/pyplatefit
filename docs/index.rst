@@ -11,7 +11,8 @@ Compared to the original IDL version, the python routine offer the following
 improvements:
 
   - Asymmetric gaussian single and double fit for the lyman-alpha line
-  - Error computation using bootstrap
+  - Separate fit for resonant lines 
+  - Allow various minimization algorithms
   - Improved Equivalent width estimate
   - Flexibility of a python code
   
@@ -19,14 +20,7 @@ The continuum fitting code has been developed by Madusha Gunawardhana
 and the original line fitting code was developed by Yannick Roehlly. 
 Jarle Brinchmann provide critical help in the validation process and explanation
 of the original IDL code.
-The final code is developed and maintain by Roland Bacon. 
-
-.. note::  
-
-   New: The MCMC method to estimate errors has been replaced by bootstraping. 
-   Absorption line fitting. New indicator to estimate line fit goodness.
-
-
+The final code is developed and maintained by Roland Bacon. 
    
 
 .. toctree::
