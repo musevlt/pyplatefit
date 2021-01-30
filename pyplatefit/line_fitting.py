@@ -412,10 +412,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     doublet fluxes and discriminate between single lines and doublets  in
     MUSE-UDF, we used:
 
-        line_ratios = [
-            ("CIII1907", "CIII1909", 0.6, 1.2),
-            ("OII3726", "OII3729", 1.0, 2.0)
-        ]
+        line_ratios = [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]
 
     That stands for:
 
@@ -462,6 +459,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
       - CONT: the continuum mean value in rest frame
       - CONT_ERR: the error in rest frame continuum
     
+    
     The redshift table is saved in the table ztable
     The columns are:
     
@@ -481,6 +479,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
       - NL_CLIPPED: number of lines with SNR>SNR_MIN
       - NFEV: the number of function evaluation
       - RCHI2: the reduced Chi2 of the family lines fit    
+  
   
     Parameters
     ----------
@@ -559,11 +558,13 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
             - {family}_FIT_LSQ: LSQ fit of the given family
             
  
+
     Raises
     ------
     NoLineError: 
         when none of the fitted line can be on the spectrum at the
         given redshift.
+    
         
     """
     logger = logging.getLogger(__name__)
