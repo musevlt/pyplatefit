@@ -1,5 +1,17 @@
 Changelog
 =========
+v0.7 (XX/XX/2021)
+-----------------
+
+New features
+^^^^^^^^^^^^
+
+Breaking Changes
+^^^^^^^^^^^^^^^^
+
+Bug fixes
+^^^^^^^^^
+- fix a bug with masked data
 
 v0.6 (30/01/2021)
 -----------------

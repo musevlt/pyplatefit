@@ -602,7 +602,7 @@ def prepare_fit_data(wave, data, std, redshift, vac,
     if np.sum(mask) > 0:
         logger.debug('Masked %d points with std <= 0', np.sum(mask))
         wave_rest, data_rest, std_rest = wave_rest[~mask], data_rest[~mask], std_rest[~mask] 
-        excluded_lbrange = [wave[mask].min(),wave[mask].max()]
+        excluded_lbrange = find_excluded_lbrange(wave, mask)        
         wave, data, std = wave[~mask], data[~mask], std[~mask] 
         
         
@@ -1664,7 +1664,7 @@ def prepare_absfit_data(wave, data, std, redshift, vac,
     if np.sum(mask) > 0:
         logger.debug('Masked %d points with std <= 0', np.sum(mask))
         wave_rest, data_rest, std_rest = wave_rest[~mask], data_rest[~mask], std_rest[~mask] 
-        excluded_lbrange = [wave[mask].min(),wave[mask].max()]
+        excluded_lbrange = find_excluded_lbrange(wave, mask)
         wave, data, std = wave[~mask], data[~mask], std[~mask]         
         
     # Fitting only some lines from reference library.
@@ -1772,3 +1772,16 @@ def get_cont(spec, z, deg, maxiter, width):
             sp.mask_region(lmin=line-width, lmax=line+width)   
     spcont = sp.poly_spec(deg, maxiter=maxiter)
     return spcont
+
+#from operator import itemgetter
+#from itertools import groupby
+import more_itertools as mit
+
+def find_excluded_lbrange(wave, mask, minwave=3):
+    data = np.arange(len(wave))[mask].tolist()
+    excluded = []
+    for group in mit.consecutive_groups(data):
+        group = list(group)
+        if len(group) > minwave:
+            excluded.append([wave[group[0]], wave[group[-1]]])        
+    return excluded

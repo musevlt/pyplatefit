@@ -43,5 +43,7 @@ def test_get_lines():
     assert len(tab) == 18
     tab = get_lines(lbrange=[4750,9350], z=0.5, emiline=True, exlbrange=[5800,6000])
     assert len(tab) == 13
+    tab = get_lines(lbrange=[4750,9350], z=0.5, emiline=True, exlbrange=np.array([[5800,6000],[7000,7500]]))
+    assert len(tab) == 11    
  
     

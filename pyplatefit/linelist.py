@@ -58,7 +58,7 @@ def get_lines(iden=None, orig=False,
     lbrange : array-like
         wavelength range ex [4750,9350] default None
     exlbrange : array-like
-        wavelength range to exclude in observed frame (ex for AO spectra)
+        wavelength ranges to exclude in observed frame (ex for AO spectra), ex [5800,6000] or [[5000,5200],[6000,6500]]
     user_linetable : astropy Table
         user lines table, if None the default table is used
     margin : float
@@ -114,10 +114,12 @@ def get_lines(iden=None, orig=False,
         else:
             lines = lines[(lines['LBDA_OBS'] - margin >= lbrange[0]) & (lines['LBDA_OBS'] - margin <= lbrange[1])]        
     if exlbrange is not None:
-        if restframe:
-            lines = lines[(lines['LBDA_REST']*(1+z) < exlbrange[0]) | (lines['LBDA_REST']*(1+z) > exlbrange[1])]
-        else:
-            lines = lines[(lines['LBDA_OBS']  < exlbrange[0]) | (lines['LBDA_OBS']  > exlbrange[1])]      
+        exlbs = exlbrange if any(isinstance(el, (list,np.ndarray)) for el in exlbrange) else [exlbrange]           
+        for exlb in exlbs:
+            if restframe:
+                lines = lines[(lines['LBDA_REST']*(1+z) < exlb[0]) | (lines['LBDA_REST']*(1+z) > exlb[1])]
+            else:
+                lines = lines[(lines['LBDA_OBS']  < exlb[0]) | (lines['LBDA_OBS']  > exlb[1])]      
             
     return lines
     
