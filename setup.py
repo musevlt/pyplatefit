@@ -8,7 +8,7 @@ nnls_sources = ['mnbrak.f90', 'nnls_burst.f90', 'dbrent.f90',
 ext = Extension('pyplatefit.nnls_burst',
                 [os.path.join('pyNNLS', f) for f in nnls_sources])
 
-install_requires = ['numpy', 'astropy', 'scipy',
+install_requires = ['numpy', 'astropy', 'scipy', 'numdifftools',
                     'lmfit', 'mpdaf', 'more-itertools']
 
 setup(
