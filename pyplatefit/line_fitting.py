@@ -30,11 +30,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 import logging
-from collections import OrderedDict
 import os
 
-from joblib import delayed, Parallel
-
+import more_itertools as mit
 from astropy import constants
 from astropy import units as u
 from astropy.table import Table
@@ -44,15 +42,12 @@ from lmfit.parameter import Parameters
 from lmfit import Minimizer
 import numpy as np
 from scipy.special import erf
-from scipy.signal import argrelmin
-from numpy.random import normal, seed
 from logging import getLogger
 from matplotlib import transforms 
-from astropy.stats import sigma_clipped_stats
 
 from .linelist import get_lines
 from mpdaf.obj.spectrum import vactoair, airtovac
-from mpdaf.tools import progressbar
+
 
 
 import warnings
@@ -76,7 +71,6 @@ MARGIN_EMLINES = 0 # margin in pixel for emission line selection wrt to the spec
 NSTD_RELSIZE = 3.0 # window size relative to FWHM for computation of NSTD
 MAXFEV = 100 # maximum iteration by parameter for leastsq
 
-family_names = ['Abs','balmer','forbidden','resonnant']
 
 __all__ = ('Linefit', 'fit_lines')
 
@@ -1773,9 +1767,6 @@ def get_cont(spec, z, deg, maxiter, width):
     spcont = sp.poly_spec(deg, maxiter=maxiter)
     return spcont
 
-#from operator import itemgetter
-#from itertools import groupby
-import more_itertools as mit
 
 def find_excluded_lbrange(wave, mask, minwave=3):
     data = np.arange(len(wave))[mask].tolist()

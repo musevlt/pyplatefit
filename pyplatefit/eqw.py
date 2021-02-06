@@ -5,7 +5,7 @@ from astropy.stats import sigma_clipped_stats
 from astropy.table import MaskedColumn
 from astropy import units as u
 from astropy import constants
-from mpdaf.obj.spectrum import vactoair, airtovac
+
 
 C = constants.c.to(u.km / u.s).value
 

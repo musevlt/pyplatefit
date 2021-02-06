@@ -1,10 +1,9 @@
 import logging
 import os
 from astropy.table import vstack, Column, MaskedColumn
-from mpdaf.obj import Spectrum
-from mpdaf.tools import progressbar
 from matplotlib import transforms
 import numpy as np
+from mpdaf.obj import Spectrum
 
 from .cont_fitting import Contfit
 from .eqw import EquivalentWidth
