@@ -20,7 +20,7 @@ setup(
     setup_requires=['setuptools_scm'],
     packages=find_packages(),
     package_data={
-        'pyplatefit': ['BC03/bc_models_subset_cb08_miles_v1_bursts.fit']
+        'pyplatefit': ['BC03/*', 'refdata/lines_table_platefit.fits']
     },
     zip_safe=False,
     include_package_data=True,
