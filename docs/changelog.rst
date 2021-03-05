@@ -11,7 +11,7 @@ Breaking Changes
 
 Bug fixes
 ^^^^^^^^^
-- fix a bug with masked data
+- fix two bugs with masked data
 
 v0.6 (30/01/2021)
 -----------------
