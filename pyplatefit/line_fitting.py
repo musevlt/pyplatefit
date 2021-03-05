@@ -595,9 +595,10 @@ def prepare_fit_data(wave, data, std, redshift, vac,
     excluded_lbrange = None
     if np.sum(mask) > 0:
         logger.debug('Masked %d points with std <= 0', np.sum(mask))
-        wave_rest, data_rest, std_rest = wave_rest[~mask], data_rest[~mask], std_rest[~mask] 
-        excluded_lbrange = find_excluded_lbrange(wave, mask)        
+        wave_rest, data_rest, std_rest = wave_rest[~mask], data_rest[~mask], std_rest[~mask]               
         wave, data, std = wave[~mask], data[~mask], std[~mask] 
+        if np.sum(mask) > 1:
+            excluded_lbrange = find_excluded_lbrange(wave, mask) 
         
         
     # Fitting only some lines from reference library.
