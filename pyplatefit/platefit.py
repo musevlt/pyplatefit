@@ -195,10 +195,9 @@ class Platefit:
             else:
                 resfit['spec_fit'] = resfit['line_fit']
         if fitabs:
-            if fitcont or fitlines:
-                resfit['spec_fit'] += resabs['abs_line']
-            else:
-                resfit['spec_fit'] = resabs['abs_line']
+            resfit['spec_fitp'] = resabs['abs_fit']
+            if fitlines:
+                resfit['spec_fitp'] += resfit['line_fit']
         if fitabs:
             resfit['abs_cont'] = resabs['abs_cont']
             resfit['abs_line'] = resabs['abs_line']
@@ -542,7 +541,7 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
                  fitabs=fitabs, major_lines=major_lines)
     return res   
                                        
-def plot_fit(ax, result, line_only=False, abs_line=False,
+def plot_fit(ax, result, line_only=False, abs_line=False, pcont=False,
              line=None, start=False, filterspec=0, 
              margin=50, legend=True, iden=True, label=True, minsnr=0, 
              infoline=None, infoz=None,
@@ -560,6 +559,8 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
         plot the continuum subtracted spectrum and its fit
     abs_line : bool
         plot the absorption lines and continuum fit
+    pcont : bool
+        plot the polynomial and absorption line fit
     line : str
         name of the line to zoom on (if None display all the spectrum)
     start : bool
@@ -634,18 +635,33 @@ def plot_fit(ax, result, line_only=False, abs_line=False,
         # get and truncate spectra
         spraw = result['spec']
         if filterspec > 0:
-            spraw = spraw.filter(width=filterspec)          
-        spcont = result['cont_spec']
-        spfit = result['spec_fit']
+            spraw = spraw.filter(width=filterspec)  
+        try:
+            spcont = result['cont_spec']
+        except:
+            spcont = 0.0*spraw 
+        if pcont:
+            spfit = result['spec_fitp']
+            spcont = result['abs_cont']
+            labcont = 'poly cont'
+        else:
+            spfit = result['spec_fit']
+            if 'cont_spec' in result:
+                spcont = result['cont_spec']
+            else:
+                spcont = None
+            labcont = 'model cont'
         if line is not None:
             spraw = truncate_spec(spraw, line, lines, margin)
-            spcont = truncate_spec(spcont, line, lines, margin)
+            if spcont is not None:
+                spcont = truncate_spec(spcont, line, lines, margin)
             spfit = truncate_spec(spfit, line, lines, margin)
         # plot spectra
         rawlabel = f'data (filtered {filterspec})' if filterspec > 0 else 'data'
         spraw.plot(ax=ax, color='k', label=rawlabel)
         spfit.plot(ax=ax, color='r', drawstyle='default', label='fit')
-        spcont.plot(ax=ax, color='b', drawstyle='default', label='cont fit') 
+        if spcont is not None:
+            spcont.plot(ax=ax, color='b', drawstyle='default', label=labcont) 
         
     # display legend
     if legend:
