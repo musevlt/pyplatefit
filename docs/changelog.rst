@@ -5,6 +5,7 @@ v0.7 (XX/XX/2021)
 
 New features
 ^^^^^^^^^^^^
+- change default gamma init value to 2
 
 Breaking Changes
 ^^^^^^^^^^^^^^^^

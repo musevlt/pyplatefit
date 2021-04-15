@@ -64,7 +64,7 @@ SQRT2PI = np.sqrt(2*np.pi)
 VEL_MIN, VEL_INIT, VEL_MAX = -500, 0, 500  # Velocity
 VD_MIN, VD_INIT, VD_MAX = 10, 50, 300  # Velocity dispersion
 VD_MIN_LYA, VD_INIT_LYA, VD_MAX_LYA = 50,200,700  # Maximum velocity dispersion for Lyman α
-GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -1, 0, 10  # γ parameter for Lyman α
+GAMMA_MIN, GAMMA_INIT, GAMMA_MAX = -1, 2, 10  # γ parameter for Lyman α
 MIN_SNR = 3.0 # Minimum SNR for clipping
 WINDOW_MAX = 30 # search radius in A for peak around starting wavelength
 MARGIN_EMLINES = 0 # margin in pixel for emission line selection wrt to the spectrum edge
@@ -88,7 +88,7 @@ class Linefit:
     def __init__(self, vel=(-500,0,500), vdisp=(5,50,300), 
                  velabs=(-500,0,500), vdispabs=(5,50,300),
                  polydegabs=12, polyiterabs=3, polywmask=3.0,
-                 vdisp_lya=(50,150,700), gamma_lya=(-1,0,10), 
+                 vdisp_lya=(50,150,700), gamma_lya=(-1,2,10), 
                  windmax=10, minsnr=3.0,
                  nstd_relsize=3.0,
                  gamma_2lya1 = (-10,-2,0), gamma_2lya2 = (0,2,10),
@@ -114,7 +114,7 @@ class Linefit:
         vdisp_lya : tuple of float
            Minimum, init and maximum values of Lya rest frame velocity dispersion in km/s (default: 50,150,700).
         gamma_lya : tuple of floats
-          Minimum, init and maximum values of the skeness parameter for the asymetric gaussain fit (default: -1,0,10).
+          Minimum, init and maximum values of the skeness parameter for the asymetric gaussain fit (default: -1,2,10).
         gamma_2lya1 : tuple of floats
           Minimum, init and maximum values of the skeness parameter for the left component of the double asymetric gaussain fit (default: -10,-2,0).
         gamma_2lya2 : tuple of floats
