@@ -12,6 +12,7 @@ Breaking Changes
 Bug fixes
 ^^^^^^^^^
 - fix two bugs with masked data
+- update SNR estimation for blended lines, now use sqrt(snr**2)
 
 v0.6 (30/01/2021)
 -----------------

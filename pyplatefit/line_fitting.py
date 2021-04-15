@@ -990,10 +990,11 @@ def add_blend_to_table(tablines):
             d['DNAME'] = 'None'
         else:
             d['DNAME'] = t['DNAME'][0]
-        # FLUX
+        # FLUX 
         d['FLUX'] = np.sum(stab['FLUX'])
-        d['FLUX_ERR'] = np.sqrt(np.sum(stab['FLUX_ERR']**2))
-        d['SNR'] = np.abs(d['FLUX'])/d['FLUX_ERR'] if d['FLUX_ERR'] > 0 else 0
+        # we compute an estimate of SNR by sq root of sum of SNR**2 
+        d['SNR'] = np.sqrt(np.sum(stab['SNR']**2))
+        d['FLUX_ERR'] = np.abs(d['FLUX']/d['SNR']) 
         # VDISP, FWHM
         d['VDISP'] = np.average(stab['VDISP'])
         d['VDISP_ERR'] = np.average(stab['VDISP_ERR'])
