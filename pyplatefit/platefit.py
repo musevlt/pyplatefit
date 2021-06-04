@@ -1,6 +1,6 @@
 import logging
 import os
-from astropy.table import vstack, Column, MaskedColumn
+from astropy.table import Table, vstack, Column, MaskedColumn
 from matplotlib import transforms
 import numpy as np
 from mpdaf.obj import Spectrum
@@ -26,6 +26,7 @@ class Platefit:
     """
 
     def __init__(self, contpars={}, linepars={}, eqwpars={}, 
+                 mcmcpars = dict(steps=5000, nwalkers=0),
                  minpars = dict(method='least_square', xtol=1.e-3)):
         """Initialise a Platefit object
         
@@ -39,6 +40,9 @@ class Platefit:
           
         minpars: dictionary
           minimization parameters to be passed to `Linefit` constructor
+          
+        mcmcpars: dictionary
+          EMCEE minimization parameters to be passed to `Linefit` constructor
                
         eqwpars: dictionary
           input parameters to be passed to `EquivalentWidth` constructor
@@ -47,7 +51,7 @@ class Platefit:
         """
         self.logger = logging.getLogger(__name__)
         self.cont = Contfit(**contpars)
-        self.line = Linefit(**linepars, minpars=minpars)
+        self.line = Linefit(**linepars, minpars=minpars, mcmcpars=mcmcpars)
         self.eqw = EquivalentWidth(**eqwpars)
 
     def fit(self, spec, z, ziter=False, fitcont=True, fitlines=True, fitabs=False, eqw=True,
@@ -382,7 +386,9 @@ class Platefit:
 
 def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, lines=None,
              major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=False, dble_lyafit=False,
+             mcmc_lya=False, mcmc_all=False,
              lsf=muse_lsf, eqw=True, trimm_spec=True, contpars={}, linepars={},
+             mcmcpars=dict(steps=5000, nwalkers=0),
              minpars=dict(method='least_square', xtol=1.e-3)):
     """ 
     perform platefit cont and line fitting on a spectra
@@ -417,7 +423,11 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
     find_lya_vel_offset : bool
        if True, perform an initial search for the lya velocity offset [deactivated for dble lya fit]
     dble_lyafit : bool
-        if True, use a double asymetric gaussian model for the lya line fit    
+        if True, use a double asymetric gaussian model for the lya line fit
+    mcmc_lya : bool
+        if True, perform an MCMC LYALPHA fit after the first fit (default False)
+    mcmc_all : bool
+        if True, perform an MCMC fit after the first fit for all lines (default False)
     lsf : function
        LSF model to take into account the instrumental LSF (default to muse_lsf).
     eqw : bool
@@ -442,6 +452,7 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
         - nstd_relsize : float, relative size (wrt to FWHM) of the wavelength window used for CHI2 line estimation (used in bootstrap only), default: 3.0
         - minsnr : float, minimum SNR to display line ID in plots (default 3.0)
         - line_ratios : list of tuples, list of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]
+   
 
     minpars : dictionary
       Input parameters to pass to minimize (lmfit) exemple:
@@ -449,6 +460,11 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
       dict(method='least_square', xtol=1.e-3) [default]
       see https://docs.scipy.org/doc/scipy/reference/optimize.html for detailed info
       optional parameters for the given method,
+      
+    mcmcpars : dictionary
+      Input parameters to pass to `Linefit` 
+        - steps : (default 5000)
+        - nwalkers : (default 0 = 25*npars)
         
     Returns
     -------
@@ -534,10 +550,11 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
     logger = logging.getLogger(__name__)
     if isinstance(spec, str):
         spec = Spectrum(spec)    
-    pl = Platefit(contpars=contpars, linepars=linepars, minpars=minpars)
+    pl = Platefit(contpars=contpars, linepars=linepars, minpars=minpars, mcmcpars=mcmcpars)
     res = pl.fit(spec, z, fit_all=fit_all, ziter=ziter, fitcont=fitcont, fitlines=fitlines,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,
                  dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec,
+                 mcmc_lya=mcmc_lya, mcmc_all=mcmc_all,
                  fitabs=fitabs, major_lines=major_lines)
     return res   
                                        
@@ -733,6 +750,37 @@ def plot_fit(ax, result, line_only=False, abs_line=False, pcont=False,
                     y -= dy            
             
 
+def print_res(res, lines):
+    res0 = res['dline']
+    tab = Table(names=['Name','Init','Min_bound','Max_bound','Value','Median','Std','Init_Std','Min_p99','Min_p95','Min_p68','Max_p68','Max_p95','Max_p99'],
+                dtype=['S40']+13*['f4'], masked=True)
+    for c in tab.columns:
+        if c == 'Name':
+            continue
+        tab[c].format = '.3f'
+    for line in lines:
+        found = False
+        for fam,par in res0.items():
+            if fam[0:5] != 'lmfit':
+                continue
+            for key,val in par.params.items():
+                if line not in key:
+                    continue
+                found = True
+                break
+            if found:
+                break
+        if found:
+            for name,p in par.params.items():
+                if p.vary:
+                    tab.add_row(dict(Name=name, Init=p.init_value, Value=p.value, Median=p.median_value,
+                                     Std=p.stderr, Init_Std=p.init_stderr,
+                                     Min_bound=p.min, Max_bound=p.max,
+                                     Min_p99=p.min_p99, Min_p95=p.min_p95, Min_p68=p.min_p68,
+                                     Max_p99=p.max_p99, Max_p95=p.max_p95, Max_p68=p.max_p68))
+                else:
+                    tab.add_row(dict(Name=name, Init=p.init_value))
+    return(tab)
                 
                 
 def truncate_spec(spec, line, lines, margin):

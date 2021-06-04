@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import logging
 import os
 
+import copy
 import more_itertools as mit
 from astropy import constants
 from astropy import units as u
@@ -98,6 +99,7 @@ class Linefit:
                     ("OII3726", "OII3729", 0.3, 1.5)
                     ],
                  minpars = dict(method='least_square', xtol=1.e-3),
+                 mcmcpars = dict(steps=5000, nwalkers=0)
                  ):
         """Initialize line fit parameters and return a Linefit object
           
@@ -172,6 +174,7 @@ class Linefit:
         self.line_ratios = line_ratios # list of line ratios constraints
         
         self.minpars = minpars # dictionary with lmfit minimizatio method and optional parameters
+        self.mcmcpars = mcmcpars # dictionary with lmfit EMCEE minimization parameters
                          
         return
     
@@ -230,7 +233,7 @@ class Linefit:
                    
         res = fit_lines(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
-                        fit_lws=fit_lws, minpars=self.minpars, **kwargs)
+                        fit_lws=fit_lws, minpars=self.minpars, mcmcpars=self.mcmcpars, **kwargs)
         
         tab = res['table_spec' ]   
         # convert wave to observed frame and air
@@ -380,7 +383,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        major_lines=False, 
                        fit_all=False, lsf=None, trimm_spec=True,
                        find_lya_vel_offset=True, dble_lyafit=False,
-                       fit_lws=None, minpars={}):
+                       mcmc_lya=False, mcmc_all=False,
+                       fit_lws=None, minpars={}, mcmcpars={}):
     """Fit lines from a set of arrays (wave, data, std) using lmfit.
 
     This function uses lmfit to perform fit of know lines in
@@ -567,11 +571,11 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     pdata = prepare_fit_data(wave, data, std, redshift, vac, 
                              lines, major_lines, trimm_spec)
     logger.debug('Initialize fit')
-    init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws)
+    init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws, mcmc_lya, mcmc_all)
     result = init_res(pdata)
     
     # perform fit
-    reslsq = lmfit_fit(minpars, pdata, verbose=True)   
+    reslsq = lmfit_fit(minpars, mcmcpars, pdata, verbose=True)   
         
     resfit = save_fit_res(result, pdata, reslsq)
     
@@ -660,7 +664,7 @@ def prepare_fit_data(wave, data, std, redshift, vac,
     
     return pdata
 
-def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws):
+def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws, mcmc_lya, mcmc_all):
     
     logger = logging.getLogger(__name__)
     
@@ -721,8 +725,9 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                                      wave_rest, data_rest)
             family_lines = {'lyalpha': {'fun':'asymgauss', 'lines':['LYALPHA']}}
             maxfev = pmaxfev*3
+        emcee = True if (mcmc_lya or mcmc_all) else False
         pdata['par_lya'] = dict(params=params, sel_lines=sel_lines, 
-                                family_lines=family_lines, maxfev=maxfev)
+                                family_lines=family_lines, maxfev=maxfev, emcee=emcee)
         
     if fit_all:
         logger.debug('Init fit all lines together expect Lya')
@@ -738,8 +743,9 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                                  wave_rest, data_rest) 
             family_lines = {'all': {'fun':'gauss', 'lines':sel_lines['LINE']}}
             maxfev = pmaxfev*(2+len(sel_lines))
+            emcee = True if mcmc_all else False
             pdata['par_all'] = dict(params=params, sel_lines=sel_lines,
-                                family_lines=family_lines, maxfev=maxfev)
+                                family_lines=family_lines, maxfev=maxfev, emcee=emcee)
             
         return
     
@@ -759,8 +765,9 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                              wave_rest, data_rest)
         family_lines = {family: {'fun':'gauss', 'lines':sel_lines['LINE']}} 
         maxfev = pmaxfev*(2+len(sel_lines))
+        emcee = True if mcmc_all else False
         pdata[f'par_{family}'] = dict(params=params, sel_lines=sel_lines,
-                            family_lines=family_lines, maxfev=maxfev)        
+                            family_lines=family_lines, maxfev=maxfev, emcee=emcee)        
         
         
     # fitting of families with resonnant lines (except lya, already fitted)
@@ -782,8 +789,9 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                              wave_rest, data_rest)
         family_lines = {family: {'fun':'gauss', 'lines':sel_lines['LINE']}}
         maxfev = pmaxfev*(2+len(sel_lines))
+        emcee = True if mcmc_all else False
         pdata[f'par_{family}'] = dict(params=params, sel_lines=sel_lines,
-                            family_lines=family_lines, maxfev=maxfev)      
+                            family_lines=family_lines, maxfev=maxfev, emcee=emcee)      
 
     
 def init_res(pdata):
@@ -845,7 +853,7 @@ def init_res(pdata):
     return dict(tabspec=tabspec, tablines=tablines, ztab=ztab)
         
 
-def lmfit_fit(minpars, pdata, verbose=True):
+def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
     
     logger = logging.getLogger(__name__)
     
@@ -865,10 +873,47 @@ def lmfit_fit(minpars, pdata, verbose=True):
         if verbose:
             logger.debug('%s after %d iterations, reached minimum = %.3f and redChi2 = %.3f',result.message,
                          result.nfev,result.chisqr,result.redchi)
-            bestfit = model(result.params, pdata['wave_rest'], 
+        if pdata[par]['emcee']:
+            nwalkers = mcmcpars.pop('nwalkers',0)
+            emceepars = {**dict(method='emcee', is_weighted=True, progress=verbose), **mcmcpars}
+            emceepars['nwalkers'] = 25*result.nvarys if nwalkers==0 else nwalkers                         
+            if verbose:
+                logger.debug('Emcee fitting: %s',emceepars)                  
+            #result.params.add('__lnsigma', value=np.log(0.1), min=np.log(0.001), max=np.log(2))
+            #Minimizer.emcee(params=None, steps=1000, nwalkers=100, burn=0, thin=1, 
+                            #ntemps=1, pos=None, reuse_sampler=False, workers=1, 
+                            #float_behavior='posterior', is_weighted=True, 
+                            #seed=None, progress=True, run_mcmc_kwargs={})
+            minner = Minimizer(residuals, result.params, fcn_args=args) 
+            resmcmc = minner.minimize(**emceepars)
+            highest_prob = np.argmax(resmcmc.lnprob)
+            hp_loc = np.unravel_index(highest_prob, resmcmc.lnprob.shape)
+            mle_soln = resmcmc.chain[hp_loc]
+            i = 0
+            for p in resmcmc.params:
+                if resmcmc.params[p].vary:
+                    resmcmc.params[p].median_value = copy.copy(resmcmc.params[p].value)
+                    resmcmc.params[p].init_stderr = result.params[p].stderr
+                    resmcmc.params[p].value = mle_soln[i] 
+                    quantiles = np.percentile(resmcmc.flatchain[p],
+                                                  [100-68.27,68.27,100-95.45,95.45,100-99.73,99.73]) 
+                    resmcmc.params[p].min_p68 = quantiles[0]
+                    resmcmc.params[p].max_p68 = quantiles[1]
+                    resmcmc.params[p].min_p95 = quantiles[2]
+                    resmcmc.params[p].max_p95 = quantiles[3] 
+                    resmcmc.params[p].min_p99 = quantiles[4]
+                    resmcmc.params[p].max_p99 = quantiles[5]                                              
+                    i += 1
+            resmcmc.mean_acceptance_fraction = np.mean(resmcmc.acceptance_fraction)
+            if verbose:
+                logger.debug('after %d iterations, mean acceptance fraction = %.2f, reached minimum = %.3f and redChi2 = %.3f',
+                             resmcmc.nfev,resmcmc.mean_acceptance_fraction,resmcmc.chisqr,resmcmc.redchi)
+            reslsq[f'{par[4:]}'] = resmcmc
+        else:
+            reslsq[f'{par[4:]}'] = result
+        bestfit = model(reslsq[f'{par[4:]}'].params, pdata['wave_rest'], 
                             pdata[par]['family_lines'], pdata['redshift'], pdata['lsf']) 
-            result.bestfit = bestfit        
-        reslsq[f'{par[4:]}'] = result 
+        reslsq[f'{par[4:]}'].bestfit = bestfit         
         
         
     return reslsq
@@ -1622,7 +1667,7 @@ def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=T
     
 def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             unit_data=None, vac=False, lines=None, 
-            lsf=None, trimm_spec=True,
+            lsf=None, trimm_spec=True, mcmc_all=False,
             fit_lws={}, minpars={}):    
     
     logger = logging.getLogger(__name__)
@@ -1631,7 +1676,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     pdata = prepare_absfit_data(wave, data, std, redshift, vac,
                              lines, trimm_spec)
     logger.debug('Initialize fit')
-    init_absfit(pdata, lsf, fit_lws)
+    init_absfit(pdata, lsf, fit_lws, mcmc=mcmc_all)
     result = init_res(pdata)
 
     # perform lsq fit
@@ -1719,7 +1764,7 @@ def prepare_absfit_data(wave, data, std, redshift, vac,
     
     return pdata
 
-def init_absfit(pdata, lsf, fit_lws):
+def init_absfit(pdata, lsf, fit_lws, mcmc=False):
     
     logger = logging.getLogger(__name__)
     
@@ -1755,7 +1800,7 @@ def init_absfit(pdata, lsf, fit_lws):
     family_lines = {'abs': {'fun':'gauss', 'lines':lines['LINE']}}
     maxfev = pmaxfev*(2+len(lines))
     pdata['par_abs'] = dict(params=params, sel_lines=lines,
-                        family_lines=family_lines, maxfev=maxfev)
+                        family_lines=family_lines, maxfev=maxfev, emcee=mcmc)
     
 def get_cont(spec, z, deg, maxiter, width):
     sp = spec.copy()
