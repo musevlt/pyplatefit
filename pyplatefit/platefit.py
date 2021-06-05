@@ -26,7 +26,7 @@ class Platefit:
     """
 
     def __init__(self, contpars={}, linepars={}, eqwpars={}, 
-                 mcmcpars = dict(steps=5000, nwalkers=0),
+                 mcmcpars = dict(steps=0, nwalkers=0, save_proba=False),
                  minpars = dict(method='least_square', xtol=1.e-3)):
         """Initialise a Platefit object
         
@@ -388,7 +388,7 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
              major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=False, dble_lyafit=False,
              mcmc_lya=False, mcmc_all=False,
              lsf=muse_lsf, eqw=True, trimm_spec=True, contpars={}, linepars={},
-             mcmcpars=dict(steps=5000, nwalkers=0),
+             mcmcpars=dict(steps=0, nwalkers=0, save_proba=False),
              minpars=dict(method='least_square', xtol=1.e-3)):
     """ 
     perform platefit cont and line fitting on a spectra
@@ -463,8 +463,9 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
       
     mcmcpars : dictionary
       Input parameters to pass to `Linefit` 
-        - steps : (default 5000)
+        - steps : (default 0 (10000 except for dble_lya 15000))
         - nwalkers : (default 0 = 25*npars)
+        - save_proba: if True add P95 and P99 limits to fitted parameters (default False)
         
     Returns
     -------
@@ -752,8 +753,12 @@ def plot_fit(ax, result, line_only=False, abs_line=False, pcont=False,
 
 def print_res(res, lines):
     res0 = res['dline']
-    tab = Table(names=['Name','Init','Min_bound','Max_bound','Value','Median','Std','Init_Std','Min_p99','Min_p95','Min_p68','Max_p68','Max_p95','Max_p99'],
-                dtype=['S40']+13*['f4'], masked=True)
+    names = [['Name','name'],['Min_bound','min'],['Max_bound','max'],['Init_value','init_value'],
+             ['Value','value'],['Median','median_value'],['Init_Std','init_stderr'],['Std','stderr'],
+             ['Acor','acor'],['Acor_ratio','acor_ratio'],
+             ['Min_p99','min_p99'],['Min_p95','min_p95'],
+             ['Max_p95','max_p95'],['Max_p99','max_p99'],]
+    tab = Table(names=[e[0] for e in names], dtype=['S40']+13*['f4'], masked=True)
     for c in tab.columns:
         if c == 'Name':
             continue
@@ -772,14 +777,13 @@ def print_res(res, lines):
                 break
         if found:
             for name,p in par.params.items():
-                if p.vary:
-                    tab.add_row(dict(Name=name, Init=p.init_value, Value=p.value, Median=p.median_value,
-                                     Std=p.stderr, Init_Std=p.init_stderr,
-                                     Min_bound=p.min, Max_bound=p.max,
-                                     Min_p99=p.min_p99, Min_p95=p.min_p95, Min_p68=p.min_p68,
-                                     Max_p99=p.max_p99, Max_p95=p.max_p95, Max_p68=p.max_p68))
-                else:
-                    tab.add_row(dict(Name=name, Init=p.init_value))
+                d = dict(Name=name)
+                for col,key in names:
+                    if col == 'Name':
+                        continue
+                    if hasattr(p,key):
+                        d[col] = getattr(p, key)
+                tab.add_row(d)
     return(tab)
                 
                 
