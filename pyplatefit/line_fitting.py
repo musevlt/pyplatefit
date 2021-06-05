@@ -312,7 +312,7 @@ class Linefit:
                 lwargs.pop(key)
         res = fit_abs(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data,
-                        minpars=self.minpars,
+                        minpars=self.minpars, mcmcpars=self.mcmcpars,
                         **lwargs)          
         
         tab = res['table_spec' ]   
@@ -924,7 +924,7 @@ def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
             nwalkers = mcmcpars.get('nwalkers',0)
             steps = mcmcpars.get('steps',0)
             save_proba = mcmcpars.get('save_proba',False)
-            emceepars = {**dict(method='emcee', is_weighted=True, progress=verbose), **mcmcpars}
+            emceepars = {**dict(method='emcee', is_weighted=True), **mcmcpars}
             emceepars.pop('save_proba', 0)
             emceepars['nwalkers'] = 10*result.nvarys if nwalkers==0 else nwalkers
             if steps == 0:
@@ -1830,7 +1830,7 @@ def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=T
     
 def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             unit_data=None, vac=False, lines=None, 
-            lsf=None, trimm_spec=True, mcmc_all=False,
+            lsf=None, trimm_spec=True, mcmc_all=False, mcmc_lya=False,
             fit_lws={}, minpars={}, mcmcpars={}):    
     
     logger = logging.getLogger(__name__)
@@ -1843,7 +1843,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     result = init_res(pdata, mcmc_all, save_proba=mcmcpars.get('save_proba',False))
 
     # perform lsq fit
-    reslsq = lmfit_fit(minpars, pdata, verbose=True)       
+    reslsq = lmfit_fit(minpars, mcmcpars, pdata, verbose=True)       
         
     resfit = save_fit_res(result, pdata, reslsq)
     

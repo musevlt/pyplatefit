@@ -388,7 +388,7 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
              major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=False, dble_lyafit=False,
              mcmc_lya=False, mcmc_all=False,
              lsf=muse_lsf, eqw=True, trimm_spec=True, contpars={}, linepars={},
-             mcmcpars=dict(steps=0, nwalkers=0, save_proba=False),
+             mcmcpars=dict(steps=0, nwalkers=0, save_proba=False, progress=True),
              minpars=dict(method='least_square', xtol=1.e-3)):
     """ 
     perform platefit cont and line fitting on a spectra
