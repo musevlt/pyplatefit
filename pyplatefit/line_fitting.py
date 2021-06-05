@@ -877,9 +877,13 @@ def init_res(pdata, mcmc, save_proba=False):
     ztab.add_column(MaskedColumn(name='RCHI2', dtype=np.float, mask=True), index=14)
     ztab.add_column(MaskedColumn(name='METHOD', dtype='U25', mask=True))
     if mcmc:
-        ztab.add_column(MaskedColumn(name='RCHAIN', dtype=np.float, mask=True)) 
         ztab.add_column(MaskedColumn(name='NSTEPS', dtype=np.int, mask=True)) 
+        ztab.add_column(MaskedColumn(name='RCHAIN', dtype=np.float, mask=True)) 
+        ztab.add_column(MaskedColumn(name='NBAD', dtype=np.int, mask=True))
+        ztab.add_column(MaskedColumn(name='RCHAIN_CLIP', dtype=np.float, mask=True)) 
+        ztab.add_column(MaskedColumn(name='NBAD_CLIP', dtype=np.int, mask=True))        
         ztab['RCHAIN'].format = '.2f'
+        ztab['RCHAIN_CLIP'].format = '.2f'
     ztab['RCHI2'].format = '.2f'   
     ztab['Z'].format = '.5f'
     ztab['Z_ERR'].format = '.2e'
@@ -917,10 +921,11 @@ def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
                          result.nfev,result.chisqr,result.redchi)
         # MCMC 
         if pdata[par]['emcee']:
-            nwalkers = mcmcpars.pop('nwalkers',0)
-            steps = mcmcpars.pop('steps',0)
-            save_proba = mcmcpars.pop('save_proba',False)
+            nwalkers = mcmcpars.get('nwalkers',0)
+            steps = mcmcpars.get('steps',0)
+            save_proba = mcmcpars.get('save_proba',False)
             emceepars = {**dict(method='emcee', is_weighted=True, progress=verbose), **mcmcpars}
+            emceepars.pop('save_proba', 0)
             emceepars['nwalkers'] = 10*result.nvarys if nwalkers==0 else nwalkers
             if steps == 0:
                 emceepars['steps'] = 15000 if 'lyalpha_LYALPHA_dbleasymgauss_l0' in pdata[par]['params'].keys() else 10000
@@ -1472,10 +1477,24 @@ def add_result_to_ztab(reslsq, tablines, ztab, snr_min):
                      SNRSUM_CLIPPED = np.abs(np.sum(scat['FLUX']))/np.sqrt(np.sum(scat['FLUX_ERR']**2)) if len(scat) > 0 else 0,
                      NL=len(cat), NL_CLIPPED=len(scat), RCHI2=result.redchi, NFEV=result.nfev, 
                      STATUS=status, METHOD=result.method)  
-        if hasattr(result,'chain_size_ratio'):
-            d['RCHAIN'] = result.chain_size_ratio
-        if hasattr(result,'chain'): 
-            d['NSTEPS'] = result.chain.shape[0]
+            if hasattr(result,'chain_size_ratio'):
+                ncat = tablines[~tablines['ISBLEND'] & (tablines['FAMILY']==fam)]
+                cols = ['VEL_RTAU','VDISP_RTAU','FLUX_RTAU','SKEW_RTAU','SEP_RTAU']
+                ncols = [c for c in cols if (c in ncat.columns) and (np.sum(ncat[c]) > 0)]
+                rmin = np.array([min([r[c] for c in ncols]) for r in ncat])
+                d['RCHAIN'] = np.min(rmin)
+                d['NBAD'] = np.sum(rmin<1)
+                ksel = (ncat['SNR']>snr_min) & (np.abs(ncat['FLUX']) > 1.0)
+                if np.sum(ksel) == 0:
+                    d['RCHAIN_CLIP'] = 0
+                    d['NBAD_CLIP'] = 0
+                    d['STATUS'] = 0
+                else:
+                    d['RCHAIN_CLIP'] = np.min(rmin[ksel])
+                    d['NBAD_CLIP'] = np.sum(rmin[ksel]<1) 
+                    d['STATUS'] = 1 if d['NBAD_CLIP'] == 0 else 0
+            if hasattr(result,'chain'): 
+                d['NSTEPS'] = result.chain.shape[0]
         upsert_ztable(ztab, d, fam)
         
     ztab.sort('SNRSUM')
