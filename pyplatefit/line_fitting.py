@@ -1488,7 +1488,7 @@ def add_result_to_ztab(reslsq, tablines, ztab, snr_min):
                 if np.sum(ksel) == 0:
                     d['RCHAIN_CLIP'] = 0
                     d['NBAD_CLIP'] = 0
-                    d['STATUS'] = 0
+                    d['STATUS'] = 1 if d['NBAD'] == 0 else 0
                 else:
                     d['RCHAIN_CLIP'] = np.min(rmin[ksel])
                     d['NBAD_CLIP'] = np.sum(rmin[ksel]<1) 
