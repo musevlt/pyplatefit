@@ -10,7 +10,7 @@ from .eqw import EquivalentWidth
 from .line_fitting import Linefit, plotline
 
 
-__all__ = ('Platefit', 'fit_spec', 'plot_fit')
+__all__ = ('Platefit', 'fit_spec', 'plot_fit', 'print_res')
 
 def muse_lsf(wave):
     # from UDF paper
@@ -456,16 +456,19 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
 
     minpars : dictionary
       Input parameters to pass to minimize (lmfit) exemple:
-      dict(method='nelder', options=dict(xatol=1.e-3)) 
-      dict(method='least_square', xtol=1.e-3) [default]
-      see https://docs.scipy.org/doc/scipy/reference/optimize.html for detailed info
-      optional parameters for the given method,
+      
+        - dict(method='nelder', options=dict(xatol=1.e-3)) 
+        - dict(method='least_square', xtol=1.e-3) [default]
+        - see https://docs.scipy.org/doc/scipy/reference/optimize.html for detailed info
+          optional parameters for the given method,
       
     mcmcpars : dictionary
-      Input parameters to pass to `Linefit` 
-        - steps : (default 0 (10000 except for dble_lya 15000))
+      Input parameters to pass to emcee via minimize (lmfit)
+      
+        - steps : (default 0 = 10000 except for dble_lya 15000)
         - nwalkers : (default 0 = 25*npars)
         - save_proba: if True add P95 and P99 limits to fitted parameters (default False)
+        - progress : if True display progress bar (default True)
         
     Returns
     -------
@@ -494,6 +497,7 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
     
       - FAMILY: the line family name (eg balmer)
       - LINE: The name of the line
+      - ISBLEND: True if this line is a blend
       - LBDA_REST: The rest-frame position of the line in vacuum   
       - DNAME: The display name for the line (set to None for close doublets)
       - VEL: The velocity offset in km/s with respect to the initial redshift (rest frame)
@@ -524,6 +528,12 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
       - CONT_OBS: The continuum mean value in Observed frame
       - CONT: the continuum mean value in rest frame
       - CONT_ERR: the error in rest frame continuum
+      
+    When the options mcmc_lya or mcmc_all are active, additional columns are produced:
+     
+      - VEL_RTAU, VDISP_RTAU, FLUX_RTAU, SEP_RTAU, SKEW_RTAU: give the ratio of the mcmc chain length to 50 times the autocorrelation time
+      - par_MIN99, par_MIN95, par_MAX95, par_MAX99: give the 95 and 99% quantile of the estimated probability distribution,
+      with par = VEL, Z, VDISP, FLUX, SEP, SKEW. This is computed only if save_proba = True is set in the mcmcpars dictionary 
     
     The redshift table is saved in the table ztable
     The columns are:
@@ -544,8 +554,13 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
       - NL_CLIPPED: number of lines with SNR>SNR_MIN
       - NFEV: the number of function evaluation
       - RCHI2: the reduced Chi2 of the family lines fit 
-      - METHOD: minimization method
       - STATUS: return status from minimization
+      - METHOD: minimization method
+      - NSTEPS: length of the mcmc chain (mcmc only)
+      - RCHAIN: minimum value of the mcmc chain length divided by 50 times the autocorrelation time (mcmc only)
+      - NBAD: number of lines with a parameter RTAU < 1 (mcmc only)
+      - RCHAIN_CLIP: RCHAIN after clipping of lines with SNR < snr_min (mcmc only)
+      - NBAD_CLIP:  number of clipped lines with a parameter RTAU < 1 (mcmc only)
 
     """
     logger = logging.getLogger(__name__)
@@ -751,8 +766,38 @@ def plot_fit(ax, result, line_only=False, abs_line=False, pcont=False,
                     y -= dy            
             
 
-def print_res(res, lines):
-    res0 = res['dline']
+def print_res(result, lines):
+    """ 
+    print results obtained with `fit_spec`
+    
+    Parameters
+    ----------
+    result : dictionary 
+        result of `fit_spec`
+    lines : list
+        list of line names 
+        
+    Returns
+    -------
+    an astropy table with the following columns :
+    
+       - Name: parameter lmfit name 
+       - Min_bound: minimum bound
+       - Max_bound: maximum bound
+       - Init_value: initial value
+       - Value: bestfit value
+       - Median: median of the proba distribution (mcmc only)
+       - Init_Std: initial standard deviation (mcmc only)
+       - Std: standard deviation
+       - Acor: autocorrelation time (mcmc only)
+       - Acor_ratio: ratio of mcmc chain length to 50 times the autocorrelation time (mcmc only)
+       - Min_p99: value of the 1% quantile of the estimated probability distribution (mcmc only)
+       - Min_p95: value of the 5% quantile of the estimated probability distribution (mcmc only)
+       - Max_p95: value of the 95% quantile of the estimated probability distribution (mcmc only)
+       - Max_p99: value of the 99% quantile of the estimated probability distribution (mcmc only)
+
+    """
+    res0 = result['dline']
     names = [['Name','name'],['Min_bound','min'],['Max_bound','max'],['Init_value','init_value'],
              ['Value','value'],['Median','median_value'],['Init_Std','init_stderr'],['Std','stderr'],
              ['Acor','acor'],['Acor_ratio','acor_ratio'],
