@@ -116,8 +116,10 @@ class Platefit:
             resfit['iter_zinit'] = z
             rescont = self.fit_cont(spec, z, vdisp)
             linespec = rescont['line_spec'] 
-            # set parameters to speed the fit
+            # set parameters to speed the fit, do not perform mcmc 
             kwargs1 = kwargs.copy()
+            kwargs1['mcmc_lya'] = False
+            kwargs1['mcmc_all'] = False
             kwargs1['fit_all'] = True
             resline = self.fit_lines(linespec, z, lsf=lsf, **kwargs1)
             ztable = resline['ztable']
@@ -385,10 +387,11 @@ class Platefit:
 
 
 def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, lines=None,
-             major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=False, dble_lyafit=False,
-             mcmc_lya=False, mcmc_all=False,
+             major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, 
+             find_lya_vel_offset=False, dble_lyafit=False, mcmc_lya=False, mcmc_all=False,
              lsf=muse_lsf, eqw=True, trimm_spec=True, contpars={}, linepars={},
-             mcmcpars=dict(steps=0, nwalkers=0, save_proba=False, progress=True),
+             mcmcpars=dict(steps=0, nwalkers=0, save_proba=False, progress=True, 
+                           run_mcmc_kwargs = dict(skip_initial_state_check=False)),
              minpars=dict(method='least_square', xtol=1.e-3)):
     """ 
     perform platefit cont and line fitting on a spectra
