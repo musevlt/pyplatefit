@@ -32,6 +32,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import logging
 import os
 
+from astropy.utils.misc import silence
+
+
 import copy
 import more_itertools as mit
 from astropy import constants
@@ -58,9 +61,6 @@ warnings.filterwarnings("ignore", message="invalid value encountered in greater"
 warnings.filterwarnings("ignore", message="Initial state is not linearly independent and it will not allow a full exploration of parameter space")
 warnings.filterwarnings("ignore", message="invalid value encountered in double_scalars")
 warnings.filterwarnings("ignore", message="invalid value encountered in sqrt")
-#warnings.filterwarnings("ignore", message=".*chain is shorter")
-#import logging
-#logging.getLogger("emcee").setLevel(logging.CRITICAL)
 
 C = constants.c.to(u.km / u.s).value
 SQRT2PI = np.sqrt(2*np.pi)
@@ -937,9 +937,8 @@ def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
             if verbose:
                 logger.debug('Emcee fitting: %s',emceepars)                       
             # run EMCEE
-            with warnings.catch_warnings():
-                warnings.filterwarnings('ignore')
-                minner = Minimizer(residuals, result.params, fcn_args=args) 
+            minner = Minimizer(residuals, result.params, fcn_args=args) 
+            with silence():
                 resmcmc = minner.minimize(**emceepars)
             # Check if autocorr integ time has been successful
             if not hasattr(resmcmc,'acor'):
