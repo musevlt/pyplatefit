@@ -9,7 +9,8 @@ ext = Extension('pyplatefit.nnls_burst',
                 [os.path.join('pyNNLS', f) for f in nnls_sources])
 
 install_requires = ['numpy', 'astropy', 'scipy', 'numdifftools',
-                    'lmfit', 'mpdaf', 'more-itertools']
+                    'lmfit', 'mpdaf', 'more-itertools', 
+                    'emcee', 'pandas']
 
 setup(
     name='pyplatefit',

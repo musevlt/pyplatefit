@@ -32,6 +32,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import logging
 import os
 
+from astropy.utils.misc import silence
+
+
+import copy
 import more_itertools as mit
 from astropy import constants
 from astropy import units as u
@@ -44,6 +48,7 @@ import numpy as np
 from scipy.special import erf
 from logging import getLogger
 from matplotlib import transforms 
+import emcee
 
 from .linelist import get_lines
 from mpdaf.obj.spectrum import vactoair, airtovac
@@ -98,6 +103,7 @@ class Linefit:
                     ("OII3726", "OII3729", 0.3, 1.5)
                     ],
                  minpars = dict(method='least_square', xtol=1.e-3),
+                 mcmcpars = dict(steps=0, nwalkers=0, save_proba=False)
                  ):
         """Initialize line fit parameters and return a Linefit object
           
@@ -172,6 +178,7 @@ class Linefit:
         self.line_ratios = line_ratios # list of line ratios constraints
         
         self.minpars = minpars # dictionary with lmfit minimizatio method and optional parameters
+        self.mcmcpars = mcmcpars # dictionary with lmfit EMCEE minimization parameters
                          
         return
     
@@ -230,7 +237,7 @@ class Linefit:
                    
         res = fit_lines(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data, line_ratios=line_ratios,
-                        fit_lws=fit_lws, minpars=self.minpars, **kwargs)
+                        fit_lws=fit_lws, minpars=self.minpars, mcmcpars=self.mcmcpars, **kwargs)
         
         tab = res['table_spec' ]   
         # convert wave to observed frame and air
@@ -308,7 +315,7 @@ class Linefit:
                 lwargs.pop(key)
         res = fit_abs(wave=wave, data=data, std=std, redshift=z,
                         unit_wave=u.angstrom, unit_data=unit_data,
-                        minpars=self.minpars,
+                        minpars=self.minpars, mcmcpars=self.mcmcpars,
                         **lwargs)          
         
         tab = res['table_spec' ]   
@@ -380,7 +387,8 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
                        major_lines=False, 
                        fit_all=False, lsf=None, trimm_spec=True,
                        find_lya_vel_offset=True, dble_lyafit=False,
-                       fit_lws=None, minpars={}):
+                       mcmc_lya=False, mcmc_all=False,
+                       fit_lws=None, minpars={}, mcmcpars={}):
     """Fit lines from a set of arrays (wave, data, std) using lmfit.
 
     This function uses lmfit to perform fit of know lines in
@@ -567,11 +575,11 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     pdata = prepare_fit_data(wave, data, std, redshift, vac, 
                              lines, major_lines, trimm_spec)
     logger.debug('Initialize fit')
-    init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws)
-    result = init_res(pdata)
+    init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws, mcmc_lya, mcmc_all)
+    result = init_res(pdata, mcmc_lya or mcmc_all, save_proba=mcmcpars.get('save_proba',False))
     
     # perform fit
-    reslsq = lmfit_fit(minpars, pdata, verbose=True)   
+    reslsq = lmfit_fit(minpars, mcmcpars, pdata, verbose=True)   
         
     resfit = save_fit_res(result, pdata, reslsq)
     
@@ -660,7 +668,7 @@ def prepare_fit_data(wave, data, std, redshift, vac,
     
     return pdata
 
-def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws):
+def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios, fit_lws, mcmc_lya, mcmc_all):
     
     logger = logging.getLogger(__name__)
     
@@ -721,8 +729,9 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                                      wave_rest, data_rest)
             family_lines = {'lyalpha': {'fun':'asymgauss', 'lines':['LYALPHA']}}
             maxfev = pmaxfev*3
+        emcee = True if (mcmc_lya or mcmc_all) else False
         pdata['par_lya'] = dict(params=params, sel_lines=sel_lines, 
-                                family_lines=family_lines, maxfev=maxfev)
+                                family_lines=family_lines, maxfev=maxfev, emcee=emcee)
         
     if fit_all:
         logger.debug('Init fit all lines together expect Lya')
@@ -738,8 +747,9 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                                  wave_rest, data_rest) 
             family_lines = {'all': {'fun':'gauss', 'lines':sel_lines['LINE']}}
             maxfev = pmaxfev*(2+len(sel_lines))
+            emcee = True if mcmc_all else False
             pdata['par_all'] = dict(params=params, sel_lines=sel_lines,
-                                family_lines=family_lines, maxfev=maxfev)
+                                family_lines=family_lines, maxfev=maxfev, emcee=emcee)
             
         return
     
@@ -759,8 +769,9 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                              wave_rest, data_rest)
         family_lines = {family: {'fun':'gauss', 'lines':sel_lines['LINE']}} 
         maxfev = pmaxfev*(2+len(sel_lines))
+        emcee = True if mcmc_all else False
         pdata[f'par_{family}'] = dict(params=params, sel_lines=sel_lines,
-                            family_lines=family_lines, maxfev=maxfev)        
+                            family_lines=family_lines, maxfev=maxfev, emcee=emcee)        
         
         
     # fitting of families with resonnant lines (except lya, already fitted)
@@ -782,11 +793,12 @@ def init_fit(pdata, dble_lyafit, find_lya_vel_offset, lsf, fit_all, line_ratios,
                              wave_rest, data_rest)
         family_lines = {family: {'fun':'gauss', 'lines':sel_lines['LINE']}}
         maxfev = pmaxfev*(2+len(sel_lines))
+        emcee = True if mcmc_all else False
         pdata[f'par_{family}'] = dict(params=params, sel_lines=sel_lines,
-                            family_lines=family_lines, maxfev=maxfev)      
+                            family_lines=family_lines, maxfev=maxfev, emcee=emcee)      
 
     
-def init_res(pdata):
+def init_res(pdata, mcmc, save_proba=False):
     
     logger = logging.getLogger(__name__) 
     
@@ -794,28 +806,65 @@ def init_res(pdata):
     # set tablines for results by lines
     tablines = Table()
     colnames = ['LBDA_REST','VEL','VEL_ERR','Z','Z_ERR','Z_INIT','VDISP','VDISP_ERR',
-                    'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR','LBDA_OBS',
-                    'PEAK_OBS','LBDA_LEFT','LBDA_RIGHT','FWHM_OBS', 'NSTD', 
-                    'LBDA_LNSTD', 'LBDA_RNSTD'] 
+                    'FLUX','FLUX_ERR','SNR','SKEW','SKEW_ERR',
+                    'LBDA_OBS','PEAK_OBS','LBDA_LEFT','LBDA_RIGHT','FWHM_OBS','NSTD', 
+                    'LBDA_LNSTD','LBDA_RNSTD'] 
     for colname in colnames:
-        tablines.add_column(MaskedColumn(name=colname, dtype=np.float, mask=True))
+        tablines.add_column(MaskedColumn(name=colname, dtype=np.float, mask=True))    
+    if mcmc:
+        k = list(tablines.columns).index('VEL_ERR')
+        tablines.add_column(MaskedColumn(name='VEL_RTAU', dtype=np.float, mask=True), index=k+1)
+        k = list(tablines.columns).index('VDISP_ERR')
+        tablines.add_column(MaskedColumn(name='VDISP_RTAU', dtype=np.float, mask=True), index=k+1)
+        k = list(tablines.columns).index('FLUX_ERR')
+        tablines.add_column(MaskedColumn(name='FLUX_RTAU', dtype=np.float, mask=True), index=k+1)
+        k = list(tablines.columns).index('SKEW_ERR')
+        tablines.add_column(MaskedColumn(name='SKEW_RTAU', dtype=np.float, mask=True), index=k+1)
+        colnames += ['VEL_RTAU','VDISP_RTAU','FLUX_RTAU','SKEW_RTAU']
+        if save_proba:
+            for key in ['VEL','VDISP','FLUX','SKEW','Z']:
+                k = list(tablines.columns).index(key+'_ERR')
+                tablines.add_column(MaskedColumn(name=key+'_MAX99', dtype=np.float, mask=True), index=k+1)
+                tablines.add_column(MaskedColumn(name=key+'_MAX95', dtype=np.float, mask=True), index=k+1) 
+                tablines.add_column(MaskedColumn(name=key+'_MIN95', dtype=np.float, mask=True), index=k+1)
+                tablines.add_column(MaskedColumn(name=key+'_MIN99', dtype=np.float, mask=True), index=k+1) 
+                colnames += [key+'_MAX99', key+'_MAX95', key+'_MIN95', key+'_MIN99']
     tablines.add_column(MaskedColumn(name='BLEND', dtype=np.int, mask=True))
-    tablines.add_column(MaskedColumn(name='ISBLEND', dtype=np.bool, mask=True)) 
     tablines.add_column(MaskedColumn(name='FAMILY', dtype='U20', mask=True), index=0)
     tablines.add_column(MaskedColumn(name='LINE', dtype='U20', mask=True), index=1)
     tablines.add_column(MaskedColumn(name='DNAME', dtype='U20', mask=True), index=3)
+    k = list(tablines.columns).index('LINE')
+    tablines.add_column(MaskedColumn(name='ISBLEND', dtype=np.bool, mask=True), index=k+1)     
     if pdata['lsf'] is not None:
-        tablines.add_column(MaskedColumn(name='VDINST', dtype=np.float, mask=True), index=11)
+        k = list(tablines.columns).index('VDISP')
+        tablines.add_column(MaskedColumn(name='VDINST', dtype=np.float, mask=True), index=k)
         colnames.append('VDINST')
     if pdata['dble_lyafit']:
-        tablines.add_column(MaskedColumn(name='SEP', dtype=np.float, mask=True), index=11)
+        k = list(tablines.columns).index('VDISP')
+        tablines.add_column(MaskedColumn(name='SEP', dtype=np.float, mask=True), index=k)
         colnames.append('SEP') 
-        tablines.add_column(MaskedColumn(name='SEP_ERR', dtype=np.float, mask=True), index=12)
-        colnames.append('SEP_ERR') 
+        k = list(tablines.columns).index('VDISP')
+        tablines.add_column(MaskedColumn(name='SEP_ERR', dtype=np.float, mask=True), index=k)
+        colnames.append('SEP_ERR')
+        if mcmc:
+            k = list(tablines.columns).index('VDISP')
+            tablines.add_column(MaskedColumn(name='SEP_RTAU', dtype=np.float, mask=True), index=k)
+            colnames.append('SEP_RTAU') 
+            if save_proba:
+                for key in ['SEP']:
+                    k = list(tablines.columns).index(key+'_ERR')
+                    tablines.add_column(MaskedColumn(name=key+'_MAX99', dtype=np.float, mask=True), index=k+1)
+                    tablines.add_column(MaskedColumn(name=key+'_MAX95', dtype=np.float, mask=True), index=k+1) 
+                    tablines.add_column(MaskedColumn(name=key+'_MIN95', dtype=np.float, mask=True), index=k+1)
+                    tablines.add_column(MaskedColumn(name=key+'_MIN99', dtype=np.float, mask=True), index=k+1) 
+                    colnames += [key+'_MAX99', key+'_MAX95', key+'_MIN99', key+'_MIN95']            
     for colname in colnames:
         tablines[colname].format = '.2f'
     tablines['Z'].format = '.5f'
     tablines['Z_INIT'].format = '.5f'
+    if 'Z_MAX99' in tablines.columns:
+        for c in ['Z_MAX99','Z_MAX95','Z_MIN95','Z_MIN99']:
+            tablines[c].format = '.5f'
     tablines['Z_ERR'].format = '.2e'
     #set ztable for global results by family 
     ztab = Table()
@@ -830,7 +879,15 @@ def init_res(pdata):
             ztab.add_column(MaskedColumn(name=colname, dtype=np.int, mask=True)) 
     ztab.add_column(MaskedColumn(name='RCHI2', dtype=np.float, mask=True), index=14)
     ztab.add_column(MaskedColumn(name='METHOD', dtype='U25', mask=True))
-    ztab['RCHI2'].format = '.2f'
+    if mcmc:
+        ztab.add_column(MaskedColumn(name='NSTEPS', dtype=np.int, mask=True)) 
+        ztab.add_column(MaskedColumn(name='RCHAIN', dtype=np.float, mask=True)) 
+        ztab.add_column(MaskedColumn(name='NBAD', dtype=np.int, mask=True))
+        ztab.add_column(MaskedColumn(name='RCHAIN_CLIP', dtype=np.float, mask=True)) 
+        ztab.add_column(MaskedColumn(name='NBAD_CLIP', dtype=np.int, mask=True))        
+        ztab['RCHAIN'].format = '.2f'
+        ztab['RCHAIN_CLIP'].format = '.2f'
+    ztab['RCHI2'].format = '.2f'   
     ztab['Z'].format = '.5f'
     ztab['Z_ERR'].format = '.2e'
     ztab['Z_INIT'].format = '.5f'
@@ -845,7 +902,7 @@ def init_res(pdata):
     return dict(tabspec=tabspec, tablines=tablines, ztab=ztab)
         
 
-def lmfit_fit(minpars, pdata, verbose=True):
+def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
     
     logger = logging.getLogger(__name__)
     
@@ -865,10 +922,60 @@ def lmfit_fit(minpars, pdata, verbose=True):
         if verbose:
             logger.debug('%s after %d iterations, reached minimum = %.3f and redChi2 = %.3f',result.message,
                          result.nfev,result.chisqr,result.redchi)
-            bestfit = model(result.params, pdata['wave_rest'], 
+        # MCMC 
+        if pdata[par]['emcee']:
+            nwalkers = mcmcpars.get('nwalkers',0)
+            steps = mcmcpars.get('steps',0)
+            save_proba = mcmcpars.get('save_proba',False)
+            emceepars = {**dict(method='emcee', is_weighted=True), **mcmcpars}
+            emceepars.pop('save_proba', 0)
+            emceepars['nwalkers'] = 10*result.nvarys if nwalkers==0 else nwalkers
+            if steps == 0:
+                emceepars['steps'] = 15000 if 'lyalpha_LYALPHA_dbleasymgauss_l0' in pdata[par]['params'].keys() else 10000
+            else:
+                emceepars['steps'] = steps
+            if verbose:
+                logger.debug('Emcee fitting: %s',emceepars)                       
+            # run EMCEE
+            minner = Minimizer(residuals, result.params, fcn_args=args) 
+            with silence():
+                resmcmc = minner.minimize(**emceepars)
+            # Check if autocorr integ time has been successful
+            if not hasattr(resmcmc,'acor'):
+                # run an estimate of the autocorr integration time
+                resmcmc.acor = emcee.autocorr.integrated_time(resmcmc.chain, tol=0)
+            # save the parameter values for the highest proba  
+            highest_prob = np.argmax(resmcmc.lnprob)
+            hp_loc = np.unravel_index(highest_prob, resmcmc.lnprob.shape)
+            mle_soln = resmcmc.chain[hp_loc]
+            i = 0
+            for p in resmcmc.params:
+                if resmcmc.params[p].vary:
+                    resmcmc.params[p].median_value = copy.copy(resmcmc.params[p].value)
+                    resmcmc.params[p].init_stderr = result.params[p].stderr
+                    resmcmc.params[p].value = mle_soln[i] 
+                    resmcmc.params[p].acor = resmcmc.acor[i]
+                    resmcmc.params[p].acor_ratio = resmcmc.chain.shape[0]/(resmcmc.acor[i]*50)
+                    if save_proba:
+                        quantiles = np.percentile(resmcmc.flatchain[p],[5,95,1,99]) 
+                        resmcmc.params[p].min_p95 = quantiles[0]
+                        resmcmc.params[p].max_p95 = quantiles[1] 
+                        resmcmc.params[p].min_p99 = quantiles[2]
+                        resmcmc.params[p].max_p99 = quantiles[3]                                              
+                    i += 1
+            resmcmc.mean_acceptance_fraction = np.mean(resmcmc.acceptance_fraction)
+            resmcmc.max_acor = max(resmcmc.acor)
+            resmcmc.chain_size_ratio = resmcmc.chain.shape[0]/(resmcmc.max_acor*50)
+            resmcmc.status = 1 if resmcmc.chain_size_ratio > 1 else 0
+            if verbose:
+                logger.debug('status %d after %d fcn eval, chain size ratio = %.1f max autocorr time = %.1f mean acceptance fraction = %.2f, reached minimum = %.3f and redChi2 = %.3f',
+                             resmcmc.status,resmcmc.nfev,resmcmc.chain_size_ratio,resmcmc.max_acor,resmcmc.mean_acceptance_fraction,resmcmc.chisqr,resmcmc.redchi)
+            reslsq[f'{par[4:]}'] = resmcmc
+        else:
+            reslsq[f'{par[4:]}'] = result
+        bestfit = model(reslsq[f'{par[4:]}'].params, pdata['wave_rest'], 
                             pdata[par]['family_lines'], pdata['redshift'], pdata['lsf']) 
-            result.bestfit = bestfit        
-        reslsq[f'{par[4:]}'] = result 
+        reslsq[f'{par[4:]}'].bestfit = bestfit         
         
         
     return reslsq
@@ -1039,6 +1146,7 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
     for family in families: 
         dv = par[f"dv_{family}"].value
         dv_err = par[f"dv_{family}"].stderr
+        dv_rtau = par[f"dv_{family}"].acor_ratio if hasattr(par[f"dv_{family}"], 'acor_ratio') else None
         lines = [key.split('_')[1] for key in par.keys() if (key.split('_')[0]==family) and (key.split('_')[3]=='l0')]
         for line in lines:
             dname = inputlines[inputlines['LINE']==line]['DNAME'][0]
@@ -1049,15 +1157,20 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 ndv = dv
                 vdisp1 = par[f"vdisp1_{family}"].value 
                 vdisp1_err = par[f"vdisp1_{family}"].stderr
+                vdisp1_rtau = par[f"vdisp1_{family}"].acor_ratio if hasattr(par[f"vdisp1_{family}"], 'acor_ratio') else None
                 vdisp2 = par[f"vdisp2_{family}"].value 
                 vdisp2_err = par[f"vdisp2_{family}"].stderr 
+                vdisp2_rtau = par[f"vdisp2_{family}"].acor_ratio if hasattr(par[f"vdisp2_{family}"], 'acor_ratio') else None
                 vdisp = 0.5*(vdisp1 + vdisp2)
                 sep = par[f"{family}_{line}_{fun}_sep"].value
-                sep_err = par[f"{family}_{line}_{fun}_sep"].stderr                
+                sep_err = par[f"{family}_{line}_{fun}_sep"].stderr 
+                sep_rtau = par[f"{family}_{line}_{fun}_sep"].acor_ratio if hasattr(par[f"{family}_{line}_{fun}_sep"], 'acor_ratio') else None
                 flux1 = par[f"{family}_{line}_{fun}_flux1"].value
                 flux1_err = par[f"{family}_{line}_{fun}_flux1"].stderr
+                flux1_rtau = par[f"{family}_{line}_{fun}_flux1"].acor_ratio if hasattr(par[f"{family}_{line}_{fun}_flux1"], 'acor_ratio') else None
                 flux2 = par[f"{family}_{line}_{fun}_flux2"].value
-                flux2_err = par[f"{family}_{line}_{fun}_flux2"].stderr                
+                flux2_err = par[f"{family}_{line}_{fun}_flux2"].stderr   
+                flux2_rtau = par[f"{family}_{line}_{fun}_flux2"].acor_ratio if hasattr(par[f"{family}_{line}_{fun}_flux2"], 'acor_ratio') else None
                 l0 = par[f"{family}_{line}_{fun}_l0"].value
                 l1 = l0*(1 + dv/C)
                 l1obs = l1*(1+zinit)
@@ -1076,6 +1189,13 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 if sep_err is not None:
                     lvals1['SEP_ERR'] = sep_err
                     lvals2['SEP_ERR'] = sep_err
+                if sep_rtau is not None:
+                    lvals1['SEP_RTAU'] = sep_rtau
+                    lvals2['SEP_RTAU'] = sep_rtau
+                    if 'SEP_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals1['SEP_'+suff] = getattr(par[f"{family}_{line}_{fun}_sep"], attr)
+                            lvals2['SEP_'+suff] = getattr(par[f"{family}_{line}_{fun}_sep"], attr)
                 if dv_err is not None:
                     lvals1['VEL_ERR'] = dv_err
                     z_err = (1+zinit)*dv_err/C 
@@ -1083,18 +1203,41 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                     lvals2['VEL_ERR'] = dv_err
                     lvals2['Z_ERR'] = z_err 
                 else:
-                    z_err = None                
+                    z_err = None 
+                if dv_rtau is not None:
+                    lvals1['VEL_RTAU'] = dv_rtau
+                    lvals2['VEL_RTAU'] = dv_rtau 
+                    if 'VEL_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals1['VEL_'+suff] = getattr(par[f"dv_{family}"], attr)
+                            lvals2['VEL_'+suff] = getattr(par[f"dv_{family}"], attr) 
+                            lvals1['Z_'+suff] = zinit + (1+zinit)*lvals1['VEL_'+suff]/C 
+                            lvals2['Z_'+suff] = zinit + (1+zinit)*lvals2['VEL_'+suff]/C
                 if vdisp1_err is not None:
                     lvals1['VDISP_ERR'] = vdisp1_err
                     lvals2['VDISP_ERR'] = vdisp2_err 
                     vdisp_err = np.sqrt(vdisp1_err**2+vdisp2_err**2)
                 else:
                     vdisp_err = None
+                if vdisp1_rtau is not None:
+                    lvals1['VDISP_RTAU'] = vdisp1_rtau
+                    lvals2['VDISP_RTAU'] = vdisp2_rtau 
+                    if 'VDISP_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals1['VDISP_'+suff] = getattr(par[f"vdisp1_{family}"], attr)
+                            lvals2['VDISP_'+suff] = getattr(par[f"vdisp2_{family}"], attr)                     
                 if flux1_err is not None:
                     lvals1['FLUX_ERR'] = flux1_err 
                     lvals1['SNR'] = abs(flux1)/flux1_err 
                     lvals2['FLUX_ERR'] = flux2_err 
-                    lvals2['SNR'] = abs(flux2)/flux2_err                     
+                    lvals2['SNR'] = abs(flux2)/flux2_err  
+                if flux1_rtau is not None:
+                    lvals1['FLUX_RTAU'] = flux1_rtau
+                    lvals2['FLUX_RTAU'] = flux2_rtau  
+                    if 'FLUX_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals1['FLUX_'+suff] = getattr(par[f"{family}_{line}_{fun}_flux1"], attr)
+                            lvals2['FLUX_'+suff] = getattr(par[f"{family}_{line}_{fun}_flux2"], attr)                       
                 if lsf is not None:
                     lvals1['VDINST'] = complsf(lsf, l1obs, kms=True) 
                     lvals2['VDINST'] = complsf(lsf, l1obs, kms=True)  
@@ -1104,9 +1247,18 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 lvals2['SKEW'] = skew2                
                 skew1_err = par[f"{family}_{line}_{fun}_asym1"].stderr 
                 skew2_err = par[f"{family}_{line}_{fun}_asym2"].stderr 
+                skew1_rtau = par[f"{family}_{line}_{fun}_asym1"].acor_ratio if hasattr(par[f"{family}_{line}_{fun}_asym1"], 'acor_ratio') else None
+                skew2_rtau = par[f"{family}_{line}_{fun}_asym2"].acor_ratio if hasattr(par[f"{family}_{line}_{fun}_asym2"], 'acor_ratio') else None
                 if skew1_err is not None:
                     lvals1['SKEW_ERR'] = skew1_err
-                    lvals2['SKEW_ERR'] = skew2_err                 
+                    lvals2['SKEW_ERR'] = skew2_err 
+                if skew1_rtau is not None:
+                    lvals1['SKEW_RTAU'] = skew1_rtau
+                    lvals2['SKEW_RTAU'] = skew2_rtau  
+                    if 'SKEW_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals1['SKEW_'+suff] = getattr(par[f"{family}_{line}_{fun}_asym1"], attr)
+                            lvals2['SKEW_'+suff] = getattr(par[f"{family}_{line}_{fun}_asym2"], attr)                         
                 # find the line peak location in rest frame
                 swave_rest = np.linspace(l0-50,l0+50,1000)
                 l1c = l0*(1+(dv-0.5*sep)/C)
@@ -1158,8 +1310,10 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
             elif fun == 'asymgauss':
                 vdisp = par[f"vdisp_{family}"].value 
                 vdisp_err = par[f"vdisp_{family}"].stderr
+                vdisp_rtau = par[f"vdisp_{family}"].acor_ratio if hasattr(par[f"vdisp_{family}"], 'acor_ratio') else None
                 flux = par[f"{family}_{line}_{fun}_flux"].value
                 flux_err = par[f"{family}_{line}_{fun}_flux"].stderr
+                flux_rtau = par[f"{family}_{line}_{fun}_flux"].acor_ratio if hasattr(par[f"{family}_{line}_{fun}_flux"], 'acor_ratio') else None
                 l0 = par[f"{family}_{line}_{fun}_l0"].value
                 l1 = l0*(1 + dv/C)
                 l1obs = l1*(1+zinit)
@@ -1169,7 +1323,23 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 lvals = {'LBDA_REST':l0, 'LBDA_OBS':l1obs, 'FLUX':flux, 
                          'DNAME':dname,  'VDISP':vdisp, 'BLEND':blend,
                          'Z_INIT':zinit, 'ISBLEND':False,
-                         } 
+                         }
+                if dv_rtau is not None:
+                    lvals['VEL_RTAU'] = dv_rtau 
+                    if 'VEL_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals['VEL_'+suff] = getattr(par[f"dv_{family}"], attr)
+                            lvals['Z_'+suff] = zinit + (1+zinit)*lvals['VEL_'+suff]/C                                       
+                if vdisp_rtau is not None:
+                    lvals['VDISP_RTAU'] = vdisp_rtau
+                    if 'VDISP_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals['VDISP_'+suff] = getattr(par[f"vdisp_{family}"], attr)                        
+                if flux_rtau is not None:
+                    lvals['FLUX_RTAU'] = flux_rtau 
+                    if 'FLUX_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals['FLUX_'+suff] = getattr(par[f"{family}_{line}_{fun}_flux"], attr)                    
                 if vdisp_err is not None:
                     lvals['VDISP_ERR'] = vdisp_err 
                 if flux_err is not None:
@@ -1178,10 +1348,16 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 if lsf is not None:
                     lvals['VDINST'] = complsf(lsf, l1obs, kms=True)       
                 skew = par[f"{family}_{line}_{fun}_asym"].value
+                skew_rtau = par[f"{family}_{line}_{fun}_asym"].acor_ratio if hasattr(par[f"{family}_{line}_{fun}_asym"], 'acor_ratio') else None
                 lvals['SKEW'] = skew
                 skew_err = par[f"{family}_{line}_{fun}_asym"].stderr 
                 if skew_err is not None:
                     lvals['SKEW_ERR'] = skew_err
+                if skew_rtau is not None:
+                    lvals['SKEW_RTAU'] = skew_rtau
+                    if 'SKEW_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals['SKEW_'+suff] = getattr(par[f"{family}_{line}_{fun}_asym"], attr)                    
                 # find the line peak location in rest frame
                 swave_rest = np.linspace(l0-50,l0+50,1000)
                 vmodel_rest = model_asymgauss(zinit, lsf, l0, flux, skew, vdisp, dv, swave_rest)
@@ -1221,8 +1397,10 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                 ndv = dv
                 vdisp = par[f"vdisp_{family}"].value 
                 vdisp_err = par[f"vdisp_{family}"].stderr
+                vdisp_rtau = par[f"vdisp_{family}"].acor_ratio if hasattr(par[f"vdisp_{family}"], 'acor_ratio') else None
                 flux = par[f"{family}_{line}_{fun}_flux"].value
                 flux_err = par[f"{family}_{line}_{fun}_flux"].stderr
+                flux_rtau = par[f"{family}_{line}_{fun}_flux"].acor_ratio if hasattr(par[f"{family}_{line}_{fun}_flux"], 'acor_ratio') else None
                 l0 = par[f"{family}_{line}_{fun}_l0"].value
                 l1 = l0*(1 + dv/C)
                 l1obs = l1*(1+zinit)
@@ -1233,6 +1411,22 @@ def add_result_to_tablines(result, tablines, zinit, inputlines, lsf, vac):
                          'DNAME':dname,  'VDISP':vdisp, 'BLEND':blend,
                          'Z_INIT':zinit, 'ISBLEND':False, 
                          } 
+                if dv_rtau is not None:
+                    lvals['VEL_RTAU'] = dv_rtau
+                    if 'VEL_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals['VEL_'+suff] = getattr(par[f"dv_{family}"], attr)
+                            lvals['Z_'+suff] = zinit + (1+zinit)*lvals['VEL_'+suff]/C                         
+                if vdisp_rtau is not None:
+                    lvals['VDISP_RTAU'] = vdisp_rtau
+                    if 'VDISP_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals['VDISP_'+suff] = getattr(par[f"vdisp_{family}"], attr)                       
+                if flux_rtau is not None:
+                    lvals['FLUX_RTAU'] = flux_rtau  
+                    if 'FLUX_MAX99' in tablines.columns:
+                        for suff,attr in [['MIN95','min_p95'],['MIN99','min_p99'],['MAX95','max_p95'],['MAX99','max_p99']]:
+                            lvals['FLUX_'+suff] = getattr(par[f"{family}_{line}_{fun}_flux"], attr)                                  
                 if vdisp_err is not None:
                     lvals['VDISP_ERR'] = vdisp_err 
                 if (flux_err is not None) and (flux_err > 0):
@@ -1286,7 +1480,25 @@ def add_result_to_ztab(reslsq, tablines, ztab, snr_min):
                      SNRSUM=np.abs(np.sum(tcat['FLUX']))/np.sqrt(np.sum(tcat['FLUX_ERR']**2)),
                      SNRSUM_CLIPPED = np.abs(np.sum(scat['FLUX']))/np.sqrt(np.sum(scat['FLUX_ERR']**2)) if len(scat) > 0 else 0,
                      NL=len(cat), NL_CLIPPED=len(scat), RCHI2=result.redchi, NFEV=result.nfev, 
-                     STATUS=status, METHOD=result.method)   
+                     STATUS=status, METHOD=result.method)  
+            if hasattr(result,'chain_size_ratio'):
+                ncat = tablines[~tablines['ISBLEND'] & (tablines['FAMILY']==fam)]
+                cols = ['VEL_RTAU','VDISP_RTAU','FLUX_RTAU','SKEW_RTAU','SEP_RTAU']
+                ncols = [c for c in cols if (c in ncat.columns) and (np.sum(ncat[c]) > 0)]
+                rmin = np.array([min([r[c] for c in ncols]) for r in ncat])
+                d['RCHAIN'] = np.min(rmin)
+                d['NBAD'] = np.sum(rmin<1)
+                ksel = (ncat['SNR']>snr_min) & (np.abs(ncat['FLUX']) > 1.0)
+                if np.sum(ksel) == 0:
+                    d['RCHAIN_CLIP'] = 0
+                    d['NBAD_CLIP'] = 0
+                    d['STATUS'] = 1 if d['NBAD'] == 0 else 0
+                else:
+                    d['RCHAIN_CLIP'] = np.min(rmin[ksel])
+                    d['NBAD_CLIP'] = np.sum(rmin[ksel]<1) 
+                    d['STATUS'] = 1 if d['NBAD_CLIP'] == 0 else 0
+            if hasattr(result,'chain'): 
+                d['NSTEPS'] = result.chain.shape[0]
         upsert_ztable(ztab, d, fam)
         
     ztab.sort('SNRSUM')
@@ -1622,8 +1834,8 @@ def plotline(ax, spec, spec_fit, spec_cont, init_fit, table, start=False, iden=T
     
 def fit_abs(wave, data, std, redshift, *, unit_wave=None,
             unit_data=None, vac=False, lines=None, 
-            lsf=None, trimm_spec=True,
-            fit_lws={}, minpars={}):    
+            lsf=None, trimm_spec=True, mcmc_all=False, mcmc_lya=False,
+            fit_lws={}, minpars={}, mcmcpars={}):    
     
     logger = logging.getLogger(__name__)
     
@@ -1631,11 +1843,11 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     pdata = prepare_absfit_data(wave, data, std, redshift, vac,
                              lines, trimm_spec)
     logger.debug('Initialize fit')
-    init_absfit(pdata, lsf, fit_lws)
-    result = init_res(pdata)
+    init_absfit(pdata, lsf, fit_lws, mcmc=mcmc_all)
+    result = init_res(pdata, mcmc_all, save_proba=mcmcpars.get('save_proba',False))
 
     # perform lsq fit
-    reslsq = lmfit_fit(minpars, pdata, verbose=True)       
+    reslsq = lmfit_fit(minpars, mcmcpars, pdata, verbose=True)       
         
     resfit = save_fit_res(result, pdata, reslsq)
     
@@ -1719,7 +1931,7 @@ def prepare_absfit_data(wave, data, std, redshift, vac,
     
     return pdata
 
-def init_absfit(pdata, lsf, fit_lws):
+def init_absfit(pdata, lsf, fit_lws, mcmc=False):
     
     logger = logging.getLogger(__name__)
     
@@ -1755,7 +1967,7 @@ def init_absfit(pdata, lsf, fit_lws):
     family_lines = {'abs': {'fun':'gauss', 'lines':lines['LINE']}}
     maxfev = pmaxfev*(2+len(lines))
     pdata['par_abs'] = dict(params=params, sel_lines=lines,
-                        family_lines=family_lines, maxfev=maxfev)
+                        family_lines=family_lines, maxfev=maxfev, emcee=mcmc)
     
 def get_cont(spec, z, deg, maxiter, width):
     sp = spec.copy()

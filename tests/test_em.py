@@ -58,7 +58,7 @@ def test_fit_lines(workdir):
     assert_allclose(r['LBDA_OBS'],5290.91,rtol=1.e-2)
     assert_allclose(r['FWHM_OBS'],3.78,rtol=1.e-2)
     assert_allclose(r['FLUX'],10406.67,rtol=1.e-3)
-    assert_allclose(r['FLUX_ERR'],609.07,rtol=1.e-3)    
+    assert_allclose(r['FLUX_ERR'],602.81,rtol=1.e-3)    
     
     ztab = res_line['ztable']
     assert 'balmer' in ztab['FAMILY']
@@ -196,8 +196,8 @@ def test_fit_resonnant(workdir):
     assert_allclose(r['VEL_ERR'],13.65,rtol=1.e-2)
     assert_allclose(r['VDISP'],50.59,rtol=1.e-2)
     assert_allclose(r['VDISP_ERR'],18.63,rtol=1.e-2)
-    assert_allclose(r['SNRMAX'],5.27,rtol=1.e-2)
-    assert_allclose(r['SNRSUM_CLIPPED'],5.27,rtol=1.e-2)
+    assert_allclose(r['SNRMAX'],6.00,rtol=1.e-2)
+    assert_allclose(r['SNRSUM_CLIPPED'],6.00,rtol=1.e-2)
     assert_allclose(r['RCHI2'],11.79,rtol=1.e-2)
     assert r['NL'] == 1
     assert r['NL_CLIPPED'] == 1

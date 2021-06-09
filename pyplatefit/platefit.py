@@ -1,6 +1,6 @@
 import logging
 import os
-from astropy.table import vstack, Column, MaskedColumn
+from astropy.table import Table, vstack, Column, MaskedColumn
 from matplotlib import transforms
 import numpy as np
 from mpdaf.obj import Spectrum
@@ -10,7 +10,7 @@ from .eqw import EquivalentWidth
 from .line_fitting import Linefit, plotline
 
 
-__all__ = ('Platefit', 'fit_spec', 'plot_fit')
+__all__ = ('Platefit', 'fit_spec', 'plot_fit', 'print_res')
 
 def muse_lsf(wave):
     # from UDF paper
@@ -26,6 +26,7 @@ class Platefit:
     """
 
     def __init__(self, contpars={}, linepars={}, eqwpars={}, 
+                 mcmcpars = dict(steps=0, nwalkers=0, save_proba=False),
                  minpars = dict(method='least_square', xtol=1.e-3)):
         """Initialise a Platefit object
         
@@ -39,6 +40,9 @@ class Platefit:
           
         minpars: dictionary
           minimization parameters to be passed to `Linefit` constructor
+          
+        mcmcpars: dictionary
+          EMCEE minimization parameters to be passed to `Linefit` constructor
                
         eqwpars: dictionary
           input parameters to be passed to `EquivalentWidth` constructor
@@ -47,7 +51,7 @@ class Platefit:
         """
         self.logger = logging.getLogger(__name__)
         self.cont = Contfit(**contpars)
-        self.line = Linefit(**linepars, minpars=minpars)
+        self.line = Linefit(**linepars, minpars=minpars, mcmcpars=mcmcpars)
         self.eqw = EquivalentWidth(**eqwpars)
 
     def fit(self, spec, z, ziter=False, fitcont=True, fitlines=True, fitabs=False, eqw=True,
@@ -100,6 +104,7 @@ class Platefit:
               observed frame
             - result['dcont']: return dictionary from fit_cont (see `fit_cont`)
             - result['dline']: returned dictionary from fit_lines (see `fit_lines`)
+            
 
         """
         
@@ -112,8 +117,10 @@ class Platefit:
             resfit['iter_zinit'] = z
             rescont = self.fit_cont(spec, z, vdisp)
             linespec = rescont['line_spec'] 
-            # set parameters to speed the fit
+            # set parameters to speed the fit, do not perform mcmc 
             kwargs1 = kwargs.copy()
+            kwargs1['mcmc_lya'] = False
+            kwargs1['mcmc_all'] = False
             kwargs1['fit_all'] = True
             resline = self.fit_lines(linespec, z, lsf=lsf, **kwargs1)
             ztable = resline['ztable']
@@ -381,8 +388,11 @@ class Platefit:
 
 
 def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, lines=None,
-             major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, find_lya_vel_offset=False, dble_lyafit=False,
+             major_lines=False, fitabs=False, vdisp=80, use_line_ratios=False, 
+             find_lya_vel_offset=False, dble_lyafit=False, mcmc_lya=False, mcmc_all=False,
              lsf=muse_lsf, eqw=True, trimm_spec=True, contpars={}, linepars={},
+             mcmcpars=dict(steps=0, nwalkers=0, save_proba=False, progress=True, 
+                           run_mcmc_kwargs = dict(skip_initial_state_check=False)),
              minpars=dict(method='least_square', xtol=1.e-3)):
     """ 
     perform platefit cont and line fitting on a spectra
@@ -417,7 +427,11 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
     find_lya_vel_offset : bool
        if True, perform an initial search for the lya velocity offset [deactivated for dble lya fit]
     dble_lyafit : bool
-        if True, use a double asymetric gaussian model for the lya line fit    
+        if True, use a double asymetric gaussian model for the lya line fit
+    mcmc_lya : bool
+        if True, perform an MCMC LYALPHA fit after the first fit (default False)
+    mcmc_all : bool
+        if True, perform an MCMC fit after the first fit for all lines (default False)
     lsf : function
        LSF model to take into account the instrumental LSF (default to muse_lsf).
     eqw : bool
@@ -442,13 +456,23 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
         - nstd_relsize : float, relative size (wrt to FWHM) of the wavelength window used for CHI2 line estimation (used in bootstrap only), default: 3.0
         - minsnr : float, minimum SNR to display line ID in plots (default 3.0)
         - line_ratios : list of tuples, list of line_ratios (see text), defaulted to [("CIII1907", "CIII1909", 0.6, 1.2), ("OII3726", "OII3729", 1.0, 2.0)]
+   
 
     minpars : dictionary
       Input parameters to pass to minimize (lmfit) exemple:
-      dict(method='nelder', options=dict(xatol=1.e-3)) 
-      dict(method='least_square', xtol=1.e-3) [default]
-      see https://docs.scipy.org/doc/scipy/reference/optimize.html for detailed info
-      optional parameters for the given method,
+      
+        - dict(method='nelder', options=dict(xatol=1.e-3)) 
+        - dict(method='least_square', xtol=1.e-3) [default]
+        - see https://docs.scipy.org/doc/scipy/reference/optimize.html for detailed info
+          optional parameters for the given method,
+      
+    mcmcpars : dictionary
+      Input parameters to pass to emcee via minimize (lmfit)
+      
+        - steps : (default 0 = 10000 except for dble_lya 15000)
+        - nwalkers : (default 0 = 25*npars)
+        - save_proba: if True add P95 and P99 limits to fitted parameters (default False)
+        - progress : if True display progress bar (default True)
         
     Returns
     -------
@@ -471,12 +495,16 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
           observed frame
         - result['dcont']: return dictionary from fit_cont (see `fit_cont`)
         - result['dline']: returned dictionary from fit_lines (see `fit_lines`)
-        
+     
+    
+:Lines table: 
+    
     The table of the lines found in the spectrum are given in the table lines. 
     The columns are:
     
       - FAMILY: the line family name (eg balmer)
       - LINE: The name of the line
+      - ISBLEND: True if this line is a blend
       - LBDA_REST: The rest-frame position of the line in vacuum   
       - DNAME: The display name for the line (set to None for close doublets)
       - VEL: The velocity offset in km/s with respect to the initial redshift (rest frame)
@@ -508,6 +536,16 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
       - CONT: the continuum mean value in rest frame
       - CONT_ERR: the error in rest frame continuum
     
+      
+    When the options mcmc_lya or mcmc_all are active, additional columns are produced:
+     
+      - VEL_RTAU, VDISP_RTAU, FLUX_RTAU, SEP_RTAU, SKEW_RTAU: give the ratio of the mcmc chain length to 50 times the autocorrelation time
+      - par_MIN99, par_MIN95, par_MAX95, par_MAX99: give the 95 and 99% quantile of the estimated probability distribution,
+      with par = VEL, Z, VDISP, FLUX, SEP, SKEW. This is computed only if save_proba = True is set in the mcmcpars dictionary 
+      
+
+:Redshift table: 
+
     The redshift table is saved in the table ztable
     The columns are:
     
@@ -527,17 +565,23 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
       - NL_CLIPPED: number of lines with SNR>SNR_MIN
       - NFEV: the number of function evaluation
       - RCHI2: the reduced Chi2 of the family lines fit 
-      - METHOD: minimization method
       - STATUS: return status from minimization
+      - METHOD: minimization method
+      - NSTEPS: length of the mcmc chain (mcmc only)
+      - RCHAIN: minimum value of the mcmc chain length divided by 50 times the autocorrelation time (mcmc only)
+      - NBAD: number of lines with a parameter RTAU < 1 (mcmc only)
+      - RCHAIN_CLIP: RCHAIN after clipping of lines with SNR < snr_min (mcmc only)
+      - NBAD_CLIP:  number of clipped lines with a parameter RTAU < 1 (mcmc only)
 
     """
     logger = logging.getLogger(__name__)
     if isinstance(spec, str):
         spec = Spectrum(spec)    
-    pl = Platefit(contpars=contpars, linepars=linepars, minpars=minpars)
+    pl = Platefit(contpars=contpars, linepars=linepars, minpars=minpars, mcmcpars=mcmcpars)
     res = pl.fit(spec, z, fit_all=fit_all, ziter=ziter, fitcont=fitcont, fitlines=fitlines,
                  lines=lines, use_line_ratios=use_line_ratios, find_lya_vel_offset=find_lya_vel_offset,
                  dble_lyafit=dble_lyafit, lsf=lsf, eqw=eqw, vdisp=vdisp, trimm_spec=trimm_spec,
+                 mcmc_lya=mcmc_lya, mcmc_all=mcmc_all,
                  fitabs=fitabs, major_lines=major_lines)
     return res   
                                        
@@ -733,6 +777,67 @@ def plot_fit(ax, result, line_only=False, abs_line=False, pcont=False,
                     y -= dy            
             
 
+def print_res(result, family):
+    """ 
+    print results obtained with `fit_spec`
+    
+    Parameters
+    ----------
+    result : dictionary 
+        result of `fit_spec`
+    family : str
+        family name
+
+    Returns
+    -------
+    result : astropy table        
+
+     with the following columns :
+    
+       - Name: parameter lmfit name 
+       - Min_bound: minimum bound
+       - Max_bound: maximum bound
+       - Init_value: initial value
+       - Value: bestfit value
+       - Median: median of the proba distribution (mcmc only)
+       - Init_Std: initial standard deviation (mcmc only)
+       - Std: standard deviation
+       - Acor: autocorrelation time (mcmc only)
+       - Acor_ratio: ratio of mcmc chain length to 50 times the autocorrelation time (mcmc only)
+       - Min_p99: value of the 1% quantile of the estimated probability distribution (mcmc only)
+       - Min_p95: value of the 5% quantile of the estimated probability distribution (mcmc only)
+       - Max_p95: value of the 95% quantile of the estimated probability distribution (mcmc only)
+       - Max_p99: value of the 99% quantile of the estimated probability distribution (mcmc only)
+
+    """
+    logger = logging.getLogger(__name__)  
+    if family == 'lyalpha':
+        family = 'lya'
+    res0 = result['dline']
+    names = [['Name','name'],['Min_bound','min'],['Max_bound','max'],['Init_value','init_value'],
+             ['Value','value'],['Median','median_value'],['Init_Std','init_stderr'],['Std','stderr'],
+             ['Acor','acor'],['Acor_ratio','acor_ratio'],
+             ['Min_p99','min_p99'],['Min_p95','min_p95'],
+             ['Max_p95','max_p95'],['Max_p99','max_p99'],]
+    tab = Table(names=[e[0] for e in names], dtype=['S40']+13*['f4'], masked=True)
+    for c in tab.columns:
+        if c == 'Name':
+            continue
+        tab[c].format = '.3f'
+    key = 'lmfit_'+family
+    if key not in res0.keys():
+        logger.error('Family %s not found in result', family)
+        return
+
+    for name,p in res0[key].params.items():
+        d = dict(Name=name)
+        for col,key in names:
+            if col == 'Name':
+                continue
+            if hasattr(p,key):
+                d[col] = getattr(p, key)
+        tab.add_row(d)
+    return(tab)
                 
                 
 def truncate_spec(spec, line, lines, margin):
