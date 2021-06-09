@@ -104,6 +104,7 @@ class Platefit:
               observed frame
             - result['dcont']: return dictionary from fit_cont (see `fit_cont`)
             - result['dline']: returned dictionary from fit_lines (see `fit_lines`)
+            
 
         """
         
@@ -494,7 +495,10 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
           observed frame
         - result['dcont']: return dictionary from fit_cont (see `fit_cont`)
         - result['dline']: returned dictionary from fit_lines (see `fit_lines`)
-        
+     
+    
+:Lines table: 
+    
     The table of the lines found in the spectrum are given in the table lines. 
     The columns are:
     
@@ -531,13 +535,17 @@ def fit_spec(spec, z, fit_all=False, ziter=False, fitcont=True, fitlines=True, l
       - CONT_OBS: The continuum mean value in Observed frame
       - CONT: the continuum mean value in rest frame
       - CONT_ERR: the error in rest frame continuum
+    
       
     When the options mcmc_lya or mcmc_all are active, additional columns are produced:
      
       - VEL_RTAU, VDISP_RTAU, FLUX_RTAU, SEP_RTAU, SKEW_RTAU: give the ratio of the mcmc chain length to 50 times the autocorrelation time
       - par_MIN99, par_MIN95, par_MAX95, par_MAX99: give the 95 and 99% quantile of the estimated probability distribution,
       with par = VEL, Z, VDISP, FLUX, SEP, SKEW. This is computed only if save_proba = True is set in the mcmcpars dictionary 
-    
+      
+
+:Redshift table: 
+
     The redshift table is saved in the table ztable
     The columns are:
     
@@ -779,10 +787,12 @@ def print_res(result, family):
         result of `fit_spec`
     family : str
         family name
-        
+
     Returns
     -------
-    an astropy table with the following columns :
+    result : astropy table        
+
+     with the following columns :
     
        - Name: parameter lmfit name 
        - Min_bound: minimum bound

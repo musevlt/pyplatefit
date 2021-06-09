@@ -1,11 +1,13 @@
 Changelog
 =========
-v0.7 (XX/XX/2021)
+v0.7 (09/06/2021)
 -----------------
 
 New features
 ^^^^^^^^^^^^
+- new MCMC error estimate (see tutorial)
 - change default gamma init value to 2
+- updated tutorial
 
 Breaking Changes
 ^^^^^^^^^^^^^^^^
