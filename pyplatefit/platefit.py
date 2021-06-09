@@ -769,7 +769,7 @@ def plot_fit(ax, result, line_only=False, abs_line=False, pcont=False,
                     y -= dy            
             
 
-def print_res(result, lines):
+def print_res(result, family):
     """ 
     print results obtained with `fit_spec`
     
@@ -777,8 +777,8 @@ def print_res(result, lines):
     ----------
     result : dictionary 
         result of `fit_spec`
-    lines : list
-        list of line names 
+    family : str
+        family name
         
     Returns
     -------
@@ -800,6 +800,9 @@ def print_res(result, lines):
        - Max_p99: value of the 99% quantile of the estimated probability distribution (mcmc only)
 
     """
+    logger = logging.getLogger(__name__)  
+    if family == 'lyalpha':
+        family = 'lya'
     res0 = result['dline']
     names = [['Name','name'],['Min_bound','min'],['Max_bound','max'],['Init_value','init_value'],
              ['Value','value'],['Median','median_value'],['Init_Std','init_stderr'],['Std','stderr'],
@@ -811,27 +814,19 @@ def print_res(result, lines):
         if c == 'Name':
             continue
         tab[c].format = '.3f'
-    for line in lines:
-        found = False
-        for fam,par in res0.items():
-            if fam[0:5] != 'lmfit':
+    key = 'lmfit_'+family
+    if key not in res0.keys():
+        logger.error('Family %s not found in result', family)
+        return
+
+    for name,p in res0[key].params.items():
+        d = dict(Name=name)
+        for col,key in names:
+            if col == 'Name':
                 continue
-            for key,val in par.params.items():
-                if line not in key:
-                    continue
-                found = True
-                break
-            if found:
-                break
-        if found:
-            for name,p in par.params.items():
-                d = dict(Name=name)
-                for col,key in names:
-                    if col == 'Name':
-                        continue
-                    if hasattr(p,key):
-                        d[col] = getattr(p, key)
-                tab.add_row(d)
+            if hasattr(p,key):
+                d[col] = getattr(p, key)
+        tab.add_row(d)
     return(tab)
                 
                 

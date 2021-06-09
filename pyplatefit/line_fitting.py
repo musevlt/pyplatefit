@@ -58,6 +58,9 @@ warnings.filterwarnings("ignore", message="invalid value encountered in greater"
 warnings.filterwarnings("ignore", message="Initial state is not linearly independent and it will not allow a full exploration of parameter space")
 warnings.filterwarnings("ignore", message="invalid value encountered in double_scalars")
 warnings.filterwarnings("ignore", message="invalid value encountered in sqrt")
+#warnings.filterwarnings("ignore", message=".*chain is shorter")
+#import logging
+#logging.getLogger("emcee").setLevel(logging.CRITICAL)
 
 C = constants.c.to(u.km / u.s).value
 SQRT2PI = np.sqrt(2*np.pi)
@@ -932,10 +935,12 @@ def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
             else:
                 emceepars['steps'] = steps
             if verbose:
-                logger.debug('Emcee fitting: %s',emceepars)                  
-            minner = Minimizer(residuals, result.params, fcn_args=args) 
+                logger.debug('Emcee fitting: %s',emceepars)                       
             # run EMCEE
-            resmcmc = minner.minimize(**emceepars)
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore')
+                minner = Minimizer(residuals, result.params, fcn_args=args) 
+                resmcmc = minner.minimize(**emceepars)
             # Check if autocorr integ time has been successful
             if not hasattr(resmcmc,'acor'):
                 # run an estimate of the autocorr integration time
