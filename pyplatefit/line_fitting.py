@@ -938,8 +938,11 @@ def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
                 logger.debug('Emcee fitting: %s',emceepars)                       
             # run EMCEE
             minner = Minimizer(residuals, result.params, fcn_args=args) 
-            with silence():
+            if verbose:
                 resmcmc = minner.minimize(**emceepars)
+            else:
+                with silence():
+                    resmcmc = minner.minimize(**emceepars)
             # Check if autocorr integ time has been successful
             if not hasattr(resmcmc,'acor'):
                 # run an estimate of the autocorr integration time
