@@ -579,7 +579,7 @@ def fit_lines(wave, data, std, redshift, *, unit_wave=None,
     result = init_res(pdata, mcmc_lya or mcmc_all, save_proba=mcmcpars.get('save_proba',False))
     
     # perform fit
-    reslsq = lmfit_fit(minpars, mcmcpars, pdata, verbose=True)   
+    reslsq = lmfit_fit(minpars, mcmcpars, pdata)   
         
     resfit = save_fit_res(result, pdata, reslsq)
     
@@ -902,7 +902,7 @@ def init_res(pdata, mcmc, save_proba=False):
     return dict(tabspec=tabspec, tablines=tablines, ztab=ztab)
         
 
-def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
+def lmfit_fit(minpars, mcmcpars, pdata):
     
     logger = logging.getLogger(__name__)
     
@@ -911,16 +911,13 @@ def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
     # Perform minimization 
     parlist = [e for e in pdata.keys() if e[0:4]=='par_']
     for par in parlist:
-        if verbose:
-            logger.debug(f'Fitting of Line Family: {par[4:]}')
+        logger.debug(f'Fitting of Line Family: {par[4:]}')
         args =  (pdata['wave_rest'], pdata['data_rest'], pdata['std_rest'],  
                  pdata[par]['family_lines'], pdata['redshift'], pdata['lsf'])
         minner = Minimizer(residuals, pdata[par]['params'], fcn_args=args) 
-        if verbose:
-            logger.debug('Lmfit fitting: %s',minpars)
+        logger.debug('Lmfit fitting: %s',minpars)
         result = minner.minimize(**minpars)
-        if verbose:
-            logger.debug('%s after %d iterations, reached minimum = %.3f and redChi2 = %.3f',result.message,
+        logger.debug('%s after %d iterations, reached minimum = %.3f and redChi2 = %.3f',result.message,
                          result.nfev,result.chisqr,result.redchi)
         # MCMC 
         if pdata[par]['emcee']:
@@ -934,8 +931,8 @@ def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
                 emceepars['steps'] = 15000 if 'lyalpha_LYALPHA_dbleasymgauss_l0' in pdata[par]['params'].keys() else 10000
             else:
                 emceepars['steps'] = steps
-            if verbose:
-                logger.debug('Emcee fitting: %s',emceepars)                       
+            verbose = emceepars.get('progress',True)
+            logger.debug('Emcee fitting: %s',emceepars)
             # run EMCEE
             minner = Minimizer(residuals, result.params, fcn_args=args) 
             if verbose:
@@ -970,8 +967,7 @@ def lmfit_fit(minpars, mcmcpars, pdata, verbose=True):
             resmcmc.max_acor = max(resmcmc.acor)
             resmcmc.chain_size_ratio = resmcmc.chain.shape[0]/(resmcmc.max_acor*50)
             resmcmc.status = 1 if resmcmc.chain_size_ratio > 1 else 0
-            if verbose:
-                logger.debug('status %d after %d fcn eval, chain size ratio = %.1f max autocorr time = %.1f mean acceptance fraction = %.2f, reached minimum = %.3f and redChi2 = %.3f',
+            logger.debug('status %d after %d fcn eval, chain size ratio = %.1f max autocorr time = %.1f mean acceptance fraction = %.2f, reached minimum = %.3f and redChi2 = %.3f',
                              resmcmc.status,resmcmc.nfev,resmcmc.chain_size_ratio,resmcmc.max_acor,resmcmc.mean_acceptance_fraction,resmcmc.chisqr,resmcmc.redchi)
             reslsq[f'{par[4:]}'] = resmcmc
         else:
@@ -1850,7 +1846,7 @@ def fit_abs(wave, data, std, redshift, *, unit_wave=None,
     result = init_res(pdata, mcmc_all, save_proba=mcmcpars.get('save_proba',False))
 
     # perform lsq fit
-    reslsq = lmfit_fit(minpars, mcmcpars, pdata, verbose=True)       
+    reslsq = lmfit_fit(minpars, mcmcpars, pdata)       
         
     resfit = save_fit_res(result, pdata, reslsq)
     
