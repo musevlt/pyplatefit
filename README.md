@@ -7,3 +7,5 @@
 - Improved error estimate using MCMC emcee python module
 
 The continuum fitting code has been developed by Madusha Gunawardhana and the original line fitting code was developed by Yannick Roehlly. Jarle Brinchmann provide critical help in the validation process and explanation of the original IDL code. The final code is developed and maintained by Roland Bacon.
+
+See on-line documentation at https://pyplatefit.readthedocs.io/en/latest/
