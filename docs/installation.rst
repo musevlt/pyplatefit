@@ -5,7 +5,7 @@ First, clone the repository and install the package:
 
 .. code-block:: bash
 
-   git clone git@git-cral.univ-lyon1.fr:MUSE/pyplatefit.git
+   git clone git@github.com:musevlt/pyplatefit.git
    cd pyplatefit
    pip install .
 
