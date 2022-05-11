@@ -9,7 +9,7 @@ ext = Extension('pyplatefit.nnls_burst',
                 [os.path.join('pyNNLS', f) for f in nnls_sources])
 
 install_requires = ['numpy', 'astropy', 'scipy', 'numdifftools',
-                    'lmfit', 'mpdaf', 'more-itertools', 
+                    'lmfit', 'mpdaf', 'more-itertools',
                     'emcee', 'pandas']
 
 setup(
@@ -17,8 +17,6 @@ setup(
     description='emission/absorption lines spectrum fitting',
     author='Roland Bacon',
     author_email='roland.bacon@univ-lyon1.fr',
-    use_scm_version=True,
-    setup_requires=['setuptools_scm'],
     packages=find_packages(),
     package_data={
         'pyplatefit': ['BC03/*', 'refdata/lines_table_platefit.fits']
