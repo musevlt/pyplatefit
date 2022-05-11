@@ -24,5 +24,9 @@ setup(
     zip_safe=False,
     include_package_data=True,
     install_requires=install_requires,
+    extras_require={
+        'docs': ['sphinx', 'sphinx_rtd_theme', 'sphinx_automodapi',
+                 'numpydoc', 'nbsphinx'],
+    },
     ext_modules=[ext],
 )
