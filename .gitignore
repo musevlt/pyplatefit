@@ -18,3 +18,4 @@ dist/
 docs/_build
 htmlcov/
 pip-wheel-metadata/
+pyplatefit/version.py
